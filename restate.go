@@ -6,8 +6,10 @@ import (
 	"net"
 	"net/http"
 
+	"github.com/muhamadazmy/restate-sdk-go/generated/discovery"
 	"github.com/rs/zerolog/log"
 	"golang.org/x/net/http2"
+	"google.golang.org/protobuf/proto"
 )
 
 type Restate struct{}
@@ -15,8 +17,24 @@ type Restate struct{}
 func (r *Restate) discover(writer http.ResponseWriter, _ *http.Request) {
 	log.Debug().Msg("discover called")
 	writer.Header().Add("Content-Type", "application/proto")
-	writer.WriteHeader(200)
 
+	response := discovery.ServiceDiscoveryResponse{
+		ProtocolMode: discovery.ProtocolMode_BIDI_STREAM,
+		Services:     []string{"test"},
+	}
+
+	bytes, err := proto.Marshal(&response)
+	if err != nil {
+		writer.Write([]byte(err.Error()))
+		writer.WriteHeader(http.StatusInternalServerError)
+
+		return
+	}
+
+	writer.WriteHeader(200)
+	if _, err := writer.Write(bytes); err != nil {
+		log.Error().Err(err).Msg("failed to write discovery information")
+	}
 }
 
 func (r *Restate) handler(writer http.ResponseWriter, request *http.Request) {
