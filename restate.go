@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"strings"
 
 	"github.com/muhamadazmy/restate-sdk-go/generated/discovery"
 	"github.com/rs/zerolog/log"
@@ -90,6 +91,27 @@ func (r *Restate) discoverHandler(writer http.ResponseWriter, _ *http.Request) {
 	}
 }
 
+// takes care of function call
+func (r *Restate) callHandler(service, fn string, writer http.ResponseWriter, request *http.Request) {
+	log.Debug().Str("service", service).Str("handler", fn).Msg("got a call to service function")
+
+	writer.Header().Add("content-type", "application/restate")
+
+	router, ok := r.routers[service]
+	if !ok {
+		writer.WriteHeader(http.StatusNotFound)
+		return
+	}
+	handler, ok := router.Handlers()[fn]
+	if !ok {
+		writer.WriteHeader(http.StatusNotFound)
+	}
+
+	writer.WriteHeader(200)
+
+	fmt.Printf("handler: %+v", handler)
+}
+
 func (r *Restate) handler(writer http.ResponseWriter, request *http.Request) {
 	log.Info().Str("proto", request.Proto).Str("method", request.Method).Str("path", request.RequestURI).Msg("got request")
 
@@ -102,8 +124,20 @@ func (r *Restate) handler(writer http.ResponseWriter, request *http.Request) {
 		r.discoverHandler(writer, request)
 		return
 	}
+	// we expecting the uri to be something like `/invoke/{service}/{method}`
+	// so
+	if !strings.HasPrefix(request.RequestURI, "/invoke/") {
+		writer.WriteHeader(http.StatusNotFound)
+		return
+	}
 
-	// handle method!
+	parts := strings.Split(strings.TrimPrefix(request.RequestURI, "/invoke/"), "/")
+	if len(parts) != 2 {
+		writer.WriteHeader(http.StatusNotFound)
+		return
+	}
+
+	r.callHandler(parts[0], parts[1], writer, request)
 }
 
 func (r *Restate) Start(ctx context.Context, address string) error {

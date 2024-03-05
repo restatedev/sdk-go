@@ -3,6 +3,8 @@ package restate
 import (
 	"fmt"
 	"testing"
+
+	"github.com/stretchr/testify/require"
 )
 
 func TestDynRpc(t *testing.T) {
@@ -22,20 +24,3 @@ func TestDynRpc(t *testing.T) {
 	}
 }
 
-// func TestDeepCopy(t *testing.T) {
-// 	type T struct {
-// 		name  string
-// 		array []int
-// 	}
-
-// 	x := T{
-// 		name:  "test",
-// 		array: []int{0, 1},
-// 	}
-
-// 	y := DeepCopy(&x)
-
-// 	require.Equal(t, x.name, y.name)
-// 	require.Equal(t, x.array, y.array)
-
-// }

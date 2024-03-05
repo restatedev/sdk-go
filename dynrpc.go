@@ -35,7 +35,7 @@ func (s *DynRpcService) AddHandler(name string) {
 	s.Method = append(s.Method, &descriptorpb.MethodDescriptorProto{
 		Name:       &name,
 		InputType:  &requestTypeName,
-		OutputType: &requestTypeName,
+		OutputType: &responseTypeName,
 		// TODO: check options and others
 	})
 }
