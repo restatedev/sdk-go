@@ -8,23 +8,19 @@
  * directory of this repository or package, or at
  * https://github.com/restatedev/sdk-typescript/blob/main/LICENSE
  */
- 
+
 syntax = "proto3";
 
 package dev.restate.service.discovery;
 
 import "google/protobuf/descriptor.proto";
 
-option java_package = "dev.restate.generated.service.discovery";
-option go_package = "restate.dev/sdk-go/pb/service/discovery";
-
-
 // --- Service discovery endpoint ---
-// Request: POST /discover with application/proto containing ServiceDiscoveryRequest
-// Response: application/proto containing ServiceDiscoveryResponse
+// Request: POST /discover with application/proto containing
+// ServiceDiscoveryRequest Response: application/proto containing
+// ServiceDiscoveryResponse
 
-message ServiceDiscoveryRequest {
-}
+message ServiceDiscoveryRequest {}
 
 enum ProtocolMode {
   // protolint:disable:next ENUM_FIELD_NAMES_ZERO_VALUE_END_WITH
@@ -33,10 +29,12 @@ enum ProtocolMode {
 }
 
 message ServiceDiscoveryResponse {
-  // List of all proto files used to define the services, including the dependencies.
+  // List of all proto files used to define the services, including the
+  // dependencies.
   google.protobuf.FileDescriptorSet files = 1;
 
-  // List of services to register. This might be a subset of services defined in files.
+  // List of services to register. This might be a subset of services defined in
+  // files.
   repeated string services = 2;
 
   // Service-protocol version negotiation

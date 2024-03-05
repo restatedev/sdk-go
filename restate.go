@@ -18,8 +18,14 @@ func (r *Restate) discover(writer http.ResponseWriter, _ *http.Request) {
 	log.Debug().Msg("discover called")
 	writer.Header().Add("Content-Type", "application/proto")
 
+	// TODO: https://github.com/golang/protobuf/issues/1065
+
+	ds := NewDynRpcDescriptorSet()
+	ds.AddUnKeyedService("test")
+
 	response := discovery.ServiceDiscoveryResponse{
 		ProtocolMode: discovery.ProtocolMode_BIDI_STREAM,
+		Files:        ds.Inner(),
 		Services:     []string{"test"},
 	}
 
