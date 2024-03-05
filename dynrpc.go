@@ -8,6 +8,11 @@ import (
 	"google.golang.org/protobuf/types/descriptorpb"
 )
 
+var (
+	requestTypeName  = "RpcRequest"
+	responseTypeName = "RpcResponse"
+)
+
 //go:embed generated/dynrpc.binbp
 var dynRpcBytes []byte
 
@@ -20,6 +25,19 @@ func NewDynRpcDescriptorSet() *DynRpcDescriptorSet {
 	}
 
 	return &DynRpcDescriptorSet{&ds}
+}
+
+type DynRpcService struct {
+	*descriptorpb.ServiceDescriptorProto
+}
+
+func (s *DynRpcService) AddHandler(name string) {
+	s.Method = append(s.Method, &descriptorpb.MethodDescriptorProto{
+		Name:       &name,
+		InputType:  &requestTypeName,
+		OutputType: &requestTypeName,
+		// TODO: check options and others
+	})
 }
 
 // DynRpcDescriptorSet wrapper around FileDescriptorSet for easy manipulation
@@ -43,23 +61,33 @@ func (d *DynRpcDescriptorSet) getDynRpcFile() (*descriptorpb.FileDescriptorProto
 	return nil, fmt.Errorf("file descriptor for dynrpc not found")
 }
 
-func (d *DynRpcDescriptorSet) AddUnKeyedService(name string) error {
+func (d *DynRpcDescriptorSet) AddKeyedService(name string) (*DynRpcService, error) {
+	return d.addService(name, 0)
+}
+
+func (d *DynRpcDescriptorSet) AddUnKeyedService(name string) (*DynRpcService, error) {
+	return d.addService(name, 1)
+}
+
+func (d *DynRpcDescriptorSet) addService(name string, from int) (*DynRpcService, error) {
 	file, err := d.getDynRpcFile()
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	// unkeyed service is always number one
-	service, err := deepCopy(file.Service[1])
+	service, err := deepCopy(file.Service[from])
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	service.Name = &name
+	// clean up services
 	service.Method = []*descriptorpb.MethodDescriptorProto{}
+
 	file.Service = append(file.Service, service)
 
-	return nil
+	return &DynRpcService{service}, nil
 }
 
 func deepCopy(src *descriptorpb.ServiceDescriptorProto) (*descriptorpb.ServiceDescriptorProto, error) {
@@ -74,5 +102,4 @@ func deepCopy(src *descriptorpb.ServiceDescriptorProto) (*descriptorpb.ServiceDe
 	}
 
 	return &copy, nil
-
 }

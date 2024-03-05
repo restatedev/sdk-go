@@ -19,7 +19,6 @@
 package services
 
 import (
-	_ "github.com/muhamadazmy/restate-sdk-go/generated/dev/restate"
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	emptypb "google.golang.org/protobuf/types/known/emptypb"
