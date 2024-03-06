@@ -3,8 +3,6 @@ package restate
 import (
 	"fmt"
 	"testing"
-
-	"github.com/stretchr/testify/require"
 )
 
 func TestDynRpc(t *testing.T) {
@@ -23,4 +21,3 @@ func TestDynRpc(t *testing.T) {
 		}
 	}
 }
-
