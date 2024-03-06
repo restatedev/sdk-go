@@ -1,4 +1,4 @@
-package restate
+package internal
 
 import (
 	_ "embed"
@@ -13,7 +13,7 @@ var (
 	responseTypeName = "RpcResponse"
 )
 
-//go:embed generated/dynrpc.binbp
+//go:embed dynrpc.binbp
 var dynRpcBytes []byte
 
 // New makes sure we have a new instance every time it's called

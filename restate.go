@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/muhamadazmy/restate-sdk-go/generated/discovery"
+	"github.com/muhamadazmy/restate-sdk-go/internal"
 	"github.com/rs/zerolog/log"
 	"golang.org/x/net/http2"
 	"google.golang.org/protobuf/proto"
@@ -36,7 +37,7 @@ func (r *Restate) Bind(name string, router Router) *Restate {
 }
 
 func (r *Restate) discover() (resource *discovery.ServiceDiscoveryResponse, err error) {
-	ds := NewDynRpcDescriptorSet()
+	ds := internal.NewDynRpcDescriptorSet()
 	resource = &discovery.ServiceDiscoveryResponse{
 		ProtocolMode: discovery.ProtocolMode_BIDI_STREAM,
 		Files:        ds.Inner(),
@@ -44,7 +45,7 @@ func (r *Restate) discover() (resource *discovery.ServiceDiscoveryResponse, err 
 
 	for name, router := range r.routers {
 		resource.Services = append(resource.Services, name)
-		var service *DynRpcService
+		var service *internal.DynRpcService
 		if router.Keyed() {
 			service, err = ds.AddKeyedService(name)
 		} else {

@@ -1,4 +1,4 @@
-package restate
+package internal
 
 import (
 	"fmt"
