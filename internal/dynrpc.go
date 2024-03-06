@@ -16,7 +16,7 @@ var (
 //go:embed dynrpc.binbp
 var dynRpcBytes []byte
 
-// New makes sure we have a new instance every time it's called
+// NewDynRpcDescriptorSet creates a new DynRpcDescriptorSet
 func NewDynRpcDescriptorSet() *DynRpcDescriptorSet {
 	var ds descriptorpb.FileDescriptorSet
 	err := proto.Unmarshal(dynRpcBytes, &ds)
@@ -27,6 +27,7 @@ func NewDynRpcDescriptorSet() *DynRpcDescriptorSet {
 	return &DynRpcDescriptorSet{&ds}
 }
 
+// DynRpcService wrapper around ServiceDescriptorProto for easier manipulation
 type DynRpcService struct {
 	*descriptorpb.ServiceDescriptorProto
 }
@@ -40,11 +41,12 @@ func (s *DynRpcService) AddHandler(name string) {
 	})
 }
 
-// DynRpcDescriptorSet wrapper around FileDescriptorSet for easy manipulation
+// DynRpcDescriptorSet wrapper around FileDescriptorSet for easier manipulation
 type DynRpcDescriptorSet struct {
 	*descriptorpb.FileDescriptorSet
 }
 
+// Inner returns the inner *descriptorpb.FileDescriptorSet
 func (d *DynRpcDescriptorSet) Inner() *descriptorpb.FileDescriptorSet {
 	return d.FileDescriptorSet
 }
@@ -61,10 +63,12 @@ func (d *DynRpcDescriptorSet) getDynRpcFile() (*descriptorpb.FileDescriptorProto
 	return nil, fmt.Errorf("file descriptor for dynrpc not found")
 }
 
+// AddKeyedService creates a new Keyed service from the KeyedRpcService template
 func (d *DynRpcDescriptorSet) AddKeyedService(name string) (*DynRpcService, error) {
 	return d.addService(name, 0)
 }
 
+// AddUnKeyedService creates a new Un-Keyed service from the RpcService template
 func (d *DynRpcDescriptorSet) AddUnKeyedService(name string) (*DynRpcService, error) {
 	return d.addService(name, 1)
 }

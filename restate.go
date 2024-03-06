@@ -9,6 +9,8 @@ import (
 
 	"github.com/muhamadazmy/restate-sdk-go/generated/discovery"
 	"github.com/muhamadazmy/restate-sdk-go/internal"
+	"github.com/muhamadazmy/restate-sdk-go/internal/wire"
+	"github.com/posener/h2conn"
 	"github.com/rs/zerolog/log"
 	"golang.org/x/net/http2"
 	"google.golang.org/protobuf/proto"
@@ -103,14 +105,37 @@ func (r *Restate) callHandler(service, fn string, writer http.ResponseWriter, re
 		writer.WriteHeader(http.StatusNotFound)
 		return
 	}
-	handler, ok := router.Handlers()[fn]
+	_, ok = router.Handlers()[fn]
 	if !ok {
 		writer.WriteHeader(http.StatusNotFound)
 	}
 
 	writer.WriteHeader(200)
 
-	fmt.Printf("handler: %+v", handler)
+	conn, err := h2conn.Accept(writer, request)
+
+	if err != nil {
+		log.Error().Err(err).Msg("failed to upgrade connection")
+		return
+	}
+
+	stream := wire.NewStream(conn)
+
+	for {
+		msg, err := stream.Next()
+		if err != nil {
+			log.Error().Err(err).Msg("failed to get next message")
+			return
+		}
+
+		log.Info().Uint16("type", uint16(msg.Type())).Msg("got message")
+
+		switch msg := msg.(type) {
+		case *wire.StartMessage:
+			fmt.Println("invocation id", string(msg.Payload.Id))
+			fmt.Printf("payload: %+v", msg)
+		}
+	}
 }
 
 func (r *Restate) handler(writer http.ResponseWriter, request *http.Request) {
