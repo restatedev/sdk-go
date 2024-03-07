@@ -124,7 +124,9 @@ func (r *Restate) callHandler(service, fn string, writer http.ResponseWriter, re
 
 	machine := state.NewMachine(handler, conn)
 
-	machine.Start(request.Context())
+	if err := machine.Start(request.Context()); err != nil {
+		log.Error().Err(err).Msg("failed to handle invocation")
+	}
 }
 
 func (r *Restate) handler(writer http.ResponseWriter, request *http.Request) {

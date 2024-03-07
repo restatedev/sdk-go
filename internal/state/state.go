@@ -68,11 +68,20 @@ func (m *Machine) invoke(ctx *Context, input *dynrpc.RpcRequest) {
 	defer func() {
 		if err := recover(); err != nil {
 			// failed to execute operation for any reason
+			log.Error().Msgf("panic: %+v", err)
+			// message := contextMessage{
+			// 	payload: &protocol.ErrorMessage{
+			// 		Code:        http.StatusInternalServerError,
+			// 		Message:     fmt.Sprint(err),
+			// 		Description: "unhandled panic",
+			// 	},
+			// }
+
 			message := contextMessage{
 				payload: &protocol.OutputStreamEntryMessage{
 					Result: &protocol.OutputStreamEntryMessage_Failure{
 						Failure: &protocol.Failure{
-							Code:    10,
+							Code:    2,
 							Message: fmt.Sprint(err),
 						},
 					},
@@ -134,6 +143,7 @@ func (m *Machine) process(inner context.Context, reader *wire.Reader) error {
 	for {
 		select {
 		case <-inner.Done():
+			log.Debug().Msg("machine context is cancelled")
 			return inner.Err()
 		case read := <-reader.Next():
 			if read.Err != nil {

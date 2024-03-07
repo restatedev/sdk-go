@@ -9,7 +9,7 @@ import (
 	"io"
 	"math"
 
-	"github.com/muhamadazmy/restate-sdk-go/generated/protocol"
+	"github.com/muhamadazmy/restate-sdk-go/generated/proto/protocol"
 	"google.golang.org/protobuf/proto"
 )
 
@@ -21,8 +21,10 @@ const (
 	VersionMask = 0x03FF
 )
 const (
-	StartMessageType          Type = 0x0000
-	PollInputEntryMessageType Type = 0x0400
+	StartMessageType             Type = 0x0000
+	ErrorMessageType             Type = 0x0000 + 3
+	PollInputEntryMessageType    Type = 0x0400
+	OutputStreamEntryMessageType Type = 0x0400 + 1
 )
 
 type Type uint16
@@ -165,6 +167,10 @@ func (s *Protocol) Write(message proto.Message, flags ...Flag) error {
 		typ = StartMessageType
 	case *protocol.PollInputStreamEntryMessage:
 		typ = PollInputEntryMessageType
+	case *protocol.OutputStreamEntryMessage:
+		typ = OutputStreamEntryMessageType
+	case *protocol.ErrorMessage:
+		typ = ErrorMessageType
 	default:
 		return fmt.Errorf("unknown message type")
 	}
