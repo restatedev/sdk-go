@@ -1,11 +1,10 @@
-package restate
+package router
 
 import (
 	"context"
 	"reflect"
 
-	"github.com/muhamadazmy/restate-sdk-go/generated/dynrpc"
-	"github.com/rs/zerolog/log"
+	"github.com/muhamadazmy/restate-sdk-go/generated/proto/dynrpc"
 )
 
 type Context interface {
@@ -20,7 +19,7 @@ type KeyedHandlerFn[I any, O any] func(ctx Context, key string, input I) (output
 
 // Handler interface.
 type Handler interface {
-	Call(ctx Context, request dynrpc.RpcRequest) (output dynrpc.RpcResponse)
+	Call(ctx Context, request *dynrpc.RpcRequest) (output *dynrpc.RpcResponse)
 	sealed()
 }
 
@@ -39,12 +38,12 @@ func NewUnKeyedHandler[I any, O any](fn UnKeyedHandlerFn[I, O]) *UnKeyedHandler 
 	}
 }
 
-func (h *UnKeyedHandler) Call(ctx Context, request dynrpc.RpcRequest) dynrpc.RpcResponse {
+func (h *UnKeyedHandler) Call(ctx Context, request *dynrpc.RpcRequest) *dynrpc.RpcResponse {
 	// this is unkeyed, so there is no need for the `key` attribute.
 	// we are also sure of the input and output types.
 	// input := reflect.New(h.input)
-	log.Debug().Msg("call to [UNKIED] function")
-	return dynrpc.RpcResponse{}
+	panic("unimplemented: call to [UN-KEYED] function")
+	return &dynrpc.RpcResponse{}
 }
 
 func (h *UnKeyedHandler) sealed() {}
@@ -63,12 +62,12 @@ func NewKeyedHandler[I any, O any](fn KeyedHandlerFn[I, O]) *KeyedHandler {
 	}
 }
 
-func (h *KeyedHandler) Call(ctx Context, request dynrpc.RpcRequest) dynrpc.RpcResponse {
+func (h *KeyedHandler) Call(ctx Context, request *dynrpc.RpcRequest) *dynrpc.RpcResponse {
 	// this is unkeyed, so there is no need for the `key` attribute.
 	// we are also sure of the input and output types.
 	// input := reflect.New(h.input)
-	log.Debug().Msg("call to [KEYED] function")
-	return dynrpc.RpcResponse{}
+	panic("unimplemented: call to [KEYED] function")
+	return &dynrpc.RpcResponse{}
 }
 
 func (h *KeyedHandler) sealed() {}

@@ -7,9 +7,10 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/muhamadazmy/restate-sdk-go/generated/discovery"
+	"github.com/muhamadazmy/restate-sdk-go/generated/proto/discovery"
 	"github.com/muhamadazmy/restate-sdk-go/internal"
-	"github.com/muhamadazmy/restate-sdk-go/internal/wire"
+	"github.com/muhamadazmy/restate-sdk-go/internal/state"
+	"github.com/muhamadazmy/restate-sdk-go/router"
 	"github.com/posener/h2conn"
 	"github.com/rs/zerolog/log"
 	"golang.org/x/net/http2"
@@ -17,16 +18,16 @@ import (
 )
 
 type Restate struct {
-	routers map[string]Router
+	routers map[string]router.Router
 }
 
 func NewRestate() *Restate {
 	return &Restate{
-		routers: make(map[string]Router),
+		routers: make(map[string]router.Router),
 	}
 }
 
-func (r *Restate) Bind(name string, router Router) *Restate {
+func (r *Restate) Bind(name string, router router.Router) *Restate {
 	if _, ok := r.routers[name]; ok {
 		// panic because this is a programming error
 		// to register multiple router with the same name
@@ -105,7 +106,7 @@ func (r *Restate) callHandler(service, fn string, writer http.ResponseWriter, re
 		writer.WriteHeader(http.StatusNotFound)
 		return
 	}
-	_, ok = router.Handlers()[fn]
+	handler, ok := router.Handlers()[fn]
 	if !ok {
 		writer.WriteHeader(http.StatusNotFound)
 	}
@@ -119,23 +120,11 @@ func (r *Restate) callHandler(service, fn string, writer http.ResponseWriter, re
 		return
 	}
 
-	stream := wire.NewStream(conn)
+	defer conn.Close()
 
-	for {
-		msg, err := stream.Next()
-		if err != nil {
-			log.Error().Err(err).Msg("failed to get next message")
-			return
-		}
+	machine := state.NewMachine(handler, conn)
 
-		log.Info().Uint16("type", uint16(msg.Type())).Msg("got message")
-
-		switch msg := msg.(type) {
-		case *wire.StartMessage:
-			fmt.Println("invocation id", string(msg.Payload.Id))
-			fmt.Printf("payload: %+v", msg)
-		}
-	}
+	machine.Start(request.Context())
 }
 
 func (r *Restate) handler(writer http.ResponseWriter, request *http.Request) {

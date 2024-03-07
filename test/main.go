@@ -5,14 +5,15 @@ import (
 	"fmt"
 
 	"github.com/muhamadazmy/restate-sdk-go"
+	"github.com/muhamadazmy/restate-sdk-go/router"
 	"github.com/rs/zerolog"
 )
 
-func Echo(ctx restate.Context, name string) (string, error) {
+func Echo(ctx router.Context, name string) (string, error) {
 	return name, nil
 }
 
-func SayHi(ctx restate.Context, key string, name string) (string, error) {
+func SayHi(ctx router.Context, key string, name string) (string, error) {
 	return fmt.Sprintf("Hi: %s", name), nil
 }
 
@@ -22,11 +23,11 @@ func main() {
 
 	r := restate.NewRestate()
 
-	unKeyed := restate.NewUnKeyedRouter().
-		Handler("Echo", restate.NewUnKeyedHandler(Echo))
+	unKeyed := router.NewUnKeyedRouter().
+		Handler("Echo", router.NewUnKeyedHandler(Echo))
 
-	keyed := restate.NewKeyedRouter().
-		Handler("SayHi", restate.NewKeyedHandler(SayHi))
+	keyed := router.NewKeyedRouter().
+		Handler("SayHi", router.NewKeyedHandler(SayHi))
 	r.
 		Bind("Test", unKeyed).
 		Bind("TestKeyed", keyed)
