@@ -23,6 +23,7 @@ const (
 const (
 	StartMessageType             Type = 0x0000
 	ErrorMessageType             Type = 0x0000 + 3
+	EndMessageType               Type = 0x0000 + 5
 	PollInputEntryMessageType    Type = 0x0400
 	OutputStreamEntryMessageType Type = 0x0400 + 1
 )
@@ -56,8 +57,13 @@ func (t *Header) Type() Type {
 	return t.TypeCode
 }
 
+func (t *Header) Flags() Flag {
+	return t.Flag
+}
+
 type Message interface {
 	Type() Type
+	Flags() Flag
 }
 
 type ReaderMessage struct {
@@ -120,6 +126,8 @@ func (s *Protocol) read() (Message, error) {
 		message, err = readStartMessage(buf, header)
 	case PollInputEntryMessageType:
 		message, err = readPollInputEntryMessage(buf, header)
+	case OutputStreamEntryMessageType:
+		message, err = readOutputStreamEntryMessage(buf, header)
 	default:
 		return nil, fmt.Errorf("unknown message type '%d'", header.TypeCode)
 	}
@@ -171,8 +179,10 @@ func (s *Protocol) Write(message proto.Message, flags ...Flag) error {
 		typ = OutputStreamEntryMessageType
 	case *protocol.ErrorMessage:
 		typ = ErrorMessageType
+	case *protocol.EndMessage:
+		typ = EndMessageType
 	default:
-		return fmt.Errorf("unknown message type")
+		return fmt.Errorf("can not send message of unknown message type")
 	}
 
 	bytes, err := proto.Marshal(message)
@@ -224,6 +234,19 @@ type PollInputEntry struct {
 
 func readPollInputEntryMessage(bytes []byte, header Header) (*PollInputEntry, error) {
 	msg := &PollInputEntry{
+		Header: header,
+	}
+
+	return msg, proto.Unmarshal(bytes, &msg.Payload)
+}
+
+type OutputStreamEntry struct {
+	Header
+	Payload protocol.OutputStreamEntryMessage
+}
+
+func readOutputStreamEntryMessage(bytes []byte, header Header) (*OutputStreamEntry, error) {
+	msg := &OutputStreamEntry{
 		Header: header,
 	}
 

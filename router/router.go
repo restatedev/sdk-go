@@ -2,7 +2,6 @@ package router
 
 import (
 	"context"
-	"reflect"
 
 	"github.com/muhamadazmy/restate-sdk-go/generated/proto/dynrpc"
 )
@@ -19,58 +18,9 @@ type KeyedHandlerFn[I any, O any] func(ctx Context, key string, input I) (output
 
 // Handler interface.
 type Handler interface {
-	Call(ctx Context, request *dynrpc.RpcRequest) (output *dynrpc.RpcResponse)
+	Call(ctx Context, request *dynrpc.RpcRequest) (output *dynrpc.RpcResponse, err error)
 	sealed()
 }
-
-type UnKeyedHandler struct {
-	fn     reflect.Value
-	input  reflect.Type
-	output reflect.Type
-}
-
-// NewUnKeyedHandler create a new handler for an `un-keyed` function
-func NewUnKeyedHandler[I any, O any](fn UnKeyedHandlerFn[I, O]) *UnKeyedHandler {
-	return &UnKeyedHandler{
-		fn:     reflect.ValueOf(fn),
-		input:  reflect.TypeFor[I](),
-		output: reflect.TypeFor[O](),
-	}
-}
-
-func (h *UnKeyedHandler) Call(ctx Context, request *dynrpc.RpcRequest) *dynrpc.RpcResponse {
-	// this is unkeyed, so there is no need for the `key` attribute.
-	// we are also sure of the input and output types.
-	// input := reflect.New(h.input)
-	panic("unimplemented: call to [UN-KEYED] function")
-	return &dynrpc.RpcResponse{}
-}
-
-func (h *UnKeyedHandler) sealed() {}
-
-type KeyedHandler struct {
-	fn     reflect.Value
-	input  reflect.Type
-	output reflect.Type
-}
-
-func NewKeyedHandler[I any, O any](fn KeyedHandlerFn[I, O]) *KeyedHandler {
-	return &KeyedHandler{
-		fn:     reflect.ValueOf(fn),
-		input:  reflect.TypeFor[I](),
-		output: reflect.TypeFor[O](),
-	}
-}
-
-func (h *KeyedHandler) Call(ctx Context, request *dynrpc.RpcRequest) *dynrpc.RpcResponse {
-	// this is unkeyed, so there is no need for the `key` attribute.
-	// we are also sure of the input and output types.
-	// input := reflect.New(h.input)
-	panic("unimplemented: call to [KEYED] function")
-	return &dynrpc.RpcResponse{}
-}
-
-func (h *KeyedHandler) sealed() {}
 
 type Router interface {
 	Keyed() bool

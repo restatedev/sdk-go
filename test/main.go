@@ -10,7 +10,7 @@ import (
 )
 
 func Echo(ctx router.Context, name string) (string, error) {
-	return name, nil
+	return fmt.Sprintf("echo: %s", name), nil
 }
 
 func SayHi(ctx router.Context, key string, name string) (string, error) {

@@ -35,17 +35,25 @@ type contextMessage struct {
 type Context struct {
 	ctx context.Context
 
-	messages chan contextMessage
+	messages chan *contextMessage
 }
 
 func (c *Context) Ctx() context.Context {
 	return c.ctx
 }
 
+func (c *Context) Send(msg *contextMessage) error {
+	select {
+	case c.messages <- msg:
+		return nil
+	case <-c.ctx.Done():
+		return c.ctx.Err()
+	}
+}
 func newContext(inner context.Context) *Context {
 	return &Context{
 		ctx:      inner,
-		messages: make(chan contextMessage),
+		messages: make(chan *contextMessage),
 	}
 }
 
@@ -64,19 +72,51 @@ func NewMachine(handler router.Handler, conn io.ReadWriter) *Machine {
 	}
 }
 
+func (m *Machine) output(r *dynrpc.RpcResponse, err error) *protocol.OutputStreamEntryMessage {
+	var output protocol.OutputStreamEntryMessage
+	if err != nil {
+		output.Result = &protocol.OutputStreamEntryMessage_Failure{
+			Failure: &protocol.Failure{
+				Code:    2,
+				Message: err.Error(),
+			},
+		}
+
+		return &output
+	}
+
+	bytes, err := proto.Marshal(r)
+	if err != nil {
+		// this shouldn't happen but in case
+		output.Result = &protocol.OutputStreamEntryMessage_Failure{
+			Failure: &protocol.Failure{
+				Code:    13, // internal error
+				Message: err.Error(),
+			},
+		}
+
+		return &output
+	}
+
+	output.Result = &protocol.OutputStreamEntryMessage_Value{
+		Value: bytes,
+	}
+
+	return &output
+}
+
 func (m *Machine) invoke(ctx *Context, input *dynrpc.RpcRequest) {
+	// always terminate the invocation with
+	// an end message.
+	// this will always terminate the connection
+	defer ctx.Send(&contextMessage{
+		payload: &protocol.EndMessage{},
+	})
+
 	defer func() {
 		if err := recover(); err != nil {
-			// failed to execute operation for any reason
-			log.Error().Msgf("panic: %+v", err)
-			// message := contextMessage{
-			// 	payload: &protocol.ErrorMessage{
-			// 		Code:        http.StatusInternalServerError,
-			// 		Message:     fmt.Sprint(err),
-			// 		Description: "unhandled panic",
-			// 	},
-			// }
-
+			// handle service panic
+			// safely
 			message := contextMessage{
 				payload: &protocol.OutputStreamEntryMessage{
 					Result: &protocol.OutputStreamEntryMessage_Failure{
@@ -88,37 +128,23 @@ func (m *Machine) invoke(ctx *Context, input *dynrpc.RpcRequest) {
 				},
 			}
 
-			select {
-			case ctx.messages <- message:
-			case <-ctx.ctx.Done():
-				return
-			}
+			ctx.Send(&message)
+
 		}
 	}()
 
-	result := m.handler.Call(ctx, input)
-
-	// this should never fail, no?
-	bytes, _ := proto.Marshal(result)
-
-	var output protocol.OutputStreamEntryMessage
-	output.Result = &protocol.OutputStreamEntryMessage_Value{
-		Value: bytes,
-	}
+	output := m.output(m.handler.Call(ctx, input))
 
 	message := contextMessage{
-		payload: &output,
+		payload: output,
 		flags:   wire.FlagCompleted,
 	}
 
-	select {
-	case ctx.messages <- message:
-	case <-ctx.ctx.Done():
-		return
-	}
+	ctx.Send(&message)
 }
 
-func (m *Machine) processMessage(ctx *Context, msg wire.Message, reader *wire.Reader) error {
+func (m *Machine) processMessage(ctx *Context, msg wire.Message, _ *wire.Reader) error {
+	log.Debug().Bool("ack", msg.Flags().Ack()).Bool("completed", msg.Flags().Completed()).Uint16("type", uint16(msg.Type())).Msg("received message")
 
 	switch msg := msg.(type) {
 	case *wire.PollInputEntry:
@@ -127,6 +153,7 @@ func (m *Machine) processMessage(ctx *Context, msg wire.Message, reader *wire.Re
 		if err := proto.Unmarshal(value, &input); err != nil {
 			return fmt.Errorf("invalid invocation input: %w", err)
 		}
+
 		// we run the invocation in the background. Any messages
 		// created by the invocation is forwarded to the runtime
 		go m.invoke(ctx, &input)
@@ -157,8 +184,15 @@ func (m *Machine) process(inner context.Context, reader *wire.Reader) error {
 			if err := m.protocol.Write(read.payload, read.flags); err != nil {
 				return err
 			}
-		}
 
+			// TODO: better approach?
+			switch read.payload.(type) {
+			case *protocol.EndMessage:
+				return nil
+			case *protocol.ErrorMessage:
+				return nil
+			}
+		}
 	}
 }
 
