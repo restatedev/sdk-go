@@ -80,11 +80,43 @@ func NewKeyedHandler[I any, O any](fn KeyedHandlerFn[I, O]) *KeyedHandler {
 }
 
 func (h *KeyedHandler) Call(ctx Context, request *dynrpc.RpcRequest) (*dynrpc.RpcResponse, error) {
-	// this is unkeyed, so there is no need for the `key` attribute.
-	// we are also sure of the input and output types.
-	// input := reflect.New(h.input)
-	panic("unimplemented: call to [KEYED] function")
-	return &dynrpc.RpcResponse{}, nil
+	bytes, err := request.Request.MarshalJSON()
+	if err != nil {
+		return nil, fmt.Errorf("request is not valid json: %w", err)
+	}
+
+	input := reflect.New(h.input)
+
+	if err := json.Unmarshal(bytes, input.Interface()); err != nil {
+		return nil, fmt.Errorf("request doesn't match handler signature: %w", err)
+	}
+
+	// we are sure about the fn signature so it's safe to do this
+	output := h.fn.Call([]reflect.Value{
+		reflect.ValueOf(ctx),
+		reflect.ValueOf(request.Key),
+		input.Elem(),
+	})
+
+	outI := output[0].Interface()
+	errI := output[1].Interface()
+	if errI != nil {
+		return nil, errI.(error)
+	}
+
+	bytes, err = json.Marshal(outI)
+	if err != nil {
+		return nil, fmt.Errorf("failed to serialize output: %w", err)
+	}
+
+	var response dynrpc.RpcResponse
+	response.Response = &structpb.Value{}
+
+	if err := response.Response.UnmarshalJSON(bytes); err != nil {
+		return nil, err
+	}
+
+	return &response, nil
 }
 
 func (h *KeyedHandler) sealed() {}

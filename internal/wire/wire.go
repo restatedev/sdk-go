@@ -26,6 +26,9 @@ const (
 	EndMessageType               Type = 0x0000 + 5
 	PollInputEntryMessageType    Type = 0x0400
 	OutputStreamEntryMessageType Type = 0x0400 + 1
+
+	GetStateEntryMessageType Type = 0x0800
+	SetStateEntryMessageType Type = 0x0800 + 1
 )
 
 type Type uint16
@@ -120,6 +123,7 @@ func (s *Protocol) read() (Message, error) {
 		return nil, fmt.Errorf("failed to read message body: %w", err)
 	}
 
+	// all possible types returned by the runtime
 	var message Message
 	switch header.TypeCode {
 	case StartMessageType:
@@ -128,6 +132,8 @@ func (s *Protocol) read() (Message, error) {
 		message, err = readPollInputEntryMessage(buf, header)
 	case OutputStreamEntryMessageType:
 		message, err = readOutputStreamEntryMessage(buf, header)
+	case GetStateEntryMessageType:
+		message, err = readGetStateEntryMessage(buf, header)
 	default:
 		return nil, fmt.Errorf("unknown message type '%d'", header.TypeCode)
 	}
@@ -168,6 +174,7 @@ func (s *Protocol) Write(message proto.Message, flags ...Flag) error {
 		flag = flags[0]
 	}
 
+	// all possible types sent by the sdk
 	var typ Type
 	switch message.(type) {
 	case *protocol.StartMessage:
@@ -181,6 +188,10 @@ func (s *Protocol) Write(message proto.Message, flags ...Flag) error {
 		typ = ErrorMessageType
 	case *protocol.EndMessage:
 		typ = EndMessageType
+	case *protocol.GetStateEntryMessage:
+		typ = GetStateEntryMessageType
+	case *protocol.SetStateEntryMessage:
+		typ = SetStateEntryMessageType
 	default:
 		return fmt.Errorf("can not send message of unknown message type")
 	}
@@ -247,6 +258,19 @@ type OutputStreamEntry struct {
 
 func readOutputStreamEntryMessage(bytes []byte, header Header) (*OutputStreamEntry, error) {
 	msg := &OutputStreamEntry{
+		Header: header,
+	}
+
+	return msg, proto.Unmarshal(bytes, &msg.Payload)
+}
+
+type GetStateEntryMessage struct {
+	Header
+	Payload protocol.GetStateEntryMessage
+}
+
+func readGetStateEntryMessage(bytes []byte, header Header) (*GetStateEntryMessage, error) {
+	msg := &GetStateEntryMessage{
 		Header: header,
 	}
 

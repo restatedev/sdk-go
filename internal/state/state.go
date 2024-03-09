@@ -27,22 +27,27 @@ var (
 	_ router.Context = (*Context)(nil)
 )
 
-type contextMessage struct {
+type contextRequest struct {
 	payload proto.Message
 	flags   wire.Flag
+
+	// wait for response
 }
 
 type Context struct {
 	ctx context.Context
 
-	messages chan *contextMessage
+	partial bool
+	current map[string][]byte
+
+	messages chan *contextRequest
 }
 
 func (c *Context) Ctx() context.Context {
 	return c.ctx
 }
 
-func (c *Context) Send(msg *contextMessage) error {
+func (c *Context) send(msg *contextRequest) error {
 	select {
 	case c.messages <- msg:
 		return nil
@@ -50,10 +55,91 @@ func (c *Context) Send(msg *contextMessage) error {
 		return c.ctx.Err()
 	}
 }
-func newContext(inner context.Context) *Context {
+
+func (c *Context) recv(msg wire.Message) error {
+	// received a response for
+	log.Debug().Uint16("type", uint16(msg.Type())).Msg("context received a response from runtime")
+	return nil
+}
+
+func (c *Context) Set(key string, value []byte) error {
+	c.current[key] = value
+
+	return c.send(&contextRequest{
+		payload: &protocol.SetStateEntryMessage{
+			Key:   []byte(key),
+			Value: value,
+		},
+	})
+}
+
+func (c *Context) Get(key string) ([]byte, error) {
+	msg := &protocol.GetStateEntryMessage{
+		Key: []byte(key),
+	}
+
+	value, ok := c.current[key]
+	if ok {
+		// value in map, we still send the current
+		// value to the runtime
+		msg.Result = &protocol.GetStateEntryMessage_Value{
+			Value: value,
+		}
+
+		if err := c.send(&contextRequest{
+			payload: msg,
+		}); err != nil {
+			return nil, err
+		}
+
+		return value, nil
+	}
+
+	// key is not in map! there are 2 cases.
+	if !c.partial {
+		// current is complete. we need to return nil to the user
+		// but also send an empty get state entry message
+		msg.Result = &protocol.GetStateEntryMessage_Empty{}
+
+		if err := c.send(&contextRequest{
+			payload: msg,
+		}); err != nil {
+			return nil, err
+		}
+
+		return nil, nil
+	}
+
+	// so partial is true. so we need to send a empty result to runtime and
+	// wait for response
+
+	msg.Result = nil
+	if err := c.send(&contextRequest{
+		payload: msg,
+	}); err != nil {
+		return nil, err
+	}
+
+	// TODO: wait for response
+	return nil, fmt.Errorf("get not implemented yet")
+}
+
+func newContext(inner context.Context, start *wire.StartMessage) *Context {
+	log.Debug().
+		Bool("partial-state", start.Payload.PartialState).
+		Int("state-len", len(start.Payload.StateMap)).
+		Msg("start message")
+
+	state := make(map[string][]byte)
+	for _, entry := range start.Payload.StateMap {
+		state[string(entry.Key)] = entry.Value
+	}
+
 	return &Context{
 		ctx:      inner,
-		messages: make(chan *contextMessage),
+		partial:  start.Payload.PartialState,
+		messages: make(chan *contextRequest),
+		current:  state,
 	}
 }
 
@@ -109,7 +195,7 @@ func (m *Machine) invoke(ctx *Context, input *dynrpc.RpcRequest) {
 	// always terminate the invocation with
 	// an end message.
 	// this will always terminate the connection
-	defer ctx.Send(&contextMessage{
+	defer ctx.send(&contextRequest{
 		payload: &protocol.EndMessage{},
 	})
 
@@ -117,7 +203,7 @@ func (m *Machine) invoke(ctx *Context, input *dynrpc.RpcRequest) {
 		if err := recover(); err != nil {
 			// handle service panic
 			// safely
-			message := contextMessage{
+			message := contextRequest{
 				payload: &protocol.OutputStreamEntryMessage{
 					Result: &protocol.OutputStreamEntryMessage_Failure{
 						Failure: &protocol.Failure{
@@ -128,25 +214,29 @@ func (m *Machine) invoke(ctx *Context, input *dynrpc.RpcRequest) {
 				},
 			}
 
-			ctx.Send(&message)
+			ctx.send(&message)
 
 		}
 	}()
 
 	output := m.output(m.handler.Call(ctx, input))
 
-	message := contextMessage{
+	message := contextRequest{
 		payload: output,
 		flags:   wire.FlagCompleted,
 	}
 
-	ctx.Send(&message)
+	ctx.send(&message)
 }
 
-func (m *Machine) processMessage(ctx *Context, msg wire.Message, _ *wire.Reader) error {
+func (m *Machine) incoming(ctx *Context, msg wire.Message, _ *wire.Reader) error {
 	log.Debug().Bool("ack", msg.Flags().Ack()).Bool("completed", msg.Flags().Completed()).Uint16("type", uint16(msg.Type())).Msg("received message")
 
 	switch msg := msg.(type) {
+	// the PollInputEntry is the message that will
+	// trigger the call since we will have the input
+	// ready.
+	// all other messages are processed by the context.
 	case *wire.PollInputEntry:
 		value := msg.Payload.GetValue()
 		var input dynrpc.RpcRequest
@@ -158,29 +248,34 @@ func (m *Machine) processMessage(ctx *Context, msg wire.Message, _ *wire.Reader)
 		// created by the invocation is forwarded to the runtime
 		go m.invoke(ctx, &input)
 	default:
-		return ErrUnexpectedMessage
+		return ctx.recv(msg)
 	}
 
 	return nil
 }
 
-func (m *Machine) process(inner context.Context, reader *wire.Reader) error {
-	ctx := newContext(inner)
+func (m *Machine) process(ctx *Context, reader *wire.Reader) error {
 
 	for {
 		select {
-		case <-inner.Done():
+		case <-ctx.Ctx().Done():
 			log.Debug().Msg("machine context is cancelled")
-			return inner.Err()
+			return ctx.Ctx().Err()
 		case read := <-reader.Next():
 			if read.Err != nil {
 				return read.Err
 			}
 
-			if err := m.processMessage(ctx, read.Message, reader); err != nil {
+			if err := m.incoming(ctx, read.Message, reader); err != nil {
 				return err
 			}
 		case read := <-ctx.messages:
+			// the context messages are sent over a channel
+			// only to make sure we can control when to terminate
+			// the stream if we need to.
+			// returning the channel will cause the context to cancel
+			// as well witch in return cause the invoked process to not
+			// progress anymore (when the ctx is used)
 			if err := m.protocol.Write(read.payload, read.flags); err != nil {
 				return err
 			}
@@ -196,11 +291,11 @@ func (m *Machine) process(inner context.Context, reader *wire.Reader) error {
 	}
 }
 
-func (m *Machine) Start(ctx context.Context) error {
+func (m *Machine) Start(inner context.Context) error {
 	// reader starts a reader on protocol
-	reader := m.protocol.Reader(ctx)
+	reader := m.protocol.Reader(inner)
 
-	msg, err := reader.Read(ctx)
+	msg, err := reader.Read(inner)
 	if err != nil {
 		return err
 	}
@@ -219,6 +314,7 @@ func (m *Machine) Start(ctx context.Context) error {
 
 	m.id = start.Payload.Id
 
+	ctx := newContext(inner, start)
 	log.Debug().Str("id", base64.URLEncoding.EncodeToString(m.id)).Msg("start invocation")
 	return m.process(ctx, reader)
 }

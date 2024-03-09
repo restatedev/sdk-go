@@ -8,6 +8,8 @@ import (
 
 type Context interface {
 	Ctx() context.Context
+	Set(key string, value []byte) error
+	Get(key string) ([]byte, error)
 }
 
 // UnKeyedHandlerFn signature of `un-keyed` handler function

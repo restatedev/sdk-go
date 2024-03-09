@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 
 	"github.com/muhamadazmy/restate-sdk-go"
@@ -14,7 +15,25 @@ func Echo(ctx router.Context, name string) (string, error) {
 }
 
 func SayHi(ctx router.Context, key string, name string) (string, error) {
-	return fmt.Sprintf("Hi: %s", name), nil
+
+	data, err := ctx.Get("count")
+	if err != nil {
+		return "", err
+	}
+
+	var count uint64
+	if data != nil {
+		if err := json.Unmarshal(data, &count); err != nil {
+			return "", err
+		}
+	}
+
+	count += 1
+	if err := ctx.Set("count", []byte(fmt.Sprint(count))); err != nil {
+		return "", err
+	}
+
+	return fmt.Sprintf("Hi: %s (%d)", key, count), nil
 }
 
 func main() {
