@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"sync"
+	"time"
 
 	"github.com/muhamadazmy/restate-sdk-go/generated/proto/dynrpc"
 	"github.com/muhamadazmy/restate-sdk-go/generated/proto/protocol"
@@ -142,6 +143,25 @@ func (c *Context) Get(key string) ([]byte, error) {
 	}
 
 	return nil, fmt.Errorf("unreachable")
+}
+
+func (c *Context) Sleep(deadline time.Time) error {
+	if err := c.protocol.Write(&protocol.SleepEntryMessage{
+		WakeUpTime: uint64(deadline.UnixMilli()),
+	}); err != nil {
+		return err
+	}
+
+	response, err := c.protocol.Read()
+	if err != nil {
+		return err
+	}
+
+	if response.Type() != wire.CompletionMessageType {
+		return ErrUnexpectedMessage
+	}
+
+	return nil
 }
 
 func newContext(inner context.Context, protocol *wire.Protocol, start *wire.StartMessage) *Context {

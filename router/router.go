@@ -2,6 +2,7 @@ package router
 
 import (
 	"context"
+	"time"
 
 	"github.com/muhamadazmy/restate-sdk-go/generated/proto/dynrpc"
 )
@@ -16,6 +17,8 @@ type Context interface {
 	Clear(key string) error
 	// ClearAll drops all stored state associated with key
 	ClearAll() error
+
+	Sleep(deadline time.Time) error
 }
 
 // UnKeyedHandlerFn signature of `un-keyed` handler function

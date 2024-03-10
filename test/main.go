@@ -4,10 +4,12 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"time"
 
 	"github.com/muhamadazmy/restate-sdk-go"
 	"github.com/muhamadazmy/restate-sdk-go/router"
 	"github.com/rs/zerolog"
+	"github.com/rs/zerolog/log"
 )
 
 func Echo(ctx router.Context, name string) (string, error) {
@@ -48,6 +50,12 @@ func Keys(ctx router.Context, key string, _ router.Void) (router.Void, error) {
 	return router.Void{}, nil
 }
 
+func Sleep(ctx router.Context, seconds uint64) (router.Void, error) {
+	log.Info().Uint64("seconds", seconds).Msg("sleeping for")
+
+	return router.Void{}, ctx.Sleep(time.Now().Add(time.Duration(seconds) * time.Second))
+}
+
 func main() {
 
 	zerolog.SetGlobalLevel(zerolog.DebugLevel)
@@ -55,7 +63,8 @@ func main() {
 	r := restate.NewRestate()
 
 	unKeyed := router.NewUnKeyedRouter().
-		Handler("Echo", router.NewUnKeyedHandler(Echo))
+		Handler("Echo", router.NewUnKeyedHandler(Echo)).
+		Handler("Sleep", router.NewUnKeyedHandler(Sleep))
 
 	keyed := router.NewKeyedRouter().
 		Handler("SayHi", router.NewKeyedHandler(SayHi)).
