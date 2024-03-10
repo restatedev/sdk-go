@@ -7,6 +7,14 @@ import (
 	"github.com/muhamadazmy/restate-sdk-go/generated/proto/dynrpc"
 )
 
+type Call interface {
+	Do(input []byte) error
+}
+
+type Service interface {
+	Call(method string) Call
+}
+
 type Context interface {
 	Ctx() context.Context
 	// Set stores state value
@@ -19,6 +27,8 @@ type Context interface {
 	ClearAll() error
 
 	Sleep(deadline time.Time) error
+
+	Service(service string) Service
 }
 
 // UnKeyedHandlerFn signature of `un-keyed` handler function

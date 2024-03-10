@@ -164,6 +164,11 @@ func (c *Context) Sleep(deadline time.Time) error {
 	return nil
 }
 
+func (c *Context) Service(service string) router.Service {
+	panic("not implemented")
+	return nil
+}
+
 func newContext(inner context.Context, protocol *wire.Protocol, start *wire.StartMessage) *Context {
 	log.Debug().
 		Bool("partial-state", start.Payload.PartialState).
