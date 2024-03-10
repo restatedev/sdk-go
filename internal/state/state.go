@@ -55,7 +55,7 @@ func (c *Context) Set(key string, value []byte) error {
 		})
 }
 
-func (c *Context) Delete(key string) error {
+func (c *Context) Clear(key string) error {
 	c.m.Lock()
 	defer c.m.Unlock()
 
@@ -66,8 +66,8 @@ func (c *Context) Delete(key string) error {
 	)
 }
 
-// Flush drops all associated keys
-func (c *Context) Flush() error {
+// ClearAll drops all associated keys
+func (c *Context) ClearAll() error {
 	c.m.Lock()
 	defer c.m.Unlock()
 

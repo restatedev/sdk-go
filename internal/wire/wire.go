@@ -22,17 +22,24 @@ const (
 	VersionMask = 0x03FF
 )
 const (
-	StartMessageType             Type = 0x0000
-	CompletionMessageType        Type = 0x0000 + 1
-	ErrorMessageType             Type = 0x0000 + 3
-	EndMessageType               Type = 0x0000 + 5
+	// control
+	StartMessageType      Type = 0x0000
+	CompletionMessageType Type = 0x0000 + 1
+	ErrorMessageType      Type = 0x0000 + 3
+	EndMessageType        Type = 0x0000 + 5
+
+	// Input/Output
 	PollInputEntryMessageType    Type = 0x0400
 	OutputStreamEntryMessageType Type = 0x0400 + 1
 
+	// State
 	GetStateEntryMessageType      Type = 0x0800
 	SetStateEntryMessageType      Type = 0x0800 + 1
 	ClearStateEntryMessageType         = 0x0800 + 2
 	ClearAllStateEntryMessageType Type = 0x0800 + 3
+
+	//SysCalls
+	SleepEntryMessageType Type = 0x0C00
 )
 
 type Type uint16
@@ -172,6 +179,8 @@ func (s *Protocol) Write(message proto.Message, flags ...Flag) error {
 		typ = ClearStateEntryMessageType
 	case *protocol.ClearAllStateEntryMessage:
 		typ = ClearAllStateEntryMessageType
+	case *protocol.SleepEntryMessage:
+		typ = SleepEntryMessageType
 	default:
 		return fmt.Errorf("can not send message of unknown message type")
 	}

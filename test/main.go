@@ -28,7 +28,7 @@ func SayHi(ctx router.Context, key string, _ router.Void) (string, error) {
 	}
 
 	if count > 5 {
-		ctx.Delete("count")
+		ctx.Clear("count")
 		return "flushed", nil
 	}
 	count += 1

@@ -12,10 +12,10 @@ type Context interface {
 	Set(key string, value []byte) error
 	// Get a state value associated with key
 	Get(key string) ([]byte, error)
-	// Delete deletes a key
-	Delete(key string) error
-	// Flush drops all stored state associated with key
-	Flush() error
+	// Clear deletes a key
+	Clear(key string) error
+	// ClearAll drops all stored state associated with key
+	ClearAll() error
 }
 
 // UnKeyedHandlerFn signature of `un-keyed` handler function
