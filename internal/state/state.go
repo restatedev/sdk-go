@@ -51,7 +51,7 @@ func (c *Context) Ctx() context.Context {
 
 func (c *Context) Set(key string, value []byte) error {
 	c.m.Lock()
-	c.m.Unlock()
+	defer c.m.Unlock()
 
 	c.current[key] = value
 
