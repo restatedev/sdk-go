@@ -29,11 +29,17 @@ const (
 	PollInputEntryMessageType    Type = 0x0400
 	OutputStreamEntryMessageType Type = 0x0400 + 1
 
-	GetStateEntryMessageType Type = 0x0800
-	SetStateEntryMessageType Type = 0x0800 + 1
+	GetStateEntryMessageType      Type = 0x0800
+	SetStateEntryMessageType      Type = 0x0800 + 1
+	ClearStateEntryMessageType         = 0x0800 + 2
+	ClearAllStateEntryMessageType Type = 0x0800 + 3
 )
 
 type Type uint16
+
+func (t Type) String() string {
+	return fmt.Sprintf("0x%04X", uint16(t))
+}
 
 // Flag section of the header this can have
 // a different meaning based on message type.
@@ -113,7 +119,7 @@ func (s *Protocol) header() (header Header, err error) {
 	return
 }
 
-func (s *Protocol) read() (Message, error) {
+func (s *Protocol) Read() (Message, error) {
 	header, err := s.header()
 	if err != nil {
 		return nil, fmt.Errorf("failed to read message header: %w", err)
@@ -130,32 +136,9 @@ func (s *Protocol) read() (Message, error) {
 		return nil, fmt.Errorf("unknown message type '%d'", header.TypeCode)
 	}
 
+	log.Debug().Stringer("type", header.TypeCode).Msg("received message")
 	return builder(header, buf)
 
-}
-
-// Reader should be called once. We could surround
-// it be a sync.Once but since this is an internal
-// package so we just need to make sure it's used
-// correctly
-func (s *Protocol) Reader(ctx context.Context) *Reader {
-	ch := make(chan ReaderMessage)
-
-	go func(ctx context.Context) {
-		defer close(ch)
-
-		for {
-			msg, err := s.read()
-
-			select {
-			case ch <- ReaderMessage{Message: msg, Err: err}:
-			case <-ctx.Done():
-				return
-			}
-		}
-	}(ctx)
-
-	return &Reader{ch}
 }
 
 func (s *Protocol) Write(message proto.Message, flags ...Flag) error {
@@ -185,11 +168,15 @@ func (s *Protocol) Write(message proto.Message, flags ...Flag) error {
 		typ = GetStateEntryMessageType
 	case *protocol.SetStateEntryMessage:
 		typ = SetStateEntryMessageType
+	case *protocol.ClearStateEntryMessage:
+		typ = ClearStateEntryMessageType
+	case *protocol.ClearAllStateEntryMessage:
+		typ = ClearAllStateEntryMessageType
 	default:
 		return fmt.Errorf("can not send message of unknown message type")
 	}
 
-	log.Debug().Uint16("type", uint16(typ)).Msg("sending message to runtime")
+	log.Debug().Stringer("type", typ).Msg("sending message to runtime")
 
 	bytes, err := proto.Marshal(message)
 	if err != nil {

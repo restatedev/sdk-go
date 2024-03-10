@@ -8,8 +8,14 @@ import (
 
 type Context interface {
 	Ctx() context.Context
+	// Set stores state value
 	Set(key string, value []byte) error
+	// Get a state value associated with key
 	Get(key string) ([]byte, error)
+	// Delete deletes a key
+	Delete(key string) error
+	// Flush drops all stored state associated with key
+	Flush() error
 }
 
 // UnKeyedHandlerFn signature of `un-keyed` handler function
