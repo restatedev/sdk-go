@@ -10,6 +10,7 @@ import (
 	"math"
 
 	"github.com/muhamadazmy/restate-sdk-go/generated/proto/protocol"
+	"github.com/rs/zerolog/log"
 	"google.golang.org/protobuf/proto"
 )
 
@@ -22,6 +23,7 @@ const (
 )
 const (
 	StartMessageType             Type = 0x0000
+	CompletionMessageType        Type = 0x0000 + 1
 	ErrorMessageType             Type = 0x0000 + 3
 	EndMessageType               Type = 0x0000 + 5
 	PollInputEntryMessageType    Type = 0x0400
@@ -123,22 +125,13 @@ func (s *Protocol) read() (Message, error) {
 		return nil, fmt.Errorf("failed to read message body: %w", err)
 	}
 
-	// all possible types returned by the runtime
-	var message Message
-	switch header.TypeCode {
-	case StartMessageType:
-		message, err = readStartMessage(buf, header)
-	case PollInputEntryMessageType:
-		message, err = readPollInputEntryMessage(buf, header)
-	case OutputStreamEntryMessageType:
-		message, err = readOutputStreamEntryMessage(buf, header)
-	case GetStateEntryMessageType:
-		message, err = readGetStateEntryMessage(buf, header)
-	default:
+	builder, ok := builders[header.TypeCode]
+	if !ok {
 		return nil, fmt.Errorf("unknown message type '%d'", header.TypeCode)
 	}
 
-	return message, err
+	return builder(header, buf)
+
 }
 
 // Reader should be called once. We could surround
@@ -196,6 +189,8 @@ func (s *Protocol) Write(message proto.Message, flags ...Flag) error {
 		return fmt.Errorf("can not send message of unknown message type")
 	}
 
+	log.Debug().Uint16("type", uint16(typ)).Msg("sending message to runtime")
+
 	bytes, err := proto.Marshal(message)
 	if err != nil {
 		return fmt.Errorf("failed to serialize message: %w", err)
@@ -223,19 +218,53 @@ func (s *Protocol) Write(message proto.Message, flags ...Flag) error {
 	return nil
 }
 
+type messageBuilder func(header Header, bytes []byte) (Message, error)
+
+var (
+	builders = map[Type]messageBuilder{
+		StartMessageType: func(header Header, bytes []byte) (Message, error) {
+			msg := &StartMessage{
+				Header:  header,
+				Version: header.Flag.version(),
+			}
+
+			return msg, proto.Unmarshal(bytes, &msg.Payload)
+		},
+		PollInputEntryMessageType: func(header Header, bytes []byte) (Message, error) {
+			msg := &PollInputEntry{
+				Header: header,
+			}
+
+			return msg, proto.Unmarshal(bytes, &msg.Payload)
+		},
+		OutputStreamEntryMessageType: func(header Header, bytes []byte) (Message, error) {
+			msg := &OutputStreamEntry{
+				Header: header,
+			}
+
+			return msg, proto.Unmarshal(bytes, &msg.Payload)
+		},
+		GetStateEntryMessageType: func(header Header, bytes []byte) (Message, error) {
+			msg := &GetStateEntryMessage{
+				Header: header,
+			}
+
+			return msg, proto.Unmarshal(bytes, &msg.Payload)
+		},
+		CompletionMessageType: func(header Header, bytes []byte) (Message, error) {
+			msg := &CompletionMessage{
+				Header: header,
+			}
+
+			return msg, proto.Unmarshal(bytes, &msg.Payload)
+		},
+	}
+)
+
 type StartMessage struct {
 	Header
 	Version uint16
 	Payload protocol.StartMessage
-}
-
-func readStartMessage(bytes []byte, header Header) (*StartMessage, error) {
-	msg := &StartMessage{
-		Header:  header,
-		Version: header.Flag.version(),
-	}
-
-	return msg, proto.Unmarshal(bytes, &msg.Payload)
 }
 
 type PollInputEntry struct {
@@ -243,25 +272,9 @@ type PollInputEntry struct {
 	Payload protocol.PollInputStreamEntryMessage
 }
 
-func readPollInputEntryMessage(bytes []byte, header Header) (*PollInputEntry, error) {
-	msg := &PollInputEntry{
-		Header: header,
-	}
-
-	return msg, proto.Unmarshal(bytes, &msg.Payload)
-}
-
 type OutputStreamEntry struct {
 	Header
 	Payload protocol.OutputStreamEntryMessage
-}
-
-func readOutputStreamEntryMessage(bytes []byte, header Header) (*OutputStreamEntry, error) {
-	msg := &OutputStreamEntry{
-		Header: header,
-	}
-
-	return msg, proto.Unmarshal(bytes, &msg.Payload)
 }
 
 type GetStateEntryMessage struct {
@@ -269,10 +282,7 @@ type GetStateEntryMessage struct {
 	Payload protocol.GetStateEntryMessage
 }
 
-func readGetStateEntryMessage(bytes []byte, header Header) (*GetStateEntryMessage, error) {
-	msg := &GetStateEntryMessage{
-		Header: header,
-	}
-
-	return msg, proto.Unmarshal(bytes, &msg.Payload)
+type CompletionMessage struct {
+	Header
+	Payload protocol.CompletionMessage
 }

@@ -9,6 +9,14 @@ import (
 	"google.golang.org/protobuf/types/known/structpb"
 )
 
+// Empty struct used as a quick shortcut when you don't care about
+// the input or output type
+type Void struct{}
+
+func (v Void) MarshalJSON() ([]byte, error) {
+	return []byte("null"), nil
+}
+
 type UnKeyedHandler struct {
 	fn     reflect.Value
 	input  reflect.Type

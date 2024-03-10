@@ -5,6 +5,7 @@ import (
 	"encoding/base64"
 	"fmt"
 	"io"
+	"sync"
 
 	"github.com/muhamadazmy/restate-sdk-go/generated/proto/dynrpc"
 	"github.com/muhamadazmy/restate-sdk-go/generated/proto/protocol"
@@ -41,6 +42,7 @@ type Context struct {
 	current map[string][]byte
 
 	messages chan *contextRequest
+	cond     *sync.Cond
 }
 
 func (c *Context) Ctx() context.Context {
@@ -59,6 +61,20 @@ func (c *Context) send(msg *contextRequest) error {
 func (c *Context) recv(msg wire.Message) error {
 	// received a response for
 	log.Debug().Uint16("type", uint16(msg.Type())).Msg("context received a response from runtime")
+	if msg.Type() == wire.GetStateEntryMessageType {
+		// a get completion message
+		c.cond.L.Lock()
+		defer c.cond.L.Unlock()
+		msg := msg.(*wire.GetStateEntryMessage)
+		value := msg.Payload.GetValue()
+		key := string(msg.Payload.Key)
+		log.Debug().Str("key", key).Msg("received value for key")
+
+		c.current[key] = value
+
+		c.cond.Broadcast()
+	}
+
 	return nil
 }
 
@@ -78,7 +94,13 @@ func (c *Context) Get(key string) ([]byte, error) {
 		Key: []byte(key),
 	}
 
+	c.cond.L.Lock()
+	defer c.cond.L.Unlock()
+
 	value, ok := c.current[key]
+
+	// debug:
+	ok = false
 	if ok {
 		// value in map, we still send the current
 		// value to the runtime
@@ -95,6 +117,8 @@ func (c *Context) Get(key string) ([]byte, error) {
 		return value, nil
 	}
 
+	//debug
+	c.partial = true
 	// key is not in map! there are 2 cases.
 	if !c.partial {
 		// current is complete. we need to return nil to the user
@@ -120,8 +144,13 @@ func (c *Context) Get(key string) ([]byte, error) {
 		return nil, err
 	}
 
-	// TODO: wait for response
-	return nil, fmt.Errorf("get not implemented yet")
+	for {
+		c.cond.Wait()
+		value, ok := c.current[key]
+		if ok {
+			return value, nil
+		}
+	}
 }
 
 func newContext(inner context.Context, start *wire.StartMessage) *Context {
@@ -135,12 +164,15 @@ func newContext(inner context.Context, start *wire.StartMessage) *Context {
 		state[string(entry.Key)] = entry.Value
 	}
 
-	return &Context{
+	ctx := &Context{
 		ctx:      inner,
 		partial:  start.Payload.PartialState,
 		messages: make(chan *contextRequest),
 		current:  state,
+		cond:     sync.NewCond(&sync.Mutex{}),
 	}
+
+	return ctx
 }
 
 type Machine struct {
@@ -264,6 +296,11 @@ func (m *Machine) process(ctx *Context, reader *wire.Reader) error {
 		case read := <-reader.Next():
 			if read.Err != nil {
 				return read.Err
+			}
+
+			if read.Message == nil {
+				// connection interrupted
+				return nil
 			}
 
 			if err := m.incoming(ctx, read.Message, reader); err != nil {
