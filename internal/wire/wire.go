@@ -39,7 +39,8 @@ const (
 	ClearAllStateEntryMessageType Type = 0x0800 + 3
 
 	//SysCalls
-	SleepEntryMessageType Type = 0x0C00
+	SleepEntryMessageType  Type = 0x0C00
+	InvokeEntryMessageType Type = 0x0C00 + 1
 )
 
 type Type uint16
@@ -181,6 +182,8 @@ func (s *Protocol) Write(message proto.Message, flags ...Flag) error {
 		typ = ClearAllStateEntryMessageType
 	case *protocol.SleepEntryMessage:
 		typ = SleepEntryMessageType
+	case *protocol.InvokeEntryMessage:
+		typ = InvokeEntryMessageType
 	default:
 		return fmt.Errorf("can not send message of unknown message type")
 	}

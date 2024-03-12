@@ -23,6 +23,8 @@ const (
 var (
 	ErrUnexpectedMessage = fmt.Errorf("unexpected message")
 	ErrInvalidVersion    = fmt.Errorf("invalid version number")
+
+	errUnreachable = fmt.Errorf("unreachable")
 )
 
 var (
@@ -36,7 +38,7 @@ type Context struct {
 	current map[string][]byte
 
 	protocol *wire.Protocol
-	m        sync.Mutex
+	mutex    sync.Mutex
 }
 
 func (c *Context) Ctx() context.Context {
@@ -44,8 +46,8 @@ func (c *Context) Ctx() context.Context {
 }
 
 func (c *Context) Set(key string, value []byte) error {
-	c.m.Lock()
-	defer c.m.Unlock()
+	c.mutex.Lock()
+	defer c.mutex.Unlock()
 
 	c.current[key] = value
 
@@ -57,8 +59,8 @@ func (c *Context) Set(key string, value []byte) error {
 }
 
 func (c *Context) Clear(key string) error {
-	c.m.Lock()
-	defer c.m.Unlock()
+	c.mutex.Lock()
+	defer c.mutex.Unlock()
 
 	return c.protocol.Write(
 		&protocol.ClearStateEntryMessage{
@@ -69,8 +71,8 @@ func (c *Context) Clear(key string) error {
 
 // ClearAll drops all associated keys
 func (c *Context) ClearAll() error {
-	c.m.Lock()
-	defer c.m.Unlock()
+	c.mutex.Lock()
+	defer c.mutex.Unlock()
 
 	return c.protocol.Write(
 		&protocol.ClearAllStateEntryMessage{},
@@ -82,8 +84,8 @@ func (c *Context) Get(key string) ([]byte, error) {
 		Key: []byte(key),
 	}
 
-	c.m.Lock()
-	defer c.m.Unlock()
+	c.mutex.Lock()
+	defer c.mutex.Unlock()
 
 	value, ok := c.current[key]
 
@@ -165,8 +167,10 @@ func (c *Context) Sleep(deadline time.Time) error {
 }
 
 func (c *Context) Service(service string) router.Service {
-	panic("not implemented")
-	return nil
+	return &serviceProxy{
+		Context: c,
+		service: service,
+	}
 }
 
 func newContext(inner context.Context, protocol *wire.Protocol, start *wire.StartMessage) *Context {

@@ -12,8 +12,15 @@ import (
 	"github.com/rs/zerolog/log"
 )
 
+type J = map[string]interface{}
+
 func Echo(ctx router.Context, name string) (string, error) {
-	return fmt.Sprintf("echo: %s", name), nil
+	response, err := ctx.Service("Keyed").Method("SayHi").Do(name, J{})
+	if err != nil {
+		return "", err
+	}
+
+	return fmt.Sprintf("echo: %s", string(response)), nil
 }
 
 func SayHi(ctx router.Context, key string, _ router.Void) (string, error) {

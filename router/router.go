@@ -8,11 +8,13 @@ import (
 )
 
 type Call interface {
-	Do(input []byte) error
+	// Do makes a call and wait for the response
+	Do(key string, body any) ([]byte, error)
 }
 
 type Service interface {
-	Call(method string) Call
+	// Method creates a call to method
+	Method(method string) Call
 }
 
 type Context interface {
