@@ -147,9 +147,9 @@ func (c *Context) Get(key string) ([]byte, error) {
 	return nil, fmt.Errorf("unreachable")
 }
 
-func (c *Context) Sleep(deadline time.Time) error {
+func (c *Context) Sleep(until time.Time) error {
 	if err := c.protocol.Write(&protocol.SleepEntryMessage{
-		WakeUpTime: uint64(deadline.UnixMilli()),
+		WakeUpTime: uint64(until.UnixMilli()),
 	}); err != nil {
 		return err
 	}

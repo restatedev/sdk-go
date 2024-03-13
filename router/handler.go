@@ -17,6 +17,10 @@ func (v Void) MarshalJSON() ([]byte, error) {
 	return []byte("null"), nil
 }
 
+func (v *Void) UnmarshalJSON(_ []byte) error {
+	return nil
+}
+
 type UnKeyedHandler struct {
 	fn     reflect.Value
 	input  reflect.Type

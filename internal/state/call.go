@@ -3,6 +3,7 @@ package state
 import (
 	"encoding/json"
 	"fmt"
+	"time"
 
 	"github.com/muhamadazmy/restate-sdk-go/generated/proto/dynrpc"
 	"github.com/muhamadazmy/restate-sdk-go/generated/proto/protocol"
@@ -38,9 +39,7 @@ type serviceCall struct {
 	method  string
 }
 
-func (c *serviceCall) Do(key string, body any) ([]byte, error) {
-	c.mutex.Lock()
-	defer c.mutex.Unlock()
+func (c *serviceCall) makeRequest(key string, body any) ([]byte, error) {
 
 	input, err := json.Marshal(body)
 	if err != nil {
@@ -56,7 +55,14 @@ func (c *serviceCall) Do(key string, body any) ([]byte, error) {
 		return nil, err
 	}
 
-	input, err = proto.Marshal(params)
+	return proto.Marshal(params)
+}
+
+func (c *serviceCall) Do(key string, body any) ([]byte, error) {
+	c.mutex.Lock()
+	defer c.mutex.Unlock()
+
+	input, err := c.makeRequest(key, body)
 	if err != nil {
 		return nil, err
 	}
@@ -102,4 +108,32 @@ func (c *serviceCall) Do(key string, body any) ([]byte, error) {
 	}
 
 	return rpcResponse.Response.MarshalJSON()
+}
+
+func (c *serviceCall) Send(key string, body any, delay time.Duration) error {
+	c.mutex.Lock()
+	defer c.mutex.Unlock()
+
+	input, err := c.makeRequest(key, body)
+	if err != nil {
+		return err
+	}
+
+	var invokeTime uint64
+	if delay != 0 {
+		invokeTime = uint64(time.Now().Add(delay).UnixMilli())
+	}
+
+	err = c.protocol.Write(&protocol.BackgroundInvokeEntryMessage{
+		ServiceName: c.service,
+		MethodName:  c.method,
+		Parameter:   input,
+		InvokeTime:  invokeTime,
+	})
+
+	if err != nil {
+		return fmt.Errorf("failed to send request message: %w", err)
+	}
+
+	return nil
 }

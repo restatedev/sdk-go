@@ -14,6 +14,30 @@ import (
 
 type J = map[string]interface{}
 
+type Tickets struct{}
+
+func (t *Tickets) Reserve(ctx router.Context, id string, _ router.Void) (router.Void, error) {
+	if err := ctx.Set("reserved", []byte{1}); err != nil {
+		return router.Void{}, err
+	}
+
+	if err := ctx.Service("Tickets").Method("UnReserve").Send(id, nil, 10*time.Second); err != nil {
+		return router.Void{}, err
+	}
+
+	return router.Void{}, nil
+}
+
+func (t *Tickets) UnReserve(ctx router.Context, id string, _ router.Void) (router.Void, error) {
+	if err := ctx.Clear("reserved"); err != nil {
+		return router.Void{}, err
+	}
+
+	log.Info().Msg("tick unreserved")
+
+	return router.Void{}, nil
+}
+
 func Echo(ctx router.Context, name string) (string, error) {
 	response, err := ctx.Service("Keyed").Method("SayHi").Do(name, J{})
 	if err != nil {
@@ -67,7 +91,15 @@ func main() {
 
 	zerolog.SetGlobalLevel(zerolog.DebugLevel)
 
+	var tickets Tickets
+
 	r := restate.NewRestate()
+
+	ticketsService := router.NewKeyedRouter().
+		Handler("Reserve", router.NewKeyedHandler(tickets.Reserve)).
+		Handler("UnReserve", router.NewKeyedHandler(tickets.UnReserve))
+
+	r.Bind("Tickets", ticketsService)
 
 	unKeyed := router.NewUnKeyedRouter().
 		Handler("Echo", router.NewUnKeyedHandler(Echo)).
