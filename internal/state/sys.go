@@ -1,17 +1,80 @@
 package state
 
 import (
+	"bytes"
 	"fmt"
 	"time"
 
+	"github.com/muhamadazmy/restate-sdk-go"
 	"github.com/muhamadazmy/restate-sdk-go/generated/proto/protocol"
 	"github.com/muhamadazmy/restate-sdk-go/internal/wire"
 )
 
-func (c *Machine) set(key string, value []byte) error {
-	c.mutex.Lock()
-	defer c.mutex.Unlock()
+var (
+	errEntryMismatch = restate.WithErrorCode(fmt.Errorf("log entry mismatch"), 32)
+)
 
+func (c *Machine) currentEntry() (wire.Message, bool) {
+	if c.entryIndex < len(c.entries) {
+		return c.entries[c.entryIndex], true
+	}
+
+	return nil, false
+}
+
+// entry is a utility function to easily run different
+// code branches to replay or create a new entry record
+//
+// this should be an instance method on Machine but unfortunately
+// go does not support generics on instance methods
+func entry[M wire.Message, O any](
+	m *Machine,
+	typ wire.Type,
+	replay func(msg M) (O, error),
+	new func() (O, error),
+) (output O, err error) {
+
+	m.mutex.Lock()
+	defer m.mutex.Unlock()
+
+	defer func() {
+		m.entryIndex += 1
+	}()
+
+	// check if there is an entry as this index
+	entry, ok := m.currentEntry()
+
+	// if entry exists, we need to replay it
+	// by calling the replay function
+	if ok {
+		if entry.Type() != typ {
+			return output, errEntryMismatch
+		}
+		return replay(entry.(M))
+	}
+
+	// other wise call the new function
+	return new()
+}
+
+func (c *Machine) set(key string, value []byte) error {
+	_, err := entry(
+		c,
+		wire.SetStateEntryMessageType,
+		func(entry *wire.SetStateEntryMessage) (void restate.Void, err error) {
+			if string(entry.Payload.Key) != key || !bytes.Equal(entry.Payload.Value, value) {
+				return void, errEntryMismatch
+			}
+
+			return
+		}, func() (void restate.Void, err error) {
+			return void, c._set(key, value)
+		})
+
+	return err
+}
+
+func (c *Machine) _set(key string, value []byte) error {
 	c.current[key] = value
 
 	return c.protocol.Write(
@@ -22,9 +85,24 @@ func (c *Machine) set(key string, value []byte) error {
 }
 
 func (c *Machine) clear(key string) error {
-	c.mutex.Lock()
-	defer c.mutex.Unlock()
+	_, err := entry(
+		c,
+		wire.ClearStateEntryMessageType,
+		func(entry *wire.ClearStateEntryMessage) (void restate.Void, err error) {
+			if string(entry.Payload.Key) != key {
+				return void, errEntryMismatch
+			}
 
+			return void, nil
+		}, func() (restate.Void, error) {
+			return restate.Void{}, c._clear(key)
+		},
+	)
+
+	return err
+}
+
+func (c *Machine) _clear(key string) error {
 	return c.protocol.Write(
 		&protocol.ClearStateEntryMessage{
 			Key: []byte(key),
@@ -32,23 +110,55 @@ func (c *Machine) clear(key string) error {
 	)
 }
 
-// clearAll drops all associated keys
 func (c *Machine) clearAll() error {
-	c.mutex.Lock()
-	defer c.mutex.Unlock()
+	_, err := entry(
+		c,
+		wire.ClearAllStateEntryMessageType,
+		func(entry *wire.ClearAllStateEntryMessage) (void restate.Void, err error) {
+			return
+		}, func() (restate.Void, error) {
+			return restate.Void{}, c._clearAll()
+		},
+	)
 
+	return err
+}
+
+// clearAll drops all associated keys
+func (c *Machine) _clearAll() error {
 	return c.protocol.Write(
 		&protocol.ClearAllStateEntryMessage{},
 	)
 }
 
 func (c *Machine) get(key string) ([]byte, error) {
+	return entry(
+		c,
+		wire.GetStateEntryMessageType,
+		func(entry *wire.GetStateEntryMessage) ([]byte, error) {
+			if string(entry.Payload.Key) != key {
+				return nil, errEntryMismatch
+			}
+
+			switch result := entry.Payload.Result.(type) {
+			case *protocol.GetStateEntryMessage_Empty:
+				return nil, nil
+			case *protocol.GetStateEntryMessage_Failure:
+				return nil, fmt.Errorf("[%d] %s", result.Failure.Code, result.Failure.Message)
+			case *protocol.GetStateEntryMessage_Value:
+				return result.Value, nil
+			}
+
+			return nil, fmt.Errorf("unreachable")
+		}, func() ([]byte, error) {
+			return c._get(key)
+		})
+}
+
+func (c *Machine) _get(key string) ([]byte, error) {
 	msg := &protocol.GetStateEntryMessage{
 		Key: []byte(key),
 	}
-
-	c.mutex.Lock()
-	defer c.mutex.Unlock()
 
 	value, ok := c.current[key]
 
@@ -111,6 +221,20 @@ func (c *Machine) get(key string) ([]byte, error) {
 }
 
 func (c *Machine) sleep(until time.Time) error {
+	_, err := entry(
+		c,
+		wire.SleepEntryMessageType,
+		func(entry *wire.SleepEntryMessage) (void restate.Void, err error) {
+			return
+		}, func() (restate.Void, error) {
+			return restate.Void{}, c._sleep(until)
+		},
+	)
+
+	return err
+}
+
+func (c *Machine) _sleep(until time.Time) error {
 	if err := c.protocol.Write(&protocol.SleepEntryMessage{
 		WakeUpTime: uint64(until.UnixMilli()),
 	}); err != nil {

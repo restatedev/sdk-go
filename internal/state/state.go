@@ -25,8 +25,6 @@ const (
 var (
 	ErrUnexpectedMessage = fmt.Errorf("unexpected message")
 	ErrInvalidVersion    = fmt.Errorf("invalid version number")
-
-	errUnreachable = fmt.Errorf("unreachable")
 )
 
 var (
@@ -98,7 +96,8 @@ type Machine struct {
 	partial bool
 	current map[string][]byte
 
-	entries []wire.Message
+	entries    []wire.Message
+	entryIndex int
 }
 
 func NewMachine(handler restate.Handler, conn io.ReadWriter) *Machine {
@@ -196,13 +195,17 @@ func (m *Machine) process(ctx *Context, start *wire.StartMessage) error {
 	}
 
 	log.Debug().Uint32("known entries", start.Payload.KnownEntries).Msg("known entires")
+	m.entries = make([]wire.Message, 0, start.Payload.KnownEntries-1)
+
+	// we don't track the poll input entry
 	for i := uint32(1); i < start.Payload.KnownEntries; i++ {
 		msg, err := m.protocol.Read()
 		if err != nil {
 			return fmt.Errorf("failed to read entry: %w", err)
 		}
 
-		log.Debug().Uint16("type", uint16(msg.Type())).Msg("received entry")
+		log.Trace().Uint16("type", uint16(msg.Type())).Msg("replay log entry")
+		m.entries = append(m.entries, msg)
 	}
 
 	inputMsg := msg.(*wire.PollInputEntry)

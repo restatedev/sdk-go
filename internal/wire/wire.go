@@ -253,8 +253,36 @@ var (
 
 			return msg, proto.Unmarshal(bytes, &msg.Payload)
 		},
+		SetStateEntryMessageType: func(header Header, bytes []byte) (Message, error) {
+			msg := &SetStateEntryMessage{
+				Header: header,
+			}
+
+			return msg, proto.Unmarshal(bytes, &msg.Payload)
+		},
+		ClearStateEntryMessageType: func(header Header, bytes []byte) (Message, error) {
+			msg := &ClearStateEntryMessage{
+				Header: header,
+			}
+
+			return msg, proto.Unmarshal(bytes, &msg.Payload)
+		},
+		ClearAllStateEntryMessageType: func(header Header, bytes []byte) (Message, error) {
+			msg := &ClearAllStateEntryMessage{
+				Header: header,
+			}
+
+			return msg, proto.Unmarshal(bytes, &msg.Payload)
+		},
 		CompletionMessageType: func(header Header, bytes []byte) (Message, error) {
 			msg := &CompletionMessage{
+				Header: header,
+			}
+
+			return msg, proto.Unmarshal(bytes, &msg.Payload)
+		},
+		SleepEntryMessageType: func(header Header, bytes []byte) (Message, error) {
+			msg := &SleepEntryMessage{
 				Header: header,
 			}
 
@@ -284,7 +312,27 @@ type GetStateEntryMessage struct {
 	Payload protocol.GetStateEntryMessage
 }
 
+type SetStateEntryMessage struct {
+	Header
+	Payload protocol.SetStateEntryMessage
+}
+
+type ClearStateEntryMessage struct {
+	Header
+	Payload protocol.ClearStateEntryMessage
+}
+
+type ClearAllStateEntryMessage struct {
+	Header
+	Payload protocol.ClearAllStateEntryMessage
+}
+
 type CompletionMessage struct {
 	Header
 	Payload protocol.CompletionMessage
+}
+
+type SleepEntryMessage struct {
+	Header
+	Payload protocol.SleepEntryMessage
 }
