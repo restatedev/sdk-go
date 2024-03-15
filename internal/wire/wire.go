@@ -145,7 +145,7 @@ func (s *Protocol) Read() (Message, error) {
 		return nil, fmt.Errorf("unknown message type '%d'", header.TypeCode)
 	}
 
-	log.Debug().Stringer("type", header.TypeCode).Msg("received message")
+	log.Trace().Stringer("type", header.TypeCode).Msg("received message")
 	return builder(header, buf)
 
 }
@@ -191,7 +191,7 @@ func (s *Protocol) Write(message proto.Message, flags ...Flag) error {
 		return fmt.Errorf("can not send message of unknown message type")
 	}
 
-	log.Debug().Stringer("type", typ).Msg("sending message to runtime")
+	log.Trace().Stringer("type", typ).Msg("sending message to runtime")
 
 	bytes, err := proto.Marshal(message)
 	if err != nil {

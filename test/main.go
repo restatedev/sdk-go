@@ -21,10 +21,12 @@ func (t *Tickets) Reserve(ctx restate.Context, id string, _ restate.Void) (resta
 		return restate.Void{}, err
 	}
 
-	if err := ctx.Service("Tickets").Method("UnReserve").Send(id, nil, 10*time.Second); err != nil {
+	if err := ctx.Service("Tickets").Method("UnReserve").Send(id, nil, 0); err != nil {
 		return restate.Void{}, err
 	}
 
+	// i wanna return a non terminal error
+	//return restate.Void{}, fmt.Errorf("not terminal error")
 	return restate.Void{}, nil
 }
 
@@ -43,6 +45,8 @@ func Echo(ctx restate.Context, name string) (string, error) {
 	if err != nil {
 		return "", err
 	}
+
+	panic("failed intentionally after a call")
 
 	return fmt.Sprintf("echo: %s", string(response)), nil
 }

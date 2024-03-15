@@ -39,7 +39,17 @@ type serviceCall struct {
 	method  string
 }
 
-func (c *serviceCall) makeRequest(key string, body any) ([]byte, error) {
+// Do makes a call and wait for the response
+func (c *serviceCall) Do(key string, body any) ([]byte, error) {
+	return c.machine.doCall(c.service, c.method, key, body)
+}
+
+// Send runs a call in the background after delay duration
+func (c *serviceCall) Send(key string, body any, delay time.Duration) error {
+	return c.machine.sendCall(c.service, c.method, key, body, delay)
+}
+
+func (c *Machine) makeRequest(key string, body any) ([]byte, error) {
 
 	input, err := json.Marshal(body)
 	if err != nil {
@@ -58,7 +68,7 @@ func (c *serviceCall) makeRequest(key string, body any) ([]byte, error) {
 	return proto.Marshal(params)
 }
 
-func (c *serviceCall) Do(key string, body any) ([]byte, error) {
+func (c *Machine) doCall(service, method, key string, body any) ([]byte, error) {
 	c.mutex.Lock()
 	defer c.mutex.Unlock()
 
@@ -68,8 +78,8 @@ func (c *serviceCall) Do(key string, body any) ([]byte, error) {
 	}
 
 	err = c.protocol.Write(&protocol.InvokeEntryMessage{
-		ServiceName: c.service,
-		MethodName:  c.method,
+		ServiceName: service,
+		MethodName:  method,
 		Parameter:   input,
 	})
 
@@ -110,7 +120,7 @@ func (c *serviceCall) Do(key string, body any) ([]byte, error) {
 	return rpcResponse.Response.MarshalJSON()
 }
 
-func (c *serviceCall) Send(key string, body any, delay time.Duration) error {
+func (c *Machine) sendCall(service, method, key string, body any, delay time.Duration) error {
 	c.mutex.Lock()
 	defer c.mutex.Unlock()
 
@@ -125,8 +135,8 @@ func (c *serviceCall) Send(key string, body any, delay time.Duration) error {
 	}
 
 	err = c.protocol.Write(&protocol.BackgroundInvokeEntryMessage{
-		ServiceName: c.service,
-		MethodName:  c.method,
+		ServiceName: service,
+		MethodName:  method,
 		Parameter:   input,
 		InvokeTime:  invokeTime,
 	})
