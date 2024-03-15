@@ -39,13 +39,13 @@ func NewUnKeyedHandler[I any, O any](fn UnKeyedHandlerFn[I, O]) *UnKeyedHandler 
 func (h *UnKeyedHandler) Call(ctx Context, request *dynrpc.RpcRequest) (*dynrpc.RpcResponse, error) {
 	bytes, err := request.Request.MarshalJSON()
 	if err != nil {
-		return nil, fmt.Errorf("request is not valid json: %w", err)
+		return nil, TerminalError(fmt.Errorf("request is not valid json: %w", err))
 	}
 
 	input := reflect.New(h.input)
 
 	if err := json.Unmarshal(bytes, input.Interface()); err != nil {
-		return nil, fmt.Errorf("request doesn't match handler signature: %w", err)
+		return nil, TerminalError(fmt.Errorf("request doesn't match handler signature: %w", err))
 	}
 
 	// we are sure about the fn signature so it's safe to do this
@@ -62,14 +62,14 @@ func (h *UnKeyedHandler) Call(ctx Context, request *dynrpc.RpcRequest) (*dynrpc.
 
 	bytes, err = json.Marshal(outI)
 	if err != nil {
-		return nil, fmt.Errorf("failed to serialize output: %w", err)
+		return nil, TerminalError(fmt.Errorf("failed to serialize output: %w", err))
 	}
 
 	var response dynrpc.RpcResponse
 	response.Response = &structpb.Value{}
 
 	if err := response.Response.UnmarshalJSON(bytes); err != nil {
-		return nil, err
+		return nil, TerminalError(err)
 	}
 
 	return &response, nil
@@ -94,13 +94,13 @@ func NewKeyedHandler[I any, O any](fn KeyedHandlerFn[I, O]) *KeyedHandler {
 func (h *KeyedHandler) Call(ctx Context, request *dynrpc.RpcRequest) (*dynrpc.RpcResponse, error) {
 	bytes, err := request.Request.MarshalJSON()
 	if err != nil {
-		return nil, fmt.Errorf("request is not valid json: %w", err)
+		return nil, TerminalError(fmt.Errorf("request is not valid json: %w", err))
 	}
 
 	input := reflect.New(h.input)
 
 	if err := json.Unmarshal(bytes, input.Interface()); err != nil {
-		return nil, fmt.Errorf("request doesn't match handler signature: %w", err)
+		return nil, TerminalError(fmt.Errorf("request doesn't match handler signature: %w", err))
 	}
 
 	// we are sure about the fn signature so it's safe to do this
@@ -118,14 +118,14 @@ func (h *KeyedHandler) Call(ctx Context, request *dynrpc.RpcRequest) (*dynrpc.Rp
 
 	bytes, err = json.Marshal(outI)
 	if err != nil {
-		return nil, fmt.Errorf("failed to serialize output: %w", err)
+		return nil, TerminalError(fmt.Errorf("failed to serialize output: %w", err))
 	}
 
 	var response dynrpc.RpcResponse
 	response.Response = &structpb.Value{}
 
 	if err := response.Response.UnmarshalJSON(bytes); err != nil {
-		return nil, err
+		return nil, TerminalError(err)
 	}
 
 	return &response, nil

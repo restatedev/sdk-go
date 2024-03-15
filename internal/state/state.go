@@ -5,6 +5,7 @@ import (
 	"encoding/base64"
 	"fmt"
 	"io"
+	"runtime/debug"
 	"sync"
 	"time"
 
@@ -209,37 +210,44 @@ func NewMachine(handler router.Handler, conn io.ReadWriter) *Machine {
 	}
 }
 
-func (m *Machine) output(r *dynrpc.RpcResponse, err error) *protocol.OutputStreamEntryMessage {
-	var output protocol.OutputStreamEntryMessage
-	if err != nil {
-		output.Result = &protocol.OutputStreamEntryMessage_Failure{
-			Failure: &protocol.Failure{
-				Code:    2,
-				Message: err.Error(),
+func (m *Machine) output(r *dynrpc.RpcResponse, err error) proto.Message {
+	// TODO: if err is terminal return outputStreamEntryMessage but if error is
+	// not terminal, return ErrorMessage instead.
+	//var output protocol.OutputStreamEntryMessage
+
+	if err != nil && router.IsTerminalError(err) {
+		// terminal errors.
+		return &protocol.OutputStreamEntryMessage{
+			Result: &protocol.OutputStreamEntryMessage_Failure{
+				Failure: &protocol.Failure{
+					Code:    uint32(router.ErrorCode(err)),
+					Message: err.Error(),
+				},
 			},
 		}
-
-		return &output
+	} else if err != nil {
+		// non terminal error!
+		return &protocol.ErrorMessage{
+			Code:    uint32(router.ErrorCode(err)),
+			Message: err.Error(),
+		}
 	}
 
 	bytes, err := proto.Marshal(r)
 	if err != nil {
-		// this shouldn't happen but in case
-		output.Result = &protocol.OutputStreamEntryMessage_Failure{
-			Failure: &protocol.Failure{
-				Code:    13, // internal error
-				Message: err.Error(),
-			},
+		// this shouldn't happen but in case we return a retry error
+		return &protocol.ErrorMessage{
+			Code:        uint32(router.INTERNAL),
+			Message:     err.Error(),
+			Description: "failed to serialize call output",
 		}
-
-		return &output
 	}
 
-	output.Result = &protocol.OutputStreamEntryMessage_Value{
-		Value: bytes,
+	return &protocol.OutputStreamEntryMessage{
+		Result: &protocol.OutputStreamEntryMessage_Value{
+			Value: bytes,
+		},
 	}
-
-	return &output
 }
 
 func (m *Machine) invoke(ctx *Context, input *dynrpc.RpcRequest) error {
@@ -253,16 +261,16 @@ func (m *Machine) invoke(ctx *Context, input *dynrpc.RpcRequest) error {
 			// handle service panic
 			// safely
 
-			wErr := m.protocol.Write(&protocol.OutputStreamEntryMessage{
-				Result: &protocol.OutputStreamEntryMessage_Failure{
-					Failure: &protocol.Failure{
-						Code:    2,
-						Message: fmt.Sprint(err),
-					},
-				},
+			// this should become a retry error ErrorMessage
+			wErr := m.protocol.Write(&protocol.ErrorMessage{
+				Code:        uint32(router.INTERNAL),
+				Message:     fmt.Sprint(err),
+				Description: string(debug.Stack()),
 			})
 
-			log.Error().Err(wErr).Msg("error sending failure message")
+			if wErr != nil {
+				log.Error().Err(wErr).Msg("error sending failure message")
+			}
 		}
 	}()
 
