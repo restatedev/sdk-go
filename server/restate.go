@@ -1,4 +1,4 @@
-package restate
+package server
 
 import (
 	"context"
@@ -7,10 +7,10 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/muhamadazmy/restate-sdk-go"
 	"github.com/muhamadazmy/restate-sdk-go/generated/proto/discovery"
 	"github.com/muhamadazmy/restate-sdk-go/internal"
 	"github.com/muhamadazmy/restate-sdk-go/internal/state"
-	"github.com/muhamadazmy/restate-sdk-go/router"
 	"github.com/posener/h2conn"
 	"github.com/rs/zerolog/log"
 	"golang.org/x/net/http2"
@@ -18,16 +18,16 @@ import (
 )
 
 type Restate struct {
-	routers map[string]router.Router
+	routers map[string]restate.Router
 }
 
 func NewRestate() *Restate {
 	return &Restate{
-		routers: make(map[string]router.Router),
+		routers: make(map[string]restate.Router),
 	}
 }
 
-func (r *Restate) Bind(name string, router router.Router) *Restate {
+func (r *Restate) Bind(name string, router restate.Router) *Restate {
 	if _, ok := r.routers[name]; ok {
 		// panic because this is a programming error
 		// to register multiple router with the same name

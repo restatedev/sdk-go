@@ -5,17 +5,17 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/muhamadazmy/restate-sdk-go"
 	"github.com/muhamadazmy/restate-sdk-go/generated/proto/dynrpc"
 	"github.com/muhamadazmy/restate-sdk-go/generated/proto/protocol"
 	"github.com/muhamadazmy/restate-sdk-go/internal/wire"
-	"github.com/muhamadazmy/restate-sdk-go/router"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/structpb"
 )
 
 var (
-	_ router.Service = (*serviceProxy)(nil)
-	_ router.Call    = (*serviceCall)(nil)
+	_ restate.Service = (*serviceProxy)(nil)
+	_ restate.Call    = (*serviceCall)(nil)
 )
 
 // service proxy only works as an extension to context
@@ -25,7 +25,7 @@ type serviceProxy struct {
 	service string
 }
 
-func (c *serviceProxy) Method(fn string) router.Call {
+func (c *serviceProxy) Method(fn string) restate.Call {
 	return &serviceCall{
 		Context: c.Context,
 		service: c.service,

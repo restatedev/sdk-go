@@ -1,4 +1,4 @@
-package router
+package restate
 
 import (
 	"fmt"

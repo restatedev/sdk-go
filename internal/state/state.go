@@ -9,10 +9,11 @@ import (
 	"sync"
 	"time"
 
+	"github.com/muhamadazmy/restate-sdk-go"
 	"github.com/muhamadazmy/restate-sdk-go/generated/proto/dynrpc"
 	"github.com/muhamadazmy/restate-sdk-go/generated/proto/protocol"
 	"github.com/muhamadazmy/restate-sdk-go/internal/wire"
-	"github.com/muhamadazmy/restate-sdk-go/router"
+
 	"github.com/rs/zerolog/log"
 	"google.golang.org/protobuf/proto"
 )
@@ -29,7 +30,7 @@ var (
 )
 
 var (
-	_ router.Context = (*Context)(nil)
+	_ restate.Context = (*Context)(nil)
 )
 
 type Context struct {
@@ -167,7 +168,7 @@ func (c *Context) Sleep(until time.Time) error {
 	return nil
 }
 
-func (c *Context) Service(service string) router.Service {
+func (c *Context) Service(service string) restate.Service {
 	return &serviceProxy{
 		Context: c,
 		service: service,
@@ -196,14 +197,14 @@ func newContext(inner context.Context, protocol *wire.Protocol, start *wire.Star
 }
 
 type Machine struct {
-	handler  router.Handler
+	handler  restate.Handler
 	protocol *wire.Protocol
 
 	// state
 	id []byte
 }
 
-func NewMachine(handler router.Handler, conn io.ReadWriter) *Machine {
+func NewMachine(handler restate.Handler, conn io.ReadWriter) *Machine {
 	return &Machine{
 		handler:  handler,
 		protocol: wire.NewProtocol(conn),
@@ -215,12 +216,12 @@ func (m *Machine) output(r *dynrpc.RpcResponse, err error) proto.Message {
 	// not terminal, return ErrorMessage instead.
 	//var output protocol.OutputStreamEntryMessage
 
-	if err != nil && router.IsTerminalError(err) {
+	if err != nil && restate.IsTerminalError(err) {
 		// terminal errors.
 		return &protocol.OutputStreamEntryMessage{
 			Result: &protocol.OutputStreamEntryMessage_Failure{
 				Failure: &protocol.Failure{
-					Code:    uint32(router.ErrorCode(err)),
+					Code:    uint32(restate.ErrorCode(err)),
 					Message: err.Error(),
 				},
 			},
@@ -228,7 +229,7 @@ func (m *Machine) output(r *dynrpc.RpcResponse, err error) proto.Message {
 	} else if err != nil {
 		// non terminal error!
 		return &protocol.ErrorMessage{
-			Code:    uint32(router.ErrorCode(err)),
+			Code:    uint32(restate.ErrorCode(err)),
 			Message: err.Error(),
 		}
 	}
@@ -237,7 +238,7 @@ func (m *Machine) output(r *dynrpc.RpcResponse, err error) proto.Message {
 	if err != nil {
 		// this shouldn't happen but in case we return a retry error
 		return &protocol.ErrorMessage{
-			Code:        uint32(router.INTERNAL),
+			Code:        uint32(restate.INTERNAL),
 			Message:     err.Error(),
 			Description: "failed to serialize call output",
 		}
@@ -263,7 +264,7 @@ func (m *Machine) invoke(ctx *Context, input *dynrpc.RpcRequest) error {
 
 			// this should become a retry error ErrorMessage
 			wErr := m.protocol.Write(&protocol.ErrorMessage{
-				Code:        uint32(router.INTERNAL),
+				Code:        uint32(restate.INTERNAL),
 				Message:     fmt.Sprint(err),
 				Description: string(debug.Stack()),
 			})
