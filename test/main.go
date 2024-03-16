@@ -17,6 +17,7 @@ type J = map[string]interface{}
 type Tickets struct{}
 
 func (t *Tickets) Reserve(ctx restate.Context, id string, _ restate.Void) (string, error) {
+
 	count, err := ctx.Get("reserved")
 	if err != nil {
 		return "", err
@@ -30,12 +31,11 @@ func (t *Tickets) Reserve(ctx restate.Context, id string, _ restate.Void) (strin
 		return "", err
 	}
 
-	// return "", fmt.Errorf("some error")
+	if err := ctx.Service("Tickets").Method("UnReserve").Send(id, nil, 30*time.Second); err != nil {
+		return "", fmt.Errorf("failed to schedule 'unreserve': %w", err)
+	}
 
-	// if err := ctx.Service("Tickets").Method("UnReserve").Send(id, nil, 0); err != nil {
-	// 	return restate.Void{}, err
-	// }
-
+	//return "", fmt.Errorf("something went wrong")
 	// // i wanna return a non terminal error
 	// //return restate.Void{}, fmt.Errorf("not terminal error")
 	return fmt.Sprint(count[0]), nil

@@ -288,6 +288,20 @@ var (
 
 			return msg, proto.Unmarshal(bytes, &msg.Payload)
 		},
+		InvokeEntryMessageType: func(header Header, bytes []byte) (Message, error) {
+			msg := &InvokeEntryMessage{
+				Header: header,
+			}
+
+			return msg, proto.Unmarshal(bytes, &msg.Payload)
+		},
+		BackgroundInvokeEntryMessageType: func(header Header, bytes []byte) (Message, error) {
+			msg := &BackgroundInvokeEntryMessage{
+				Header: header,
+			}
+
+			return msg, proto.Unmarshal(bytes, &msg.Payload)
+		},
 	}
 )
 
@@ -335,4 +349,14 @@ type CompletionMessage struct {
 type SleepEntryMessage struct {
 	Header
 	Payload protocol.SleepEntryMessage
+}
+
+type InvokeEntryMessage struct {
+	Header
+	Payload protocol.InvokeEntryMessage
+}
+
+type BackgroundInvokeEntryMessage struct {
+	Header
+	Payload protocol.BackgroundInvokeEntryMessage
 }

@@ -12,53 +12,11 @@ import (
 
 var (
 	errEntryMismatch = restate.WithErrorCode(fmt.Errorf("log entry mismatch"), 32)
+	errUnreachable   = fmt.Errorf("unreachable")
 )
 
-func (c *Machine) currentEntry() (wire.Message, bool) {
-	if c.entryIndex < len(c.entries) {
-		return c.entries[c.entryIndex], true
-	}
-
-	return nil, false
-}
-
-// entry is a utility function to easily run different
-// code branches to replay or create a new entry record
-//
-// this should be an instance method on Machine but unfortunately
-// go does not support generics on instance methods
-func entry[M wire.Message, O any](
-	m *Machine,
-	typ wire.Type,
-	replay func(msg M) (O, error),
-	new func() (O, error),
-) (output O, err error) {
-
-	m.mutex.Lock()
-	defer m.mutex.Unlock()
-
-	defer func() {
-		m.entryIndex += 1
-	}()
-
-	// check if there is an entry as this index
-	entry, ok := m.currentEntry()
-
-	// if entry exists, we need to replay it
-	// by calling the replay function
-	if ok {
-		if entry.Type() != typ {
-			return output, errEntryMismatch
-		}
-		return replay(entry.(M))
-	}
-
-	// other wise call the new function
-	return new()
-}
-
 func (c *Machine) set(key string, value []byte) error {
-	_, err := entry(
+	_, err := replayOrNew(
 		c,
 		wire.SetStateEntryMessageType,
 		func(entry *wire.SetStateEntryMessage) (void restate.Void, err error) {
@@ -85,7 +43,7 @@ func (c *Machine) _set(key string, value []byte) error {
 }
 
 func (c *Machine) clear(key string) error {
-	_, err := entry(
+	_, err := replayOrNew(
 		c,
 		wire.ClearStateEntryMessageType,
 		func(entry *wire.ClearStateEntryMessage) (void restate.Void, err error) {
@@ -111,7 +69,7 @@ func (c *Machine) _clear(key string) error {
 }
 
 func (c *Machine) clearAll() error {
-	_, err := entry(
+	_, err := replayOrNew(
 		c,
 		wire.ClearAllStateEntryMessageType,
 		func(entry *wire.ClearAllStateEntryMessage) (void restate.Void, err error) {
@@ -132,7 +90,7 @@ func (c *Machine) _clearAll() error {
 }
 
 func (c *Machine) get(key string) ([]byte, error) {
-	return entry(
+	return replayOrNew(
 		c,
 		wire.GetStateEntryMessageType,
 		func(entry *wire.GetStateEntryMessage) ([]byte, error) {
@@ -221,10 +179,11 @@ func (c *Machine) _get(key string) ([]byte, error) {
 }
 
 func (c *Machine) sleep(until time.Time) error {
-	_, err := entry(
+	_, err := replayOrNew(
 		c,
 		wire.SleepEntryMessageType,
 		func(entry *wire.SleepEntryMessage) (void restate.Void, err error) {
+			// we shouldn't verify the time because this would be different every time
 			return
 		}, func() (restate.Void, error) {
 			return restate.Void{}, c._sleep(until)

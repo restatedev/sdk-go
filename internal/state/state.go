@@ -108,6 +108,30 @@ func NewMachine(handler restate.Handler, conn io.ReadWriter) *Machine {
 	}
 }
 
+func (m *Machine) Start(inner context.Context) error {
+	// reader starts a rea
+	msg, err := m.protocol.Read()
+	if err != nil {
+		return err
+	}
+
+	if msg.Type() != wire.StartMessageType {
+		// invalid negotiation
+		return ErrUnexpectedMessage
+	}
+
+	start := msg.(*wire.StartMessage)
+
+	if start.Version != Version {
+		return ErrInvalidVersion
+	}
+
+	ctx := newContext(inner, m)
+
+	log.Trace().Str("id", base64.URLEncoding.EncodeToString(m.id)).Msg("start invocation")
+	return m.process(ctx, start)
+}
+
 func (m *Machine) output(r *dynrpc.RpcResponse, err error) proto.Message {
 	// TODO: if err is terminal return outputStreamEntryMessage but if error is
 	// not terminal, return ErrorMessage instead.
@@ -219,26 +243,57 @@ func (m *Machine) process(ctx *Context, start *wire.StartMessage) error {
 
 }
 
-func (m *Machine) Start(inner context.Context) error {
-	// reader starts a rea
-	msg, err := m.protocol.Read()
-	if err != nil {
-		return err
+func (c *Machine) currentEntry() (wire.Message, bool) {
+	if c.entryIndex < len(c.entries) {
+		return c.entries[c.entryIndex], true
 	}
 
-	if msg.Type() != wire.StartMessageType {
-		// invalid negotiation
-		return ErrUnexpectedMessage
+	return nil, false
+}
+
+// replayOrNew is a utility function to easily either
+// replay a log entry, or create a new one if one
+// does not exist
+//
+// this should be an instance method on Machine but unfortunately
+// go does not support generics on instance methods
+//
+// the idea is when called, it will check if there is a log
+// entry at current index, then compare the entry message type
+// if not matching, that's obviously an error with the code version
+// (code has changed and now doesn't match the play log)
+//
+// if type is okay, the function will then call a `replay“ callback.
+// the replay callback just need to extract the result from the entry
+//
+// otherwise this function will call a `new` callback to create a new entry in the log
+// by sending the proper runtime messages
+func replayOrNew[M wire.Message, O any](
+	m *Machine,
+	typ wire.Type,
+	replay func(msg M) (O, error),
+	new func() (O, error),
+) (output O, err error) {
+
+	m.mutex.Lock()
+	defer m.mutex.Unlock()
+
+	defer func() {
+		m.entryIndex += 1
+	}()
+
+	// check if there is an entry as this index
+	entry, ok := m.currentEntry()
+
+	// if entry exists, we need to replay it
+	// by calling the replay function
+	if ok {
+		if entry.Type() != typ {
+			return output, errEntryMismatch
+		}
+		return replay(entry.(M))
 	}
 
-	start := msg.(*wire.StartMessage)
-
-	if start.Version != Version {
-		return ErrInvalidVersion
-	}
-
-	ctx := newContext(inner, m)
-
-	log.Trace().Str("id", base64.URLEncoding.EncodeToString(m.id)).Msg("start invocation")
-	return m.process(ctx, start)
+	// other wise call the new function
+	return new()
 }
