@@ -112,6 +112,7 @@ func NewMachine(handler restate.Handler, conn io.ReadWriter) *Machine {
 	}
 }
 
+// Start starts the state machine
 func (m *Machine) Start(inner context.Context) error {
 	// reader starts a rea
 	msg, err := m.protocol.Read()
@@ -136,11 +137,8 @@ func (m *Machine) Start(inner context.Context) error {
 	return m.process(ctx, start)
 }
 
+// handle handler response and build proper response message
 func (m *Machine) output(r *dynrpc.RpcResponse, err error) proto.Message {
-	// TODO: if err is terminal return outputStreamEntryMessage but if error is
-	// not terminal, return ErrorMessage instead.
-	//var output protocol.OutputStreamEntryMessage
-
 	if err != nil && restate.IsTerminalError(err) {
 		// terminal errors.
 		return &protocol.OutputStreamEntryMessage{
@@ -222,7 +220,7 @@ func (m *Machine) process(ctx *Context, start *wire.StartMessage) error {
 		return ErrUnexpectedMessage
 	}
 
-	log.Debug().Uint32("known entries", start.Payload.KnownEntries).Msg("known entires")
+	log.Trace().Uint32("known entries", start.Payload.KnownEntries).Msg("known entires")
 	m.entries = make([]wire.Message, 0, start.Payload.KnownEntries-1)
 
 	// we don't track the poll input entry

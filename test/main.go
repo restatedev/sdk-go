@@ -63,8 +63,6 @@ func Echo(ctx restate.Context, name string) (string, error) {
 		return "", err
 	}
 
-	panic("failed intentionally after a call")
-
 	return fmt.Sprintf("echo: %s", string(response)), nil
 }
 
