@@ -35,8 +35,9 @@ const (
 	// State
 	GetStateEntryMessageType      Type = 0x0800
 	SetStateEntryMessageType      Type = 0x0800 + 1
-	ClearStateEntryMessageType         = 0x0800 + 2
+	ClearStateEntryMessageType    Type = 0x0800 + 2
 	ClearAllStateEntryMessageType Type = 0x0800 + 3
+	GetStateKeysEntryMessageType  Type = 0x0800 + 4
 
 	//SysCalls
 	SleepEntryMessageType            Type = 0x0C00
@@ -187,6 +188,8 @@ func (s *Protocol) Write(message proto.Message, flags ...Flag) error {
 		typ = InvokeEntryMessageType
 	case *protocol.BackgroundInvokeEntryMessage:
 		typ = BackgroundInvokeEntryMessageType
+	case *protocol.GetStateKeysEntryMessage:
+		typ = GetStateKeysEntryMessageType
 	default:
 		return fmt.Errorf("can not send message of unknown message type")
 	}
@@ -253,8 +256,57 @@ var (
 
 			return msg, proto.Unmarshal(bytes, &msg.Payload)
 		},
+		SetStateEntryMessageType: func(header Header, bytes []byte) (Message, error) {
+			msg := &SetStateEntryMessage{
+				Header: header,
+			}
+
+			return msg, proto.Unmarshal(bytes, &msg.Payload)
+		},
+		ClearStateEntryMessageType: func(header Header, bytes []byte) (Message, error) {
+			msg := &ClearStateEntryMessage{
+				Header: header,
+			}
+
+			return msg, proto.Unmarshal(bytes, &msg.Payload)
+		},
+		ClearAllStateEntryMessageType: func(header Header, bytes []byte) (Message, error) {
+			msg := &ClearAllStateEntryMessage{
+				Header: header,
+			}
+
+			return msg, proto.Unmarshal(bytes, &msg.Payload)
+		},
+		GetStateKeysEntryMessageType: func(header Header, bytes []byte) (Message, error) {
+			msg := &GetStateKeysEntryMessage{
+				Header: header,
+			}
+
+			return msg, proto.Unmarshal(bytes, &msg.Payload)
+		},
 		CompletionMessageType: func(header Header, bytes []byte) (Message, error) {
 			msg := &CompletionMessage{
+				Header: header,
+			}
+
+			return msg, proto.Unmarshal(bytes, &msg.Payload)
+		},
+		SleepEntryMessageType: func(header Header, bytes []byte) (Message, error) {
+			msg := &SleepEntryMessage{
+				Header: header,
+			}
+
+			return msg, proto.Unmarshal(bytes, &msg.Payload)
+		},
+		InvokeEntryMessageType: func(header Header, bytes []byte) (Message, error) {
+			msg := &InvokeEntryMessage{
+				Header: header,
+			}
+
+			return msg, proto.Unmarshal(bytes, &msg.Payload)
+		},
+		BackgroundInvokeEntryMessageType: func(header Header, bytes []byte) (Message, error) {
+			msg := &BackgroundInvokeEntryMessage{
 				Header: header,
 			}
 
@@ -284,7 +336,42 @@ type GetStateEntryMessage struct {
 	Payload protocol.GetStateEntryMessage
 }
 
+type SetStateEntryMessage struct {
+	Header
+	Payload protocol.SetStateEntryMessage
+}
+
+type ClearStateEntryMessage struct {
+	Header
+	Payload protocol.ClearStateEntryMessage
+}
+
+type ClearAllStateEntryMessage struct {
+	Header
+	Payload protocol.ClearAllStateEntryMessage
+}
+
+type GetStateKeysEntryMessage struct {
+	Header
+	Payload protocol.GetStateKeysEntryMessage
+}
+
 type CompletionMessage struct {
 	Header
 	Payload protocol.CompletionMessage
+}
+
+type SleepEntryMessage struct {
+	Header
+	Payload protocol.SleepEntryMessage
+}
+
+type InvokeEntryMessage struct {
+	Header
+	Payload protocol.InvokeEntryMessage
+}
+
+type BackgroundInvokeEntryMessage struct {
+	Header
+	Payload protocol.BackgroundInvokeEntryMessage
 }

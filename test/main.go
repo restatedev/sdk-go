@@ -16,18 +16,35 @@ type J = map[string]interface{}
 
 type Tickets struct{}
 
-func (t *Tickets) Reserve(ctx restate.Context, id string, _ restate.Void) (restate.Void, error) {
-	if err := ctx.Set("reserved", []byte{1}); err != nil {
-		return restate.Void{}, err
+func (t *Tickets) Reserve(ctx restate.Context, id string, _ restate.Void) (string, error) {
+
+	fmt.Println(ctx.Keys())
+
+	count, err := ctx.Get("reserved")
+	if err != nil {
+		return "", err
 	}
 
-	if err := ctx.Service("Tickets").Method("UnReserve").Send(id, nil, 0); err != nil {
-		return restate.Void{}, err
+	if len(count) == 0 {
+		count = make([]byte, 1)
+	}
+	count[0] += 1
+	if err := ctx.Set("reserved", count); err != nil {
+		return "", err
 	}
 
-	// i wanna return a non terminal error
-	//return restate.Void{}, fmt.Errorf("not terminal error")
-	return restate.Void{}, nil
+	if err := ctx.Set("another key", []byte{}); err != nil {
+		return "", err
+	}
+
+	if err := ctx.Service("Tickets").Method("UnReserve").Send(id, nil, 30*time.Second); err != nil {
+		return "", fmt.Errorf("failed to schedule 'unreserve': %w", err)
+	}
+
+	//return "", fmt.Errorf("something went wrong")
+	// // i wanna return a non terminal error
+	// //return restate.Void{}, fmt.Errorf("not terminal error")
+	return fmt.Sprint(count[0]), nil
 }
 
 func (t *Tickets) UnReserve(ctx restate.Context, id string, _ restate.Void) (restate.Void, error) {
@@ -45,8 +62,6 @@ func Echo(ctx restate.Context, name string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-
-	panic("failed intentionally after a call")
 
 	return fmt.Sprintf("echo: %s", string(response)), nil
 }

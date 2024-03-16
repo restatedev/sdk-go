@@ -1,17 +1,40 @@
 package state
 
 import (
+	"bytes"
 	"fmt"
 	"time"
 
+	"github.com/muhamadazmy/restate-sdk-go"
 	"github.com/muhamadazmy/restate-sdk-go/generated/proto/protocol"
 	"github.com/muhamadazmy/restate-sdk-go/internal/wire"
+	"github.com/rs/zerolog/log"
+	"google.golang.org/protobuf/proto"
+)
+
+var (
+	errEntryMismatch = restate.WithErrorCode(fmt.Errorf("log entry mismatch"), 32)
+	errUnreachable   = fmt.Errorf("unreachable")
 )
 
 func (c *Machine) set(key string, value []byte) error {
-	c.mutex.Lock()
-	defer c.mutex.Unlock()
+	_, err := replayOrNew(
+		c,
+		wire.SetStateEntryMessageType,
+		func(entry *wire.SetStateEntryMessage) (void restate.Void, err error) {
+			if string(entry.Payload.Key) != key || !bytes.Equal(entry.Payload.Value, value) {
+				return void, errEntryMismatch
+			}
 
+			return
+		}, func() (void restate.Void, err error) {
+			return void, c._set(key, value)
+		})
+
+	return err
+}
+
+func (c *Machine) _set(key string, value []byte) error {
 	c.current[key] = value
 
 	return c.protocol.Write(
@@ -22,9 +45,24 @@ func (c *Machine) set(key string, value []byte) error {
 }
 
 func (c *Machine) clear(key string) error {
-	c.mutex.Lock()
-	defer c.mutex.Unlock()
+	_, err := replayOrNew(
+		c,
+		wire.ClearStateEntryMessageType,
+		func(entry *wire.ClearStateEntryMessage) (void restate.Void, err error) {
+			if string(entry.Payload.Key) != key {
+				return void, errEntryMismatch
+			}
 
+			return void, nil
+		}, func() (restate.Void, error) {
+			return restate.Void{}, c._clear(key)
+		},
+	)
+
+	return err
+}
+
+func (c *Machine) _clear(key string) error {
 	return c.protocol.Write(
 		&protocol.ClearStateEntryMessage{
 			Key: []byte(key),
@@ -32,23 +70,55 @@ func (c *Machine) clear(key string) error {
 	)
 }
 
-// clearAll drops all associated keys
 func (c *Machine) clearAll() error {
-	c.mutex.Lock()
-	defer c.mutex.Unlock()
+	_, err := replayOrNew(
+		c,
+		wire.ClearAllStateEntryMessageType,
+		func(entry *wire.ClearAllStateEntryMessage) (void restate.Void, err error) {
+			return
+		}, func() (restate.Void, error) {
+			return restate.Void{}, c._clearAll()
+		},
+	)
 
+	return err
+}
+
+// clearAll drops all associated keys
+func (c *Machine) _clearAll() error {
 	return c.protocol.Write(
 		&protocol.ClearAllStateEntryMessage{},
 	)
 }
 
 func (c *Machine) get(key string) ([]byte, error) {
+	return replayOrNew(
+		c,
+		wire.GetStateEntryMessageType,
+		func(entry *wire.GetStateEntryMessage) ([]byte, error) {
+			if string(entry.Payload.Key) != key {
+				return nil, errEntryMismatch
+			}
+
+			switch result := entry.Payload.Result.(type) {
+			case *protocol.GetStateEntryMessage_Empty:
+				return nil, nil
+			case *protocol.GetStateEntryMessage_Failure:
+				return nil, fmt.Errorf("[%d] %s", result.Failure.Code, result.Failure.Message)
+			case *protocol.GetStateEntryMessage_Value:
+				return result.Value, nil
+			}
+
+			return nil, fmt.Errorf("unreachable")
+		}, func() ([]byte, error) {
+			return c._get(key)
+		})
+}
+
+func (c *Machine) _get(key string) ([]byte, error) {
 	msg := &protocol.GetStateEntryMessage{
 		Key: []byte(key),
 	}
-
-	c.mutex.Lock()
-	defer c.mutex.Unlock()
 
 	value, ok := c.current[key]
 
@@ -110,7 +180,86 @@ func (c *Machine) get(key string) ([]byte, error) {
 	return nil, fmt.Errorf("unreachable")
 }
 
+func (c *Machine) keys() ([]string, error) {
+	return replayOrNew(
+		c,
+		wire.GetStateKeysEntryMessageType,
+		func(entry *wire.GetStateKeysEntryMessage) ([]string, error) {
+			switch result := entry.Payload.Result.(type) {
+			case *protocol.GetStateKeysEntryMessage_Failure:
+				return nil, fmt.Errorf("[%d] %s", result.Failure.Code, result.Failure.Message)
+			case *protocol.GetStateKeysEntryMessage_Value:
+				keys := make([]string, 0, len(result.Value.Keys))
+				for _, key := range result.Value.Keys {
+					keys = append(keys, string(key))
+				}
+				return keys, nil
+			}
+
+			return nil, errUnreachable
+		},
+		c._keys,
+	)
+}
+
+func (c *Machine) _keys() ([]string, error) {
+	if err := c.protocol.Write(&protocol.GetStateKeysEntryMessage{}); err != nil {
+		return nil, err
+	}
+
+	msg, err := c.protocol.Read()
+	if err != nil {
+		return nil, err
+	}
+
+	if msg.Type() != wire.CompletionMessageType {
+		log.Error().Stringer("type", msg.Type()).Msg("receiving message of type")
+		return nil, ErrUnexpectedMessage
+	}
+
+	response := msg.(*wire.CompletionMessage)
+
+	switch value := response.Payload.Result.(type) {
+	case *protocol.CompletionMessage_Empty:
+		return nil, nil
+	case *protocol.CompletionMessage_Failure:
+		// the get state entry message is not failable so this should
+		// never happen
+		return nil, fmt.Errorf("[%d] %s", value.Failure.Code, value.Failure.Message)
+	case *protocol.CompletionMessage_Value:
+		var keys protocol.GetStateKeysEntryMessage_StateKeys
+
+		if err := proto.Unmarshal(value.Value, &keys); err != nil {
+			return nil, err
+		}
+
+		values := make([]string, 0, len(keys.Keys))
+		for _, key := range keys.Keys {
+			values = append(values, string(key))
+		}
+
+		return values, nil
+	}
+
+	return nil, nil
+}
+
 func (c *Machine) sleep(until time.Time) error {
+	_, err := replayOrNew(
+		c,
+		wire.SleepEntryMessageType,
+		func(entry *wire.SleepEntryMessage) (void restate.Void, err error) {
+			// we shouldn't verify the time because this would be different every time
+			return
+		}, func() (restate.Void, error) {
+			return restate.Void{}, c._sleep(until)
+		},
+	)
+
+	return err
+}
+
+func (c *Machine) _sleep(until time.Time) error {
 	if err := c.protocol.Write(&protocol.SleepEntryMessage{
 		WakeUpTime: uint64(until.UnixMilli()),
 	}); err != nil {

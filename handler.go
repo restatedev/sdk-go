@@ -9,8 +9,9 @@ import (
 	"google.golang.org/protobuf/types/known/structpb"
 )
 
-// Empty struct used as a quick shortcut when you don't care about
-// the input or output type
+// Void is a placeholder used usually for functions that their signature require that
+// you accept an input or return an output but the function implementation does not
+// require them
 type Void struct{}
 
 func (v Void) MarshalJSON() ([]byte, error) {

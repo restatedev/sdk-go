@@ -30,6 +30,8 @@ type Context interface {
 	// ClearAll drops all stored state associated with key
 	ClearAll() error
 
+	Keys() ([]string, error)
+
 	Sleep(until time.Time) error
 
 	Service(service string) Service

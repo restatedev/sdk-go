@@ -1,6 +1,7 @@
 package state
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"time"
@@ -69,18 +70,39 @@ func (c *Machine) makeRequest(key string, body any) ([]byte, error) {
 }
 
 func (c *Machine) doCall(service, method, key string, body any) ([]byte, error) {
-	c.mutex.Lock()
-	defer c.mutex.Unlock()
-
-	input, err := c.makeRequest(key, body)
+	params, err := c.makeRequest(key, body)
 	if err != nil {
 		return nil, err
 	}
 
-	err = c.protocol.Write(&protocol.InvokeEntryMessage{
+	return replayOrNew(
+		c,
+		wire.InvokeEntryMessageType,
+		func(entry *wire.InvokeEntryMessage) ([]byte, error) {
+			if entry.Payload.ServiceName != service ||
+				entry.Payload.MethodName != method ||
+				!bytes.Equal(entry.Payload.Parameter, params) {
+				return nil, errEntryMismatch
+			}
+
+			switch result := entry.Payload.Result.(type) {
+			case *protocol.InvokeEntryMessage_Failure:
+				return nil, fmt.Errorf("[%d] %s", result.Failure.Code, result.Failure.Message)
+			case *protocol.InvokeEntryMessage_Value:
+				return result.Value, nil
+			}
+
+			return nil, errUnreachable
+		}, func() ([]byte, error) {
+			return c._doCall(service, method, params)
+		})
+}
+
+func (c *Machine) _doCall(service, method string, params []byte) ([]byte, error) {
+	err := c.protocol.Write(&protocol.InvokeEntryMessage{
 		ServiceName: service,
 		MethodName:  method,
-		Parameter:   input,
+		Parameter:   params,
 	})
 
 	if err != nil {
@@ -121,23 +143,41 @@ func (c *Machine) doCall(service, method, key string, body any) ([]byte, error) 
 }
 
 func (c *Machine) sendCall(service, method, key string, body any, delay time.Duration) error {
-	c.mutex.Lock()
-	defer c.mutex.Unlock()
-
-	input, err := c.makeRequest(key, body)
+	params, err := c.makeRequest(key, body)
 	if err != nil {
 		return err
 	}
 
+	_, err = replayOrNew(
+		c,
+		wire.BackgroundInvokeEntryMessageType,
+		func(entry *wire.BackgroundInvokeEntryMessage) (restate.Void, error) {
+			if entry.Payload.ServiceName != service ||
+				entry.Payload.MethodName != method ||
+				!bytes.Equal(entry.Payload.Parameter, params) {
+				return restate.Void{}, errEntryMismatch
+			}
+
+			return restate.Void{}, nil
+		},
+		func() (restate.Void, error) {
+			return restate.Void{}, c._sendCall(service, method, params, delay)
+		},
+	)
+
+	return err
+}
+
+func (c *Machine) _sendCall(service, method string, params []byte, delay time.Duration) error {
 	var invokeTime uint64
 	if delay != 0 {
 		invokeTime = uint64(time.Now().Add(delay).UnixMilli())
 	}
 
-	err = c.protocol.Write(&protocol.BackgroundInvokeEntryMessage{
+	err := c.protocol.Write(&protocol.BackgroundInvokeEntryMessage{
 		ServiceName: service,
 		MethodName:  method,
-		Parameter:   input,
+		Parameter:   params,
 		InvokeTime:  invokeTime,
 	})
 

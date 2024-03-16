@@ -70,7 +70,7 @@ func (r *Restate) discover() (resource *discovery.ServiceDiscoveryResponse, err 
 }
 
 func (r *Restate) discoverHandler(writer http.ResponseWriter, _ *http.Request) {
-	log.Debug().Msg("discover called")
+	log.Trace().Msg("discover called")
 	writer.Header().Add("Content-Type", "application/proto")
 
 	response, err := r.discover()
@@ -97,7 +97,7 @@ func (r *Restate) discoverHandler(writer http.ResponseWriter, _ *http.Request) {
 
 // takes care of function call
 func (r *Restate) callHandler(service, fn string, writer http.ResponseWriter, request *http.Request) {
-	log.Debug().Str("service", service).Str("handler", fn).Msg("got a call to service function")
+	log.Trace().Str("service", service).Str("handler", fn).Msg("new invocation")
 
 	writer.Header().Add("content-type", "application/restate")
 
@@ -128,7 +128,7 @@ func (r *Restate) callHandler(service, fn string, writer http.ResponseWriter, re
 		log.Error().Err(err).Msg("failed to handle invocation")
 	}
 
-	log.Info().Msg("invocation ended")
+	log.Trace().Msg("invocation ended")
 }
 
 func (r *Restate) handler(writer http.ResponseWriter, request *http.Request) {
