@@ -18,6 +18,8 @@ type Tickets struct{}
 
 func (t *Tickets) Reserve(ctx restate.Context, id string, _ restate.Void) (string, error) {
 
+	fmt.Println(ctx.Keys())
+
 	count, err := ctx.Get("reserved")
 	if err != nil {
 		return "", err
@@ -28,6 +30,10 @@ func (t *Tickets) Reserve(ctx restate.Context, id string, _ restate.Void) (strin
 	}
 	count[0] += 1
 	if err := ctx.Set("reserved", count); err != nil {
+		return "", err
+	}
+
+	if err := ctx.Set("another key", []byte{}); err != nil {
 		return "", err
 	}
 

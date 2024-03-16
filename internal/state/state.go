@@ -59,6 +59,10 @@ func (c *Context) Get(key string) ([]byte, error) {
 	return c.machine.get(key)
 }
 
+func (c *Context) Keys() ([]string, error) {
+	return c.machine.keys()
+}
+
 func (c *Context) Sleep(until time.Time) error {
 	return c.machine.sleep(until)
 }

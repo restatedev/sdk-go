@@ -8,6 +8,8 @@ import (
 	"github.com/muhamadazmy/restate-sdk-go"
 	"github.com/muhamadazmy/restate-sdk-go/generated/proto/protocol"
 	"github.com/muhamadazmy/restate-sdk-go/internal/wire"
+	"github.com/rs/zerolog/log"
+	"google.golang.org/protobuf/proto"
 )
 
 var (
@@ -176,6 +178,70 @@ func (c *Machine) _get(key string) ([]byte, error) {
 	}
 
 	return nil, fmt.Errorf("unreachable")
+}
+
+func (c *Machine) keys() ([]string, error) {
+	return replayOrNew(
+		c,
+		wire.GetStateKeysEntryMessageType,
+		func(entry *wire.GetStateKeysEntryMessage) ([]string, error) {
+			switch result := entry.Payload.Result.(type) {
+			case *protocol.GetStateKeysEntryMessage_Failure:
+				return nil, fmt.Errorf("[%d] %s", result.Failure.Code, result.Failure.Message)
+			case *protocol.GetStateKeysEntryMessage_Value:
+				keys := make([]string, 0, len(result.Value.Keys))
+				for _, key := range result.Value.Keys {
+					keys = append(keys, string(key))
+				}
+				return keys, nil
+			}
+
+			return nil, errUnreachable
+		},
+		c._keys,
+	)
+}
+
+func (c *Machine) _keys() ([]string, error) {
+	if err := c.protocol.Write(&protocol.GetStateKeysEntryMessage{}); err != nil {
+		return nil, err
+	}
+
+	msg, err := c.protocol.Read()
+	if err != nil {
+		return nil, err
+	}
+
+	if msg.Type() != wire.CompletionMessageType {
+		log.Error().Stringer("type", msg.Type()).Msg("receiving message of type")
+		return nil, ErrUnexpectedMessage
+	}
+
+	response := msg.(*wire.CompletionMessage)
+
+	switch value := response.Payload.Result.(type) {
+	case *protocol.CompletionMessage_Empty:
+		return nil, nil
+	case *protocol.CompletionMessage_Failure:
+		// the get state entry message is not failable so this should
+		// never happen
+		return nil, fmt.Errorf("[%d] %s", value.Failure.Code, value.Failure.Message)
+	case *protocol.CompletionMessage_Value:
+		var keys protocol.GetStateKeysEntryMessage_StateKeys
+
+		if err := proto.Unmarshal(value.Value, &keys); err != nil {
+			return nil, err
+		}
+
+		values := make([]string, 0, len(keys.Keys))
+		for _, key := range keys.Keys {
+			values = append(values, string(key))
+		}
+
+		return values, nil
+	}
+
+	return nil, nil
 }
 
 func (c *Machine) sleep(until time.Time) error {
