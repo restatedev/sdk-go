@@ -97,7 +97,7 @@ func (r *Restate) discoverHandler(writer http.ResponseWriter, _ *http.Request) {
 
 // takes care of function call
 func (r *Restate) callHandler(service, fn string, writer http.ResponseWriter, request *http.Request) {
-	log.Trace().Str("service", service).Str("handler", fn).Msg("new invocation")
+	log.Debug().Str("service", service).Str("handler", fn).Msg("new request")
 
 	writer.Header().Add("content-type", "application/restate")
 
@@ -124,15 +124,13 @@ func (r *Restate) callHandler(service, fn string, writer http.ResponseWriter, re
 
 	machine := state.NewMachine(handler, conn)
 
-	if err := machine.Start(request.Context()); err != nil {
+	if err := machine.Start(request.Context(), fmt.Sprintf("%s/%s", service, fn)); err != nil {
 		log.Error().Err(err).Msg("failed to handle invocation")
 	}
-
-	log.Trace().Msg("invocation ended")
 }
 
 func (r *Restate) handler(writer http.ResponseWriter, request *http.Request) {
-	log.Info().Str("proto", request.Proto).Str("method", request.Method).Str("path", request.RequestURI).Msg("got request")
+	log.Trace().Str("proto", request.Proto).Str("method", request.Method).Str("path", request.RequestURI).Msg("got request")
 
 	if request.Method != http.MethodPost {
 		writer.WriteHeader(http.StatusMethodNotAllowed)

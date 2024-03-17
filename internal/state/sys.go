@@ -10,7 +10,6 @@ import (
 	"github.com/muhamadazmy/restate-sdk-go/generated/proto/javascript"
 	"github.com/muhamadazmy/restate-sdk-go/generated/proto/protocol"
 	"github.com/muhamadazmy/restate-sdk-go/internal/wire"
-	"github.com/rs/zerolog/log"
 	"google.golang.org/protobuf/proto"
 )
 
@@ -19,9 +18,9 @@ var (
 	errUnreachable   = fmt.Errorf("unreachable")
 )
 
-func (c *Machine) set(key string, value []byte) error {
+func (m *Machine) set(key string, value []byte) error {
 	_, err := replayOrNew(
-		c,
+		m,
 		wire.SetStateEntryMessageType,
 		func(entry *wire.SetStateEntryMessage) (void restate.Void, err error) {
 			if string(entry.Payload.Key) != key || !bytes.Equal(entry.Payload.Value, value) {
@@ -30,25 +29,25 @@ func (c *Machine) set(key string, value []byte) error {
 
 			return
 		}, func() (void restate.Void, err error) {
-			return void, c._set(key, value)
+			return void, m._set(key, value)
 		})
 
 	return err
 }
 
-func (c *Machine) _set(key string, value []byte) error {
-	c.current[key] = value
+func (m *Machine) _set(key string, value []byte) error {
+	m.current[key] = value
 
-	return c.protocol.Write(
+	return m.protocol.Write(
 		&protocol.SetStateEntryMessage{
 			Key:   []byte(key),
 			Value: value,
 		})
 }
 
-func (c *Machine) clear(key string) error {
+func (m *Machine) clear(key string) error {
 	_, err := replayOrNew(
-		c,
+		m,
 		wire.ClearStateEntryMessageType,
 		func(entry *wire.ClearStateEntryMessage) (void restate.Void, err error) {
 			if string(entry.Payload.Key) != key {
@@ -57,45 +56,62 @@ func (c *Machine) clear(key string) error {
 
 			return void, nil
 		}, func() (restate.Void, error) {
-			return restate.Void{}, c._clear(key)
+			return restate.Void{}, m._clear(key)
 		},
 	)
+
+	if err != nil {
+		return err
+	}
+
+	m.mutex.Lock()
+	defer m.mutex.Unlock()
+
+	delete(m.current, key)
 
 	return err
 }
 
-func (c *Machine) _clear(key string) error {
-	return c.protocol.Write(
+func (m *Machine) _clear(key string) error {
+	return m.protocol.Write(
 		&protocol.ClearStateEntryMessage{
 			Key: []byte(key),
 		},
 	)
 }
 
-func (c *Machine) clearAll() error {
+func (m *Machine) clearAll() error {
 	_, err := replayOrNew(
-		c,
+		m,
 		wire.ClearAllStateEntryMessageType,
 		func(entry *wire.ClearAllStateEntryMessage) (void restate.Void, err error) {
 			return
 		}, func() (restate.Void, error) {
-			return restate.Void{}, c._clearAll()
+			return restate.Void{}, m._clearAll()
 		},
 	)
+	if err != nil {
+		return err
+	}
 
-	return err
+	m.mutex.Lock()
+	defer m.mutex.Unlock()
+	m.current = map[string][]byte{}
+	m.partial = false
+
+	return nil
 }
 
 // clearAll drops all associated keys
-func (c *Machine) _clearAll() error {
-	return c.protocol.Write(
+func (m *Machine) _clearAll() error {
+	return m.protocol.Write(
 		&protocol.ClearAllStateEntryMessage{},
 	)
 }
 
-func (c *Machine) get(key string) ([]byte, error) {
+func (m *Machine) get(key string) ([]byte, error) {
 	return replayOrNew(
-		c,
+		m,
 		wire.GetStateEntryMessageType,
 		func(entry *wire.GetStateEntryMessage) ([]byte, error) {
 			if string(entry.Payload.Key) != key {
@@ -113,16 +129,16 @@ func (c *Machine) get(key string) ([]byte, error) {
 
 			return nil, fmt.Errorf("unreachable")
 		}, func() ([]byte, error) {
-			return c._get(key)
+			return m._get(key)
 		})
 }
 
-func (c *Machine) _get(key string) ([]byte, error) {
+func (m *Machine) _get(key string) ([]byte, error) {
 	msg := &protocol.GetStateEntryMessage{
 		Key: []byte(key),
 	}
 
-	value, ok := c.current[key]
+	value, ok := m.current[key]
 
 	if ok {
 		// value in map, we still send the current
@@ -131,32 +147,43 @@ func (c *Machine) _get(key string) ([]byte, error) {
 			Value: value,
 		}
 
-		if err := c.protocol.Write(msg); err != nil {
+		if err := m.protocol.Write(msg); err != nil {
 			return nil, err
 		}
 
+		// read and discard response
+		_, err := m.protocol.Read()
+		if err != nil {
+			return value, err
+		}
 		return value, nil
 	}
 
 	// key is not in map! there are 2 cases.
-	if !c.partial {
+	if !m.partial {
 		// current is complete. we need to return nil to the user
 		// but also send an empty get state entry message
 		msg.Result = &protocol.GetStateEntryMessage_Empty{}
 
-		if err := c.protocol.Write(msg); err != nil {
+		if err := m.protocol.Write(msg); err != nil {
 			return nil, err
+		}
+
+		// read and discard response
+		_, err := m.protocol.Read()
+		if err != nil {
+			return value, err
 		}
 
 		return nil, nil
 	}
 
-	if err := c.protocol.Write(msg); err != nil {
+	if err := m.protocol.Write(msg); err != nil {
 		return nil, err
 	}
 
 	// wait for completion
-	response, err := c.protocol.Read()
+	response, err := m.protocol.Read()
 	if err != nil {
 		return nil, err
 	}
@@ -175,16 +202,16 @@ func (c *Machine) _get(key string) ([]byte, error) {
 		// never happen
 		return nil, fmt.Errorf("[%d] %s", value.Failure.Code, value.Failure.Message)
 	case *protocol.CompletionMessage_Value:
-		c.current[key] = value.Value
+		m.current[key] = value.Value
 		return value.Value, nil
 	}
 
 	return nil, fmt.Errorf("unreachable")
 }
 
-func (c *Machine) keys() ([]string, error) {
+func (m *Machine) keys() ([]string, error) {
 	return replayOrNew(
-		c,
+		m,
 		wire.GetStateKeysEntryMessageType,
 		func(entry *wire.GetStateKeysEntryMessage) ([]string, error) {
 			switch result := entry.Payload.Result.(type) {
@@ -200,22 +227,22 @@ func (c *Machine) keys() ([]string, error) {
 
 			return nil, errUnreachable
 		},
-		c._keys,
+		m._keys,
 	)
 }
 
-func (c *Machine) _keys() ([]string, error) {
-	if err := c.protocol.Write(&protocol.GetStateKeysEntryMessage{}); err != nil {
+func (m *Machine) _keys() ([]string, error) {
+	if err := m.protocol.Write(&protocol.GetStateKeysEntryMessage{}); err != nil {
 		return nil, err
 	}
 
-	msg, err := c.protocol.Read()
+	msg, err := m.protocol.Read()
 	if err != nil {
 		return nil, err
 	}
 
 	if msg.Type() != wire.CompletionMessageType {
-		log.Error().Stringer("type", msg.Type()).Msg("receiving message of type")
+		m.log.Error().Stringer("type", msg.Type()).Msg("receiving message of type")
 		return nil, ErrUnexpectedMessage
 	}
 
@@ -246,29 +273,29 @@ func (c *Machine) _keys() ([]string, error) {
 	return nil, nil
 }
 
-func (c *Machine) sleep(until time.Time) error {
+func (m *Machine) sleep(until time.Time) error {
 	_, err := replayOrNew(
-		c,
+		m,
 		wire.SleepEntryMessageType,
 		func(entry *wire.SleepEntryMessage) (void restate.Void, err error) {
 			// we shouldn't verify the time because this would be different every time
 			return
 		}, func() (restate.Void, error) {
-			return restate.Void{}, c._sleep(until)
+			return restate.Void{}, m._sleep(until)
 		},
 	)
 
 	return err
 }
 
-func (c *Machine) _sleep(until time.Time) error {
-	if err := c.protocol.Write(&protocol.SleepEntryMessage{
+func (m *Machine) _sleep(until time.Time) error {
+	if err := m.protocol.Write(&protocol.SleepEntryMessage{
 		WakeUpTime: uint64(until.UnixMilli()),
 	}); err != nil {
 		return err
 	}
 
-	response, err := c.protocol.Read()
+	response, err := m.protocol.Read()
 	if err != nil {
 		return err
 	}
@@ -280,9 +307,9 @@ func (c *Machine) _sleep(until time.Time) error {
 	return nil
 }
 
-func (c *Machine) sideEffect(fn func() ([]byte, error), bo backoff.BackOff) ([]byte, error) {
+func (m *Machine) sideEffect(fn func() ([]byte, error), bo backoff.BackOff) ([]byte, error) {
 	return replayOrNew(
-		c,
+		m,
 		wire.SideEffectEntryMessageType,
 		func(entry *wire.SideEffectEntryMessage) ([]byte, error) {
 			switch result := entry.Payload.Result.(type) {
@@ -299,12 +326,12 @@ func (c *Machine) sideEffect(fn func() ([]byte, error), bo backoff.BackOff) ([]b
 			return nil, errUnreachable
 		},
 		func() ([]byte, error) {
-			return c._sideEffect(fn, bo)
+			return m._sideEffect(fn, bo)
 		},
 	)
 }
 
-func (c *Machine) _sideEffect(fn func() ([]byte, error), bo backoff.BackOff) ([]byte, error) {
+func (m *Machine) _sideEffect(fn func() ([]byte, error), bo backoff.BackOff) ([]byte, error) {
 	var bytes []byte
 	err := backoff.Retry(func() error {
 		var err error
@@ -336,7 +363,7 @@ func (c *Machine) _sideEffect(fn func() ([]byte, error), bo backoff.BackOff) ([]
 		}
 	}
 
-	if err := c.protocol.Write(&msg); err != nil {
+	if err := m.protocol.Write(&msg); err != nil {
 		return nil, err
 	}
 

@@ -2,7 +2,6 @@ package state
 
 import (
 	"context"
-	"encoding/base64"
 	"fmt"
 	"io"
 	"runtime/debug"
@@ -15,6 +14,7 @@ import (
 	"github.com/muhamadazmy/restate-sdk-go/generated/proto/protocol"
 	"github.com/muhamadazmy/restate-sdk-go/internal/wire"
 
+	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
 	"google.golang.org/protobuf/proto"
 )
@@ -109,13 +109,15 @@ type Machine struct {
 	mutex    sync.Mutex
 
 	// state
-	id []byte
+	id string
 
 	partial bool
 	current map[string][]byte
 
 	entries    []wire.Message
 	entryIndex int
+
+	log zerolog.Logger
 }
 
 func NewMachine(handler restate.Handler, conn io.ReadWriter) *Machine {
@@ -127,7 +129,7 @@ func NewMachine(handler restate.Handler, conn io.ReadWriter) *Machine {
 }
 
 // Start starts the state machine
-func (m *Machine) Start(inner context.Context) error {
+func (m *Machine) Start(inner context.Context, trace string) error {
 	// reader starts a rea
 	msg, err := m.protocol.Read()
 	if err != nil {
@@ -141,18 +143,27 @@ func (m *Machine) Start(inner context.Context) error {
 
 	start := msg.(*wire.StartMessage)
 
+	m.id = start.Payload.DebugId
 	if start.Version != Version {
 		return ErrInvalidVersion
 	}
 
+	m.log = log.With().Str("id", start.Payload.DebugId).Str("method", trace).Logger()
+
 	ctx := newContext(inner, m)
 
-	log.Trace().Str("id", base64.URLEncoding.EncodeToString(m.id)).Msg("start invocation")
+	m.log.Debug().Msg("start invocation")
+	defer m.log.Debug().Msg("invocation ended")
+
 	return m.process(ctx, start)
 }
 
 // handle handler response and build proper response message
 func (m *Machine) output(r *dynrpc.RpcResponse, err error) proto.Message {
+	if err != nil {
+		m.log.Error().Err(err).Msg("failure")
+	}
+
 	if err != nil && restate.IsTerminalError(err) {
 		// terminal errors.
 		return &protocol.OutputStreamEntryMessage{
@@ -207,7 +218,7 @@ func (m *Machine) invoke(ctx *Context, input *dynrpc.RpcRequest) error {
 			})
 
 			if wErr != nil {
-				log.Error().Err(wErr).Msg("error sending failure message")
+				m.log.Error().Err(wErr).Msg("error sending failure message")
 			}
 		}
 	}()
@@ -218,8 +229,6 @@ func (m *Machine) invoke(ctx *Context, input *dynrpc.RpcRequest) error {
 }
 
 func (m *Machine) process(ctx *Context, start *wire.StartMessage) error {
-	m.id = start.Payload.Id
-
 	for _, entry := range start.Payload.StateMap {
 		m.current[string(entry.Key)] = entry.Value
 	}
@@ -234,7 +243,7 @@ func (m *Machine) process(ctx *Context, start *wire.StartMessage) error {
 		return ErrUnexpectedMessage
 	}
 
-	log.Trace().Uint32("known entries", start.Payload.KnownEntries).Msg("known entires")
+	m.log.Trace().Uint32("known entries", start.Payload.KnownEntries).Msg("known entires")
 	m.entries = make([]wire.Message, 0, start.Payload.KnownEntries-1)
 
 	// we don't track the poll input entry
@@ -244,7 +253,7 @@ func (m *Machine) process(ctx *Context, start *wire.StartMessage) error {
 			return fmt.Errorf("failed to read entry: %w", err)
 		}
 
-		log.Trace().Uint16("type", uint16(msg.Type())).Msg("replay log entry")
+		m.log.Trace().Uint16("type", uint16(msg.Type())).Msg("replay log entry")
 		m.entries = append(m.entries, msg)
 	}
 

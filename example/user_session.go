@@ -22,7 +22,7 @@ func addTicket(ctx restate.Context, userId, ticketId string) (bool, error) {
 	// add ticket to list of tickets
 	tickets, err := restate.GetAs[[]string](ctx, "tickets")
 
-	if err != nil && errors.Is(err, restate.ErrKeyNotFound) {
+	if err != nil && !errors.Is(err, restate.ErrKeyNotFound) {
 		return false, err
 	}
 

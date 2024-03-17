@@ -50,7 +50,7 @@ func (c *serviceCall) Send(key string, body any, delay time.Duration) error {
 	return c.machine.sendCall(c.service, c.method, key, body, delay)
 }
 
-func (c *Machine) makeRequest(key string, body any) ([]byte, error) {
+func (m *Machine) makeRequest(key string, body any) ([]byte, error) {
 
 	input, err := json.Marshal(body)
 	if err != nil {
@@ -69,14 +69,16 @@ func (c *Machine) makeRequest(key string, body any) ([]byte, error) {
 	return proto.Marshal(params)
 }
 
-func (c *Machine) doCall(service, method, key string, input, output any) error {
-	params, err := c.makeRequest(key, input)
+func (m *Machine) doCall(service, method, key string, input, output any) error {
+	m.log.Debug().Str("service", service).Str("method", method).Msg("in do call")
+
+	params, err := m.makeRequest(key, input)
 	if err != nil {
 		return err
 	}
 
 	bytes, err := replayOrNew(
-		c,
+		m,
 		wire.InvokeEntryMessageType,
 		func(entry *wire.InvokeEntryMessage) ([]byte, error) {
 			if entry.Payload.ServiceName != service ||
@@ -89,12 +91,17 @@ func (c *Machine) doCall(service, method, key string, input, output any) error {
 			case *protocol.InvokeEntryMessage_Failure:
 				return nil, fmt.Errorf("[%d] %s", result.Failure.Code, result.Failure.Message)
 			case *protocol.InvokeEntryMessage_Value:
-				return result.Value, nil
+				var rpcResponse dynrpc.RpcResponse
+				if err := proto.Unmarshal(result.Value, &rpcResponse); err != nil {
+					return nil, fmt.Errorf("failed to decode rpc response: %w", err)
+				}
+
+				return rpcResponse.Response.MarshalJSON()
 			}
 
 			return nil, errUnreachable
 		}, func() ([]byte, error) {
-			return c._doCall(service, method, params)
+			return m._doCall(service, method, params)
 		})
 
 	if err != nil {
@@ -106,14 +113,14 @@ func (c *Machine) doCall(service, method, key string, input, output any) error {
 	}
 
 	if err := json.Unmarshal(bytes, output); err != nil {
-		return restate.TerminalError(fmt.Errorf("failed to decode response: %w", err))
+		return restate.TerminalError(fmt.Errorf("failed to decode response (%s): %w", string(bytes), err))
 	}
 
 	return nil
 }
 
-func (c *Machine) _doCall(service, method string, params []byte) ([]byte, error) {
-	err := c.protocol.Write(&protocol.InvokeEntryMessage{
+func (m *Machine) _doCall(service, method string, params []byte) ([]byte, error) {
+	err := m.protocol.Write(&protocol.InvokeEntryMessage{
 		ServiceName: service,
 		MethodName:  method,
 		Parameter:   params,
@@ -123,7 +130,7 @@ func (c *Machine) _doCall(service, method string, params []byte) ([]byte, error)
 		return nil, fmt.Errorf("failed to send request message: %w", err)
 	}
 
-	response, err := c.protocol.Read()
+	response, err := m.protocol.Read()
 	if err != nil {
 		return nil, fmt.Errorf("failed to read response message: %w", err)
 	}
@@ -150,7 +157,7 @@ func (c *Machine) _doCall(service, method string, params []byte) ([]byte, error)
 
 	var rpcResponse dynrpc.RpcResponse
 	if err := proto.Unmarshal(output, &rpcResponse); err != nil {
-		return nil, fmt.Errorf("failed to decode rpc response: %w", err)
+		return nil, fmt.Errorf("failed to decode rpc response(%s,%s): %w", service, method, err)
 	}
 
 	return rpcResponse.Response.MarshalJSON()

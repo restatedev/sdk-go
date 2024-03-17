@@ -4,6 +4,7 @@ import (
 	"errors"
 
 	"github.com/muhamadazmy/restate-sdk-go"
+	"github.com/rs/zerolog/log"
 )
 
 type TicketStatus int
@@ -14,7 +15,8 @@ const (
 	TicketSold      TicketStatus = 2
 )
 
-func reserve(ctx restate.Context, _ string, _ restate.Void) (bool, error) {
+func reserve(ctx restate.Context, ticketId string, _ restate.Void) (bool, error) {
+	log.Info().Str("ticket", ticketId).Msg("reserving ticket")
 	status, err := restate.GetAs[TicketStatus](ctx, "status")
 	if err != nil && !errors.Is(err, restate.ErrKeyNotFound) {
 		return false, err
@@ -27,7 +29,8 @@ func reserve(ctx restate.Context, _ string, _ restate.Void) (bool, error) {
 	return false, nil
 }
 
-func unreserve(ctx restate.Context, _ string, _ restate.Void) (void restate.Void, err error) {
+func unreserve(ctx restate.Context, ticketId string, _ restate.Void) (void restate.Void, err error) {
+	log.Info().Str("ticket", ticketId).Msg("un-reserving ticket")
 	status, err := restate.GetAs[TicketStatus](ctx, "status")
 	if err != nil && !errors.Is(err, restate.ErrKeyNotFound) {
 		return void, err
@@ -40,7 +43,9 @@ func unreserve(ctx restate.Context, _ string, _ restate.Void) (void restate.Void
 	return void, nil
 }
 
-func markAsSold(ctx restate.Context, _ string, _ restate.Void) (void restate.Void, err error) {
+func markAsSold(ctx restate.Context, ticketId string, _ restate.Void) (void restate.Void, err error) {
+	log.Info().Str("ticket", ticketId).Msg("mark ticket as sold")
+
 	status, err := restate.GetAs[TicketStatus](ctx, "status")
 	if err != nil && !errors.Is(err, restate.ErrKeyNotFound) {
 		return void, err

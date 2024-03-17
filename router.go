@@ -136,7 +136,6 @@ func (r *KeyedRouter) Handlers() map[string]Handler {
 // returned
 // it does encoding/decoding of bytes automatically using msgpack
 func GetAs[T any](ctx Context, key string) (output T, err error) {
-
 	bytes, err := ctx.Get(key)
 	if err != nil {
 		return output, err
