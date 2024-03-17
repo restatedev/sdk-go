@@ -9,6 +9,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/cenkalti/backoff/v4"
 	"github.com/muhamadazmy/restate-sdk-go"
 	"github.com/muhamadazmy/restate-sdk-go/generated/proto/dynrpc"
 	"github.com/muhamadazmy/restate-sdk-go/generated/proto/protocol"
@@ -72,6 +73,19 @@ func (c *Context) Service(service string) restate.Service {
 		Context: c,
 		service: service,
 	}
+}
+
+func (c *Context) SideEffect(fn func() ([]byte, error), bo ...backoff.BackOff) ([]byte, error) {
+	var back backoff.BackOff
+	if len(bo) == 0 {
+		back = &restate.DefaultBackoffPolicy
+	} else if len(bo) == 1 {
+		back = bo[0]
+	} else {
+		panic("only single backoff policy is allowed")
+	}
+
+	return c.machine.sideEffect(fn, back)
 }
 
 func newContext(inner context.Context, machine *Machine) *Context {

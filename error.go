@@ -171,6 +171,10 @@ func (e *terminalError) Unwrap() error {
 
 // WithErrorCode returns an error with specific
 func WithErrorCode(err error, code Code) error {
+	if err == nil {
+		return nil
+	}
+
 	return &codeError{
 		inner: err,
 		code:  code,
@@ -180,6 +184,10 @@ func WithErrorCode(err error, code Code) error {
 // TerminalError returns a terminal error with optional code.
 // code is optional but only one code is allowed.
 func TerminalError(err error, code ...Code) error {
+	if err == nil {
+		return nil
+	}
+
 	if len(code) > 1 {
 		panic("only single code is allowed")
 	}

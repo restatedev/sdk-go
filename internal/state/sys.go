@@ -5,7 +5,9 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/cenkalti/backoff/v4"
 	"github.com/muhamadazmy/restate-sdk-go"
+	"github.com/muhamadazmy/restate-sdk-go/generated/proto/javascript"
 	"github.com/muhamadazmy/restate-sdk-go/generated/proto/protocol"
 	"github.com/muhamadazmy/restate-sdk-go/internal/wire"
 	"github.com/rs/zerolog/log"
@@ -276,4 +278,67 @@ func (c *Machine) _sleep(until time.Time) error {
 	}
 
 	return nil
+}
+
+func (c *Machine) sideEffect(fn func() ([]byte, error), bo backoff.BackOff) ([]byte, error) {
+	return replayOrNew(
+		c,
+		wire.SideEffectEntryMessageType,
+		func(entry *wire.SideEffectEntryMessage) ([]byte, error) {
+			switch result := entry.Payload.Result.(type) {
+			case *javascript.SideEffectEntryMessage_Failure:
+				err := fmt.Errorf("[%d] %s", result.Failure.Failure.Code, result.Failure.Failure.Message)
+				if result.Failure.Terminal {
+					err = restate.TerminalError(err)
+				}
+				return nil, err
+			case *javascript.SideEffectEntryMessage_Value:
+				return result.Value, nil
+			}
+
+			return nil, errUnreachable
+		},
+		func() ([]byte, error) {
+			return c._sideEffect(fn, bo)
+		},
+	)
+}
+
+func (c *Machine) _sideEffect(fn func() ([]byte, error), bo backoff.BackOff) ([]byte, error) {
+	var bytes []byte
+	err := backoff.Retry(func() error {
+		var err error
+		bytes, err = fn()
+
+		if restate.IsTerminalError(err) {
+			// if inner function returned a terminal error
+			// we need to wrap it in permanent to break
+			// the retries
+			return backoff.Permanent(err)
+		}
+		return err
+	}, bo)
+
+	var msg javascript.SideEffectEntryMessage
+	if err != nil {
+		msg.Result = &javascript.SideEffectEntryMessage_Failure{
+			Failure: &javascript.FailureWithTerminal{
+				Failure: &protocol.Failure{
+					Code:    uint32(restate.ErrorCode(err)),
+					Message: err.Error(),
+				},
+				Terminal: restate.IsTerminalError(err),
+			},
+		}
+	} else {
+		msg.Result = &javascript.SideEffectEntryMessage_Value{
+			Value: bytes,
+		}
+	}
+
+	if err := c.protocol.Write(&msg); err != nil {
+		return nil, err
+	}
+
+	return bytes, err
 }

@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"math/rand"
 	"time"
 
 	"github.com/muhamadazmy/restate-sdk-go"
@@ -18,33 +19,17 @@ type Tickets struct{}
 
 func (t *Tickets) Reserve(ctx restate.Context, id string, _ restate.Void) (string, error) {
 
-	fmt.Println(ctx.Keys())
+	random, err := restate.SideEffectAs(ctx, func() (float64, error) {
+		return rand.Float64(), nil
+	})
 
-	count, err := ctx.Get("reserved")
+	log.Info().Float64("rand", random).Msg("your random is")
+
 	if err != nil {
 		return "", err
 	}
 
-	if len(count) == 0 {
-		count = make([]byte, 1)
-	}
-	count[0] += 1
-	if err := ctx.Set("reserved", count); err != nil {
-		return "", err
-	}
-
-	if err := ctx.Set("another key", []byte{}); err != nil {
-		return "", err
-	}
-
-	if err := ctx.Service("Tickets").Method("UnReserve").Send(id, nil, 30*time.Second); err != nil {
-		return "", fmt.Errorf("failed to schedule 'unreserve': %w", err)
-	}
-
-	//return "", fmt.Errorf("something went wrong")
-	// // i wanna return a non terminal error
-	// //return restate.Void{}, fmt.Errorf("not terminal error")
-	return fmt.Sprint(count[0]), nil
+	return fmt.Sprintf("your random number is: %f", random), nil
 }
 
 func (t *Tickets) UnReserve(ctx restate.Context, id string, _ restate.Void) (restate.Void, error) {

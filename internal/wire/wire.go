@@ -9,6 +9,7 @@ import (
 	"io"
 	"math"
 
+	"github.com/muhamadazmy/restate-sdk-go/generated/proto/javascript"
 	"github.com/muhamadazmy/restate-sdk-go/generated/proto/protocol"
 	"github.com/rs/zerolog/log"
 	"google.golang.org/protobuf/proto"
@@ -43,6 +44,9 @@ const (
 	SleepEntryMessageType            Type = 0x0C00
 	InvokeEntryMessageType           Type = 0x0C00 + 1
 	BackgroundInvokeEntryMessageType Type = 0x0C00 + 2
+
+	// SideEffect
+	SideEffectEntryMessageType Type = 0xFC00 + 1
 )
 
 type Type uint16
@@ -190,6 +194,8 @@ func (s *Protocol) Write(message proto.Message, flags ...Flag) error {
 		typ = BackgroundInvokeEntryMessageType
 	case *protocol.GetStateKeysEntryMessage:
 		typ = GetStateKeysEntryMessageType
+	case *javascript.SideEffectEntryMessage:
+		typ = SideEffectEntryMessageType
 	default:
 		return fmt.Errorf("can not send message of unknown message type")
 	}
@@ -312,6 +318,13 @@ var (
 
 			return msg, proto.Unmarshal(bytes, &msg.Payload)
 		},
+		SideEffectEntryMessageType: func(header Header, bytes []byte) (Message, error) {
+			msg := &SideEffectEntryMessage{
+				Header: header,
+			}
+
+			return msg, proto.Unmarshal(bytes, &msg.Payload)
+		},
 	}
 )
 
@@ -374,4 +387,9 @@ type InvokeEntryMessage struct {
 type BackgroundInvokeEntryMessage struct {
 	Header
 	Payload protocol.BackgroundInvokeEntryMessage
+}
+
+type SideEffectEntryMessage struct {
+	Header
+	Payload javascript.SideEffectEntryMessage
 }
