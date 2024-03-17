@@ -26,8 +26,8 @@ var (
 
 type Call interface {
 	// Do makes a call and wait for the response
-	Do(key string, body any) ([]byte, error)
-	// Send runs a call in the background after delay duration
+	Do(key string, input any, output any) error
+	// Send makes a call in the background (doesn't wait for response) after delay duration
 	Send(key string, body any, delay time.Duration) error
 }
 

@@ -41,8 +41,8 @@ type serviceCall struct {
 }
 
 // Do makes a call and wait for the response
-func (c *serviceCall) Do(key string, body any) ([]byte, error) {
-	return c.machine.doCall(c.service, c.method, key, body)
+func (c *serviceCall) Do(key string, input any, output any) error {
+	return c.machine.doCall(c.service, c.method, key, input, output)
 }
 
 // Send runs a call in the background after delay duration
@@ -69,13 +69,13 @@ func (c *Machine) makeRequest(key string, body any) ([]byte, error) {
 	return proto.Marshal(params)
 }
 
-func (c *Machine) doCall(service, method, key string, body any) ([]byte, error) {
-	params, err := c.makeRequest(key, body)
+func (c *Machine) doCall(service, method, key string, input, output any) error {
+	params, err := c.makeRequest(key, input)
 	if err != nil {
-		return nil, err
+		return err
 	}
 
-	return replayOrNew(
+	bytes, err := replayOrNew(
 		c,
 		wire.InvokeEntryMessageType,
 		func(entry *wire.InvokeEntryMessage) ([]byte, error) {
@@ -96,6 +96,20 @@ func (c *Machine) doCall(service, method, key string, body any) ([]byte, error) 
 		}, func() ([]byte, error) {
 			return c._doCall(service, method, params)
 		})
+
+	if err != nil {
+		return err
+	}
+
+	if output == nil {
+		return nil
+	}
+
+	if err := json.Unmarshal(bytes, output); err != nil {
+		return restate.TerminalError(fmt.Errorf("failed to decode response: %w", err))
+	}
+
+	return nil
 }
 
 func (c *Machine) _doCall(service, method string, params []byte) ([]byte, error) {
