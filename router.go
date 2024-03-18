@@ -37,6 +37,7 @@ type Service interface {
 }
 
 type Context interface {
+	// Context of request.
 	Ctx() context.Context
 	// Set sets key value to bytes array. You can
 	// Note: Use SetAs helper function to seamlessly store
@@ -80,21 +81,26 @@ type Handler interface {
 	sealed()
 }
 
+// Router interface
 type Router interface {
 	Keyed() bool
+	// Set of handlers associated with this router
 	Handlers() map[string]Handler
 }
 
+// UnKeyedRouter implements Router
 type UnKeyedRouter struct {
 	handlers map[string]Handler
 }
 
+// NewUnKeyedRouter creates a new UnKeyedRouter
 func NewUnKeyedRouter() *UnKeyedRouter {
 	return &UnKeyedRouter{
 		handlers: make(map[string]Handler),
 	}
 }
 
+// Handler registers a new handler by name
 func (r *UnKeyedRouter) Handler(name string, handler *UnKeyedHandler) *UnKeyedRouter {
 	r.handlers[name] = handler
 	return r

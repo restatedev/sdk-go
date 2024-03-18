@@ -183,6 +183,8 @@ func WithErrorCode(err error, code Code) error {
 
 // TerminalError returns a terminal error with optional code.
 // code is optional but only one code is allowed.
+// By default restate will retry the invocation forever unless a terminal error
+// is returned
 func TerminalError(err error, code ...Code) error {
 	if err == nil {
 		return nil
@@ -206,6 +208,7 @@ func TerminalError(err error, code ...Code) error {
 	return err
 }
 
+// IsTerminalError checks if err is terminal
 func IsTerminalError(err error) bool {
 	if err == nil {
 		return false
@@ -214,6 +217,7 @@ func IsTerminalError(err error) bool {
 	return errors.As(err, &t)
 }
 
+// ErrorCode returns code associated with error or UNKNOWN
 func ErrorCode(err error) Code {
 	var e *codeError
 	if errors.As(err, &e) {

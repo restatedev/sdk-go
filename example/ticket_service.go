@@ -16,7 +16,6 @@ const (
 )
 
 func reserve(ctx restate.Context, ticketId string, _ restate.Void) (bool, error) {
-	log.Info().Str("ticket", ticketId).Msg("reserving ticket")
 	status, err := restate.GetAs[TicketStatus](ctx, "status")
 	if err != nil && !errors.Is(err, restate.ErrKeyNotFound) {
 		return false, err

@@ -71,6 +71,8 @@ func checkout(ctx restate.Context, userId string, _ restate.Void) (bool, error) 
 		return false, err
 	}
 
+	log.Info().Strs("tickets", tickets).Msg("tickets in basket")
+
 	if len(tickets) == 0 {
 		return false, nil
 	}

@@ -21,6 +21,7 @@ type Restate struct {
 	routers map[string]restate.Router
 }
 
+// NewRestate creates a new instance of Restate server
 func NewRestate() *Restate {
 	return &Restate{
 		routers: make(map[string]restate.Router),
