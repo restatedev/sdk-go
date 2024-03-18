@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/muhamadazmy/restate-sdk-go"
+	"github.com/rs/zerolog/log"
 )
 
 func addTicket(ctx restate.Context, userId, ticketId string) (bool, error) {
@@ -73,17 +74,15 @@ func checkout(ctx restate.Context, userId string, _ restate.Void) (bool, error) 
 	if len(tickets) == 0 {
 		return false, nil
 	}
-	var success bool
 
+	var response PaymentResponse
 	if err := ctx.Service(CheckoutServiceName).
 		Method("checkout").
-		Do("", PaymentRequest{UserID: userId, Tickets: tickets}, &success); err != nil {
+		Do("", PaymentRequest{UserID: userId, Tickets: tickets}, &response); err != nil {
 		return false, err
 	}
 
-	if !success {
-		return false, nil
-	}
+	log.Info().Str("id", response.ID).Int("price", response.Price).Msg("payment details")
 
 	call := ctx.Service(TicketServiceName).Method("markAsSold")
 	for _, ticket := range tickets {

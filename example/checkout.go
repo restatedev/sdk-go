@@ -9,26 +9,34 @@ import (
 )
 
 type PaymentRequest struct {
-	UserID  string
-	Tickets []string
+	UserID  string   `json:"userId"`
+	Tickets []string `json:"tickets"`
 }
 
-func payment(ctx restate.Context, request PaymentRequest) (bool, error) {
+type PaymentResponse struct {
+	ID    string `json:"id"`
+	Price int    `json:"price"`
+}
+
+func payment(ctx restate.Context, request PaymentRequest) (response PaymentResponse, err error) {
 	uuid, err := restate.SideEffectAs(ctx, func() (string, error) {
 		uuid := uuid.New()
 		return uuid.String(), nil
 	})
 
+	response.ID = uuid
+
 	if err != nil {
-		return false, err
+		return response, err
 	}
 
 	// We are a uniform shop where everything costs 30 USD
 	// that is cheaper than the official example :P
 	price := len(request.Tickets) * 30
 
+	response.Price = price
 	i := 0
-	success, err := restate.SideEffectAs(ctx, func() (bool, error) {
+	_, err = restate.SideEffectAs(ctx, func() (bool, error) {
 		log := log.With().Str("uuid", uuid).Int("price", price).Logger()
 		if i > 2 {
 			log.Info().Msg("payment succeeded")
@@ -41,12 +49,12 @@ func payment(ctx restate.Context, request PaymentRequest) (bool, error) {
 	})
 
 	if err != nil {
-		return false, err
+		return response, err
 	}
 
 	// todo: send email
 
-	return success, nil
+	return response, nil
 }
 
 var (

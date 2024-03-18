@@ -17,7 +17,8 @@ const (
 
 func main() {
 
-	zerolog.SetGlobalLevel(zerolog.DebugLevel)
+	log.Logger = log.Output(zerolog.ConsoleWriter{Out: os.Stderr})
+	zerolog.SetGlobalLevel(zerolog.InfoLevel)
 
 	server := server.NewRestate().
 		Bind(UserSessionServiceName, UserSession).
