@@ -1,3 +1,5 @@
+[![Go](https://github.com/muhamadazmy/restate-sdk-go/actions/workflows/test.yaml/badge.svg)](https://github.com/muhamadazmy/restate-sdk-go/actions/workflows/test.yaml)
+
 # Restate Go SDK
 
 [Restate](https://restate.dev/) is a system for easily building resilient applications using *distributed durable async/await*. This repository contains the Restate SDK for writing services in **Golang**.
