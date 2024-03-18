@@ -1,3 +1,4 @@
+[![Go Reference](https://pkg.go.dev/badge/github.com/muhamadazmy/restate-sdk-go.svg)](https://pkg.go.dev/github.com/muhamadazmy/restate-sdk-go)
 [![Go](https://github.com/muhamadazmy/restate-sdk-go/actions/workflows/test.yaml/badge.svg)](https://github.com/muhamadazmy/restate-sdk-go/actions/workflows/test.yaml)
 
 # Restate Go SDK
