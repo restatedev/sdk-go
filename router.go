@@ -114,6 +114,7 @@ func (r *UnKeyedRouter) Handlers() map[string]Handler {
 	return r.handlers
 }
 
+// KeyedRouter
 type KeyedRouter struct {
 	handlers map[string]Handler
 }

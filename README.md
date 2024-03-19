@@ -47,6 +47,12 @@ cd restate-sdk-go/example
 go run .
 ```
 
+Registration
+
+```bash
+restate deployments register --force -y http://localhost:9080
+```
+
 In yet a third terminal do the following steps
 
 - Add tickets to basket
