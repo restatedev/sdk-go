@@ -117,7 +117,7 @@ func (m *Machine) doCall(service, method string, params []byte) ([]byte, error) 
 
 			switch result := entry.Payload.Result.(type) {
 			case *protocol.InvokeEntryMessage_Failure:
-				return nil, fmt.Errorf("[%d] %s", result.Failure.Code, result.Failure.Message)
+				return nil, restate.WithErrorCode(fmt.Errorf(result.Failure.Message), restate.Code(result.Failure.Code))
 			case *protocol.InvokeEntryMessage_Value:
 				return result.Value, nil
 			}
@@ -150,15 +150,13 @@ func (m *Machine) _doCall(service, method string, params []byte) ([]byte, error)
 
 	completion := response.(*wire.CompletionMessage)
 
-	switch value := completion.Payload.Result.(type) {
+	switch result := completion.Payload.Result.(type) {
 	case *protocol.CompletionMessage_Empty:
 		return nil, nil
 	case *protocol.CompletionMessage_Failure:
-		// the get state entry message is not failable so this should
-		// never happen
-		return nil, fmt.Errorf("[%d] %s", value.Failure.Code, value.Failure.Message)
+		return nil, restate.WithErrorCode(fmt.Errorf(result.Failure.Message), restate.Code(result.Failure.Code))
 	case *protocol.CompletionMessage_Value:
-		return value.Value, nil
+		return result.Value, nil
 	}
 
 	return nil, errUnreachable
