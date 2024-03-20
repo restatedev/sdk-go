@@ -24,13 +24,18 @@ const (
 )
 
 var (
-	ErrUnexpectedMessage = fmt.Errorf("unexpected message")
-	ErrInvalidVersion    = fmt.Errorf("invalid version number")
+	ErrInvalidVersion = fmt.Errorf("invalid version number")
 )
 
 var (
 	_ restate.Context = (*Context)(nil)
 )
+
+// suspend is a struct we use to throw in a panic so we can rewind the stack
+// then specially handle to suspend the invocation
+type suspend struct {
+	resumeEntry uint32
+}
 
 type Context struct {
 	ctx     context.Context
@@ -138,7 +143,7 @@ func (m *Machine) Start(inner context.Context, trace string) error {
 
 	if msg.Type() != wire.StartMessageType {
 		// invalid negotiation
-		return ErrUnexpectedMessage
+		return wire.ErrUnexpectedMessage
 	}
 
 	start := msg.(*wire.StartMessage)
@@ -203,23 +208,45 @@ func (m *Machine) invoke(ctx *Context, input *dynrpc.RpcRequest) error {
 	// always terminate the invocation with
 	// an end message.
 	// this will always terminate the connection
-	defer m.protocol.Write(&protocol.EndMessage{})
 
 	defer func() {
-		if err := recover(); err != nil {
-			// handle service panic
-			// safely
+		// recover will return a non-nil object
+		// if there was a panic
+		//
+		recovered := recover()
 
-			// this should become a retry error ErrorMessage
-			wErr := m.protocol.Write(&protocol.ErrorMessage{
+		switch typ := recovered.(type) {
+		case nil:
+			// nothing to do, just send end message and exit
+			break
+		case *suspend:
+			// suspend object with thrown. we need to send a suspension
+			// message. then terminate the connection
+			m.log.Debug().Msg("suspending invocation")
+			err := m.protocol.Write(&protocol.SuspensionMessage{
+				EntryIndexes: []uint32{typ.resumeEntry},
+			})
+
+			if err != nil {
+				m.log.Error().Err(err).Msg("error sending failure message")
+			}
+			return
+		default:
+			// unknown panic!
+			// send an error message (retryable)
+			err := m.protocol.Write(&protocol.ErrorMessage{
 				Code:        uint32(restate.INTERNAL),
-				Message:     fmt.Sprint(err),
+				Message:     fmt.Sprint(typ),
 				Description: string(debug.Stack()),
 			})
 
-			if wErr != nil {
-				m.log.Error().Err(wErr).Msg("error sending failure message")
+			if err != nil {
+				m.log.Error().Err(err).Msg("error sending failure message")
 			}
+		}
+
+		if err := m.protocol.Write(&protocol.EndMessage{}); err != nil {
+			m.log.Error().Err(err).Msg("error sending end message")
 		}
 	}()
 
@@ -240,7 +267,7 @@ func (m *Machine) process(ctx *Context, start *wire.StartMessage) error {
 	}
 
 	if msg.Type() != wire.PollInputEntryMessageType {
-		return ErrUnexpectedMessage
+		return wire.ErrUnexpectedMessage
 	}
 
 	m.log.Trace().Uint32("known entries", start.Payload.KnownEntries).Msg("known entires")

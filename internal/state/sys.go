@@ -189,7 +189,7 @@ func (m *Machine) _get(key string) ([]byte, error) {
 	}
 
 	if response.Type() != wire.CompletionMessageType {
-		return nil, ErrUnexpectedMessage
+		return nil, wire.ErrUnexpectedMessage
 	}
 
 	completion := response.(*wire.CompletionMessage)
@@ -243,7 +243,7 @@ func (m *Machine) _keys() ([]string, error) {
 
 	if msg.Type() != wire.CompletionMessageType {
 		m.log.Error().Stringer("type", msg.Type()).Msg("receiving message of type")
-		return nil, ErrUnexpectedMessage
+		return nil, wire.ErrUnexpectedMessage
 	}
 
 	response := msg.(*wire.CompletionMessage)
@@ -288,20 +288,34 @@ func (m *Machine) sleep(until time.Time) error {
 	return err
 }
 
+// _sleep creating a new sleep entry. The implementation of this function
+// will also suspend execution if sleep duration is greater than 1 second
+// as a form of optimization
 func (m *Machine) _sleep(until time.Time) error {
 	if err := m.protocol.Write(&protocol.SleepEntryMessage{
 		WakeUpTime: uint64(until.UnixMilli()),
-	}); err != nil {
+	}, wire.FlagRequiresAck); err != nil {
 		return err
 	}
 
+	entryIndex, err := m.protocol.ReadAck()
+	if err != nil {
+		return err
+	}
+
+	// if duration is more than one second, just pause the execution
+	if time.Until(until) > time.Second {
+		panic(&suspend{entryIndex})
+	}
+
+	// we can suspend invocation now
 	response, err := m.protocol.Read()
 	if err != nil {
 		return err
 	}
 
 	if response.Type() != wire.CompletionMessageType {
-		return ErrUnexpectedMessage
+		return wire.ErrUnexpectedMessage
 	}
 
 	return nil

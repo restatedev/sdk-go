@@ -15,10 +15,14 @@ import (
 	"google.golang.org/protobuf/proto"
 )
 
+var (
+	ErrUnexpectedMessage = fmt.Errorf("unexpected message")
+)
+
 const (
 	// masks
-	FlagCompleted Flag = 0x0001
-	FlagAck       Flag = 0x8000
+	FlagCompleted   Flag = 0x0001
+	FlagRequiresAck Flag = 0x8000
 
 	VersionMask = 0x03FF
 )
@@ -26,7 +30,9 @@ const (
 	// control
 	StartMessageType      Type = 0x0000
 	CompletionMessageType Type = 0x0000 + 1
+	SuspensionMessageType Type = 0x0000 + 2
 	ErrorMessageType      Type = 0x0000 + 3
+	EntryAckMessageType   Type = 0x0000 + 4
 	EndMessageType        Type = 0x0000 + 5
 
 	// Input/Output
@@ -69,7 +75,7 @@ func (r Flag) Completed() bool {
 }
 
 func (r Flag) Ack() bool {
-	return r&FlagAck != 0
+	return r&FlagRequiresAck != 0
 }
 
 type Header struct {
@@ -133,6 +139,21 @@ func (s *Protocol) header() (header Header, err error) {
 	return
 }
 
+func (s *Protocol) ReadAck() (uint32, error) {
+	msg, err := s.Read()
+	if err != nil {
+		return 0, err
+	}
+
+	if msg.Type() != EntryAckMessageType {
+		return 0, ErrUnexpectedMessage
+	}
+
+	ack := msg.(*EntryAckMessage)
+
+	return ack.Payload.EntryIndex, nil
+}
+
 func (s *Protocol) Read() (Message, error) {
 	header, err := s.header()
 	if err != nil {
@@ -170,6 +191,8 @@ func (s *Protocol) Write(message proto.Message, flags ...Flag) error {
 	case *protocol.StartMessage:
 		// TODO: sdk should never write this message
 		typ = StartMessageType
+	case *protocol.SuspensionMessage:
+		typ = SuspensionMessageType
 	case *protocol.PollInputStreamEntryMessage:
 		typ = PollInputEntryMessageType
 	case *protocol.OutputStreamEntryMessage:
@@ -237,6 +260,13 @@ var (
 			msg := &StartMessage{
 				Header:  header,
 				Version: header.Flag.version(),
+			}
+
+			return msg, proto.Unmarshal(bytes, &msg.Payload)
+		},
+		EntryAckMessageType: func(header Header, bytes []byte) (Message, error) {
+			msg := &EntryAckMessage{
+				Header: header,
 			}
 
 			return msg, proto.Unmarshal(bytes, &msg.Payload)
@@ -392,4 +422,9 @@ type BackgroundInvokeEntryMessage struct {
 type SideEffectEntryMessage struct {
 	Header
 	Payload javascript.SideEffectEntryMessage
+}
+
+type EntryAckMessage struct {
+	Header
+	Payload protocol.EntryAckMessage
 }

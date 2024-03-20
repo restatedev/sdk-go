@@ -145,7 +145,7 @@ func (m *Machine) _doCall(service, method string, params []byte) ([]byte, error)
 	}
 
 	if response.Type() != wire.CompletionMessageType {
-		return nil, ErrUnexpectedMessage
+		return nil, wire.ErrUnexpectedMessage
 	}
 
 	completion := response.(*wire.CompletionMessage)
