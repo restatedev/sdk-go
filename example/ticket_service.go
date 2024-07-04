@@ -3,7 +3,7 @@ package main
 import (
 	"errors"
 
-	"github.com/muhamadazmy/restate-sdk-go"
+	"github.com/restatedev/restate-sdk-go"
 	"github.com/rs/zerolog/log"
 )
 

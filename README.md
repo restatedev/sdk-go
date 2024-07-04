@@ -1,5 +1,5 @@
-[![Go Reference](https://pkg.go.dev/badge/github.com/muhamadazmy/restate-sdk-go.svg)](https://pkg.go.dev/github.com/muhamadazmy/restate-sdk-go)
-[![Go](https://github.com/muhamadazmy/restate-sdk-go/actions/workflows/test.yaml/badge.svg)](https://github.com/muhamadazmy/restate-sdk-go/actions/workflows/test.yaml)
+[![Go Reference](https://pkg.go.dev/badge/github.com/restatedev/restate-sdk-go.svg)](https://pkg.go.dev/github.com/restatedev/restate-sdk-go)
+[![Go](https://github.com/restatedev/restate-sdk-go/actions/workflows/test.yaml/badge.svg)](https://github.com/restatedev/restate-sdk-go/actions/workflows/test.yaml)
 
 > This only works with Restate version 0.8
 

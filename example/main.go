@@ -4,7 +4,7 @@ import (
 	"context"
 	"os"
 
-	"github.com/muhamadazmy/restate-sdk-go/server"
+	"github.com/restatedev/restate-sdk-go/server"
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
 )

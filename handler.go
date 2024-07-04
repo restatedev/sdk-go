@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"reflect"
 
-	"github.com/muhamadazmy/restate-sdk-go/generated/proto/dynrpc"
+	"github.com/restatedev/restate-sdk-go/generated/proto/dynrpc"
 	"google.golang.org/protobuf/types/known/structpb"
 )
 

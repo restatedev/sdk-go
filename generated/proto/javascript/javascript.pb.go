@@ -17,7 +17,7 @@
 package javascript
 
 import (
-	protocol "github.com/muhamadazmy/restate-sdk-go/generated/proto/protocol"
+	protocol "github.com/restatedev/restate-sdk-go/generated/proto/protocol"
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	reflect "reflect"

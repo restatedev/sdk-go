@@ -2,7 +2,7 @@ version: v1
 managed:
   enabled: true
   go_package_prefix:
-    default: github.com/muhamadazmy/restate-sdk-go/generated
+    default: github.com/restatedev/restate-sdk-go/generated
 plugins:
   - plugin: go
     out: generated

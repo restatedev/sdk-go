@@ -6,10 +6,10 @@ import (
 	"time"
 
 	"github.com/cenkalti/backoff/v4"
-	"github.com/muhamadazmy/restate-sdk-go"
-	"github.com/muhamadazmy/restate-sdk-go/generated/proto/javascript"
-	"github.com/muhamadazmy/restate-sdk-go/generated/proto/protocol"
-	"github.com/muhamadazmy/restate-sdk-go/internal/wire"
+	"github.com/restatedev/restate-sdk-go"
+	"github.com/restatedev/restate-sdk-go/generated/proto/javascript"
+	"github.com/restatedev/restate-sdk-go/generated/proto/protocol"
+	"github.com/restatedev/restate-sdk-go/internal/wire"
 	"google.golang.org/protobuf/proto"
 )
 

@@ -6,7 +6,7 @@ import (
 	"time"
 
 	"github.com/cenkalti/backoff/v4"
-	"github.com/muhamadazmy/restate-sdk-go/generated/proto/dynrpc"
+	"github.com/restatedev/restate-sdk-go/generated/proto/dynrpc"
 	"github.com/vmihailenco/msgpack/v5"
 )
 
