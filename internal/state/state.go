@@ -93,6 +93,18 @@ func (c *Context) SideEffect(fn func() ([]byte, error)) ([]byte, error) {
 	return c.machine.sideEffect(fn)
 }
 
+func (c *Context) Awakeable() (restate.Awakeable[[]byte], error) {
+	return c.machine.awakeable()
+}
+
+func (c *Context) ResolveAwakeable(id string, value []byte) error {
+	return c.machine.resolveAwakeable(id, value)
+}
+
+func (c *Context) RejectAwakeable(id string, reason error) error {
+	return c.machine.rejectAwakeable(id, reason)
+}
+
 func (c *Context) Key() string {
 	return c.machine.key
 }
@@ -118,7 +130,7 @@ type Machine struct {
 	mutex    sync.Mutex
 
 	// state
-	id  string
+	id  []byte
 	key string
 
 	partial bool
@@ -153,7 +165,7 @@ func (m *Machine) Start(inner context.Context, trace string) error {
 
 	start := msg.(*wire.StartMessage)
 
-	m.id = start.Payload.DebugId
+	m.id = start.Payload.Id
 	m.key = start.Payload.Key
 
 	m.log = log.With().Str("id", start.Payload.DebugId).Str("method", trace).Logger()
@@ -197,7 +209,7 @@ func (m *Machine) output(bytes []byte, err error) proto.Message {
 	}
 }
 
-func (m *Machine) invoke(ctx *Context, key string, input []byte) error {
+func (m *Machine) invoke(ctx *Context, input []byte) error {
 	// always terminate the invocation with
 	// an end message.
 	// this will always terminate the connection
@@ -228,7 +240,7 @@ func (m *Machine) invoke(ctx *Context, key string, input []byte) error {
 			// unknown panic!
 			// send an error message (retryable)
 			err := m.protocol.Write(&protocol.ErrorMessage{
-				Code:        uint32(restate.INTERNAL),
+				Code:        500,
 				Message:     fmt.Sprint(typ),
 				Description: string(debug.Stack()),
 			})
@@ -279,7 +291,7 @@ func (m *Machine) process(ctx *Context, start *wire.StartMessage) error {
 
 	inputMsg := msg.(*wire.InputEntryMessage)
 	value := inputMsg.Payload.GetValue()
-	return m.invoke(ctx, start.Payload.Key, value)
+	return m.invoke(ctx, value)
 
 }
 

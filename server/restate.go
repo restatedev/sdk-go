@@ -110,7 +110,7 @@ func (r *Restate) discoverHandler(writer http.ResponseWriter, req *http.Request)
 	serviceDiscoveryProtocolVersion := selectSupportedServiceDiscoveryProtocolVersion(acceptVersionsString)
 
 	if serviceDiscoveryProtocolVersion == discovery.ServiceDiscoveryProtocolVersion_SERVICE_DISCOVERY_PROTOCOL_VERSION_UNSPECIFIED {
-		writer.Write([]byte(fmt.Sprint("Unsupported service discovery protocol version '%s'", acceptVersionsString)))
+		writer.Write([]byte(fmt.Sprintf("Unsupported service discovery protocol version '%s'", acceptVersionsString)))
 		writer.WriteHeader(http.StatusUnsupportedMediaType)
 		return
 	}

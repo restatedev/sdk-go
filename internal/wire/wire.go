@@ -203,14 +203,18 @@ func (s *Protocol) Write(message proto.Message, flags ...Flag) error {
 		typ = ClearStateEntryMessageType
 	case *protocol.ClearAllStateEntryMessage:
 		typ = ClearAllStateEntryMessageType
+	case *protocol.GetStateKeysEntryMessage:
+		typ = GetStateKeysEntryMessageType
 	case *protocol.SleepEntryMessage:
 		typ = SleepEntryMessageType
 	case *protocol.CallEntryMessage:
 		typ = CallEntryMessageType
 	case *protocol.OneWayCallEntryMessage:
 		typ = OneWayCallEntryMessageType
-	case *protocol.GetStateKeysEntryMessage:
-		typ = GetStateKeysEntryMessageType
+	case *protocol.AwakeableEntryMessage:
+		typ = AwakeableEntryMessageType
+	case *protocol.CompletePromiseEntryMessage:
+		typ = CompleteAwakeableEntryMessageType
 	case *protocol.RunEntryMessage:
 		typ = RunEntryMessageType
 	default:
@@ -341,6 +345,20 @@ var (
 
 			return msg, proto.Unmarshal(bytes, &msg.Payload)
 		},
+		AwakeableEntryMessageType: func(header Header, bytes []byte) (Message, error) {
+			msg := &AwakeableEntryMessage{
+				Header: header,
+			}
+
+			return msg, proto.Unmarshal(bytes, &msg.Payload)
+		},
+		CompleteAwakeableEntryMessageType: func(header Header, bytes []byte) (Message, error) {
+			msg := &CompleteAwakeableEntryMessage{
+				Header: header,
+			}
+
+			return msg, proto.Unmarshal(bytes, &msg.Payload)
+		},
 		RunEntryMessageType: func(header Header, bytes []byte) (Message, error) {
 			msg := &RunEntryMessage{
 				Header: header,
@@ -409,6 +427,16 @@ type CallEntryMessage struct {
 type OneWayCallEntryMessage struct {
 	Header
 	Payload protocol.OneWayCallEntryMessage
+}
+
+type AwakeableEntryMessage struct {
+	Header
+	Payload protocol.AwakeableEntryMessage
+}
+
+type CompleteAwakeableEntryMessage struct {
+	Header
+	Payload protocol.CompleteAwakeableEntryMessage
 }
 
 type RunEntryMessage struct {

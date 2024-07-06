@@ -2,6 +2,7 @@ package restate
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"time"
 
@@ -48,6 +49,10 @@ type Context interface {
 	// will produce the same value (think generating a unique id for example)
 	// Note: use the SideEffectAs helper function
 	SideEffect(fn func() ([]byte, error)) ([]byte, error)
+
+	Awakeable() (Awakeable[[]byte], error)
+	ResolveAwakeable(id string, value []byte) error
+	RejectAwakeable(id string, reason error) error
 }
 
 // Router interface
@@ -224,4 +229,55 @@ func SideEffectAs[T any](ctx Context, fn func() (T, error)) (output T, err error
 	err = msgpack.Unmarshal(bytes, &output)
 
 	return output, TerminalError(err)
+}
+
+type Awakeable[T any] interface {
+	Id() string
+	Chan() <-chan Result[T]
+}
+
+type Result[T any] struct {
+	Value T
+	Err   error
+}
+
+type decodingAwakeable[T any] struct {
+	inner Awakeable[[]byte]
+}
+
+func (d decodingAwakeable[T]) Id() string { return d.inner.Id() }
+func (d decodingAwakeable[T]) Chan() <-chan Result[T] {
+	inner := d.inner.Chan()
+	out := make(chan Result[T], 1)
+	go func() {
+		result := <-inner
+		if result.Err != nil {
+			out <- Result[T]{Err: result.Err}
+		} else {
+			var value T
+			if err := json.Unmarshal(result.Value, &value); err != nil {
+				out <- Result[T]{Err: TerminalError(err)}
+			} else {
+				out <- Result[T]{Value: value}
+			}
+		}
+	}()
+	return out
+}
+
+func AwakeableAs[T any](ctx Context) (Awakeable[T], error) {
+	inner, err := ctx.Awakeable()
+	if err != nil {
+		return nil, err
+	}
+
+	return decodingAwakeable[T]{inner: inner}, nil
+}
+
+func ResolveAwakeableAs[T any](ctx Context, id string, value T) error {
+	bytes, err := json.Marshal(value)
+	if err != nil {
+		return TerminalError(err)
+	}
+	return ctx.ResolveAwakeable(id, bytes)
 }
