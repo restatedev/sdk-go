@@ -37,8 +37,11 @@ func NewServiceHandler[I any, O any](fn ServiceHandlerFn[I, O]) *ServiceHandler 
 func (h *ServiceHandler) Call(ctx Context, bytes []byte) ([]byte, error) {
 	input := reflect.New(h.input)
 
-	if err := json.Unmarshal(bytes, input.Interface()); err != nil {
-		return nil, TerminalError(fmt.Errorf("request doesn't match handler signature: %w", err))
+	if len(bytes) > 0 {
+		// use the zero value if there is no input data at all
+		if err := json.Unmarshal(bytes, input.Interface()); err != nil {
+			return nil, TerminalError(fmt.Errorf("request doesn't match handler signature: %w", err))
+		}
 	}
 
 	// we are sure about the fn signature so it's safe to do this
@@ -80,8 +83,11 @@ func NewObjectHandler[I any, O any](fn ObjectHandlerFn[I, O]) *ObjectHandler {
 func (h *ObjectHandler) Call(ctx ObjectContext, bytes []byte) ([]byte, error) {
 	input := reflect.New(h.input)
 
-	if err := json.Unmarshal(bytes, input.Interface()); err != nil {
-		return nil, TerminalError(fmt.Errorf("request doesn't match handler signature: %w", err))
+	if len(bytes) > 0 {
+		// use the zero value if there is no input data at all
+		if err := json.Unmarshal(bytes, input.Interface()); err != nil {
+			return nil, TerminalError(fmt.Errorf("request doesn't match handler signature: %w", err))
+		}
 	}
 
 	// we are sure about the fn signature so it's safe to do this
