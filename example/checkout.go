@@ -4,7 +4,7 @@ import (
 	"fmt"
 
 	"github.com/google/uuid"
-	"github.com/restatedev/sdk-go"
+	restate "github.com/restatedev/sdk-go"
 	"github.com/rs/zerolog/log"
 )
 
@@ -58,6 +58,6 @@ func payment(ctx restate.Context, request PaymentRequest) (response PaymentRespo
 }
 
 var (
-	Checkout = restate.NewUnKeyedRouter().
-		Handler("checkout", restate.NewUnKeyedHandler(payment))
+	Checkout = restate.NewServiceRouter().
+		Handler("checkout", restate.NewServiceHandler(payment))
 )

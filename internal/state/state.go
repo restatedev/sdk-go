@@ -8,9 +8,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/cenkalti/backoff/v4"
-	"github.com/restatedev/sdk-go"
-	"github.com/restatedev/sdk-go/generated/proto/dynrpc"
+	restate "github.com/restatedev/sdk-go"
 	"github.com/restatedev/sdk-go/generated/proto/protocol"
 	"github.com/restatedev/sdk-go/internal/wire"
 
@@ -41,6 +39,9 @@ type Context struct {
 	ctx     context.Context
 	machine *Machine
 }
+
+var _ restate.ObjectContext = &Context{}
+var _ restate.Context = &Context{}
 
 func (c *Context) Ctx() context.Context {
 	return c.ctx
@@ -80,17 +81,20 @@ func (c *Context) Service(service string) restate.Service {
 	}
 }
 
-func (c *Context) SideEffect(fn func() ([]byte, error), bo ...backoff.BackOff) ([]byte, error) {
-	var back backoff.BackOff
-	if len(bo) == 0 {
-		back = &restate.DefaultBackoffPolicy
-	} else if len(bo) == 1 {
-		back = bo[0]
-	} else {
-		panic("only single backoff policy is allowed")
+func (c *Context) Object(service, key string) restate.Object {
+	return &serviceProxy{
+		Context: c,
+		service: service,
+		key:     key,
 	}
+}
 
-	return c.machine.sideEffect(fn, back)
+func (c *Context) SideEffect(fn func() ([]byte, error)) ([]byte, error) {
+	return c.machine.sideEffect(fn)
+}
+
+func (c *Context) Key() string {
+	return c.machine.key
 }
 
 func newContext(inner context.Context, machine *Machine) *Context {
@@ -114,7 +118,8 @@ type Machine struct {
 	mutex    sync.Mutex
 
 	// state
-	id string
+	id  string
+	key string
 
 	partial bool
 	current map[string][]byte
@@ -149,9 +154,7 @@ func (m *Machine) Start(inner context.Context, trace string) error {
 	start := msg.(*wire.StartMessage)
 
 	m.id = start.Payload.DebugId
-	if start.Version != Version {
-		return ErrInvalidVersion
-	}
+	m.key = start.Payload.Key
 
 	m.log = log.With().Str("id", start.Payload.DebugId).Str("method", trace).Logger()
 
@@ -164,15 +167,15 @@ func (m *Machine) Start(inner context.Context, trace string) error {
 }
 
 // handle handler response and build proper response message
-func (m *Machine) output(r *dynrpc.RpcResponse, err error) proto.Message {
+func (m *Machine) output(bytes []byte, err error) proto.Message {
 	if err != nil {
 		m.log.Error().Err(err).Msg("failure")
 	}
 
 	if err != nil && restate.IsTerminalError(err) {
 		// terminal errors.
-		return &protocol.OutputStreamEntryMessage{
-			Result: &protocol.OutputStreamEntryMessage_Failure{
+		return &protocol.OutputEntryMessage{
+			Result: &protocol.OutputEntryMessage_Failure{
 				Failure: &protocol.Failure{
 					Code:    uint32(restate.ErrorCode(err)),
 					Message: err.Error(),
@@ -187,24 +190,14 @@ func (m *Machine) output(r *dynrpc.RpcResponse, err error) proto.Message {
 		}
 	}
 
-	bytes, err := proto.Marshal(r)
-	if err != nil {
-		// this shouldn't happen but in case we return a retry error
-		return &protocol.ErrorMessage{
-			Code:        uint32(restate.INTERNAL),
-			Message:     err.Error(),
-			Description: "failed to serialize call output",
-		}
-	}
-
-	return &protocol.OutputStreamEntryMessage{
-		Result: &protocol.OutputStreamEntryMessage_Value{
+	return &protocol.OutputEntryMessage{
+		Result: &protocol.OutputEntryMessage_Value{
 			Value: bytes,
 		},
 	}
 }
 
-func (m *Machine) invoke(ctx *Context, input *dynrpc.RpcRequest) error {
+func (m *Machine) invoke(ctx *Context, key string, input []byte) error {
 	// always terminate the invocation with
 	// an end message.
 	// this will always terminate the connection
@@ -266,7 +259,7 @@ func (m *Machine) process(ctx *Context, start *wire.StartMessage) error {
 		return err
 	}
 
-	if msg.Type() != wire.PollInputEntryMessageType {
+	if msg.Type() != wire.InputEntryMessageType {
 		return wire.ErrUnexpectedMessage
 	}
 
@@ -284,14 +277,9 @@ func (m *Machine) process(ctx *Context, start *wire.StartMessage) error {
 		m.entries = append(m.entries, msg)
 	}
 
-	inputMsg := msg.(*wire.PollInputEntry)
+	inputMsg := msg.(*wire.InputEntryMessage)
 	value := inputMsg.Payload.GetValue()
-	var input dynrpc.RpcRequest
-	if err := proto.Unmarshal(value, &input); err != nil {
-		return fmt.Errorf("invalid invocation input: %w", err)
-	}
-
-	return m.invoke(ctx, &input)
+	return m.invoke(ctx, start.Payload.Key, value)
 
 }
 

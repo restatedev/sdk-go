@@ -2,12 +2,11 @@ package state
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"time"
 
-	"github.com/cenkalti/backoff/v4"
-	"github.com/restatedev/sdk-go"
-	"github.com/restatedev/sdk-go/generated/proto/javascript"
+	restate "github.com/restatedev/sdk-go"
 	"github.com/restatedev/sdk-go/generated/proto/protocol"
 	"github.com/restatedev/sdk-go/internal/wire"
 	"google.golang.org/protobuf/proto"
@@ -321,59 +320,62 @@ func (m *Machine) _sleep(until time.Time) error {
 	return nil
 }
 
-func (m *Machine) sideEffect(fn func() ([]byte, error), bo backoff.BackOff) ([]byte, error) {
+func (m *Machine) sideEffect(fn func() ([]byte, error)) ([]byte, error) {
 	return replayOrNew(
 		m,
-		wire.SideEffectEntryMessageType,
-		func(entry *wire.SideEffectEntryMessage) ([]byte, error) {
+		wire.RunEntryMessageType,
+		func(entry *wire.RunEntryMessage) ([]byte, error) {
 			switch result := entry.Payload.Result.(type) {
-			case *javascript.SideEffectEntryMessage_Failure:
-				err := fmt.Errorf("[%d] %s", result.Failure.Failure.Code, result.Failure.Failure.Message)
-				if result.Failure.Terminal {
-					err = restate.TerminalError(err)
-				}
-				return nil, err
-			case *javascript.SideEffectEntryMessage_Value:
+			case *protocol.RunEntryMessage_Failure:
+				return nil, restate.TerminalError(errors.New(result.Failure.Message), restate.Code(result.Failure.Code))
+			case *protocol.RunEntryMessage_Value:
 				return result.Value, nil
 			}
 
 			return nil, errUnreachable
 		},
 		func() ([]byte, error) {
-			return m._sideEffect(fn, bo)
+			return m._sideEffect(fn)
 		},
 	)
 }
 
-func (m *Machine) _sideEffect(fn func() ([]byte, error), bo backoff.BackOff) ([]byte, error) {
-	var bytes []byte
-	err := backoff.Retry(func() error {
-		var err error
-		bytes, err = fn()
+func (m *Machine) _sideEffect(fn func() ([]byte, error)) ([]byte, error) {
+	bytes, err := fn()
 
-		if restate.IsTerminalError(err) {
-			// if inner function returned a terminal error
-			// we need to wrap it in permanent to break
-			// the retries
-			return backoff.Permanent(err)
-		}
-		return err
-	}, bo)
-
-	var msg javascript.SideEffectEntryMessage
+	var msg protocol.RunEntryMessage
 	if err != nil {
-		msg.Result = &javascript.SideEffectEntryMessage_Failure{
-			Failure: &javascript.FailureWithTerminal{
-				Failure: &protocol.Failure{
-					Code:    uint32(restate.ErrorCode(err)),
-					Message: err.Error(),
+		if restate.IsTerminalError(err) {
+			msg := protocol.RunEntryMessage{
+				Result: &protocol.RunEntryMessage_Failure{
+					Failure: &protocol.Failure{
+						Code:    uint32(restate.ErrorCode(err)),
+						Message: err.Error(),
+					},
 				},
-				Terminal: restate.IsTerminalError(err),
-			},
+			}
+			if err := m.protocol.Write(&msg); err != nil {
+				return nil, err
+			}
+		} else {
+			ty := uint32(wire.RunEntryMessageType)
+			msg := protocol.ErrorMessage{
+				Code:             uint32(restate.ErrorCode(err)),
+				Message:          err.Error(),
+				RelatedEntryType: &ty,
+			}
+			if err := m.protocol.Write(&msg); err != nil {
+				return nil, err
+			}
 		}
 	} else {
-		msg.Result = &javascript.SideEffectEntryMessage_Value{
-			Value: bytes,
+		msg := protocol.RunEntryMessage{
+			Result: &protocol.RunEntryMessage_Value{
+				Value: bytes,
+			},
+		}
+		if err := m.protocol.Write(&msg); err != nil {
+			return nil, err
 		}
 	}
 
