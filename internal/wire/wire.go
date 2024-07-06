@@ -9,8 +9,8 @@ import (
 	"io"
 	"math"
 
-	"github.com/restatedev/restate-sdk-go/generated/proto/javascript"
-	"github.com/restatedev/restate-sdk-go/generated/proto/protocol"
+	"github.com/restatedev/sdk-go/generated/proto/javascript"
+	"github.com/restatedev/sdk-go/generated/proto/protocol"
 	"github.com/rs/zerolog/log"
 	"google.golang.org/protobuf/proto"
 )

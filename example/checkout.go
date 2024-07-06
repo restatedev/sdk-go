@@ -4,7 +4,7 @@ import (
 	"fmt"
 
 	"github.com/google/uuid"
-	"github.com/restatedev/restate-sdk-go"
+	"github.com/restatedev/sdk-go"
 	"github.com/rs/zerolog/log"
 )
 

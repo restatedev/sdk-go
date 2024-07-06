@@ -5,7 +5,7 @@ import (
 	"slices"
 	"time"
 
-	"github.com/restatedev/restate-sdk-go"
+	"github.com/restatedev/sdk-go"
 	"github.com/rs/zerolog/log"
 )
 

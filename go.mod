@@ -1,4 +1,4 @@
-module github.com/restatedev/restate-sdk-go
+module github.com/restatedev/sdk-go
 
 go 1.22.0
 
@@ -24,4 +24,4 @@ require (
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
 
-replace github.com/restatedev/restate-sdk-go/generated/dev/restate => ./generated/dev/restate
+replace github.com/restatedev/sdk-go/generated/dev/restate => ./generated/dev/restate

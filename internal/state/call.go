@@ -6,10 +6,10 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/restatedev/restate-sdk-go"
-	"github.com/restatedev/restate-sdk-go/generated/proto/dynrpc"
-	"github.com/restatedev/restate-sdk-go/generated/proto/protocol"
-	"github.com/restatedev/restate-sdk-go/internal/wire"
+	"github.com/restatedev/sdk-go"
+	"github.com/restatedev/sdk-go/generated/proto/dynrpc"
+	"github.com/restatedev/sdk-go/generated/proto/protocol"
+	"github.com/restatedev/sdk-go/internal/wire"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/structpb"
 )

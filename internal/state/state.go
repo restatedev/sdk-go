@@ -9,10 +9,10 @@ import (
 	"time"
 
 	"github.com/cenkalti/backoff/v4"
-	"github.com/restatedev/restate-sdk-go"
-	"github.com/restatedev/restate-sdk-go/generated/proto/dynrpc"
-	"github.com/restatedev/restate-sdk-go/generated/proto/protocol"
-	"github.com/restatedev/restate-sdk-go/internal/wire"
+	"github.com/restatedev/sdk-go"
+	"github.com/restatedev/sdk-go/generated/proto/dynrpc"
+	"github.com/restatedev/sdk-go/generated/proto/protocol"
+	"github.com/restatedev/sdk-go/internal/wire"
 
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
