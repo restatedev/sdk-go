@@ -51,7 +51,7 @@ func awakeableID(invocationID []byte, entryIndex uint32) string {
 	bytes := make([]byte, 0, len(invocationID)+4)
 	bytes = append(bytes, invocationID...)
 	bytes = binary.BigEndian.AppendUint32(bytes, entryIndex)
-	return base64.URLEncoding.EncodeToString(bytes)
+	return "prom_1" + base64.URLEncoding.EncodeToString(bytes)
 }
 
 func (c *Machine) awakeable() (restate.Awakeable[[]byte], error) {
