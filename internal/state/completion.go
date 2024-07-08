@@ -66,7 +66,9 @@ func (c *CompletionFuture) complete(msg *protocol.CompletionMessage) error {
 	return nil
 }
 
-func (c *CompletionFuture) Done(ctx context.Context) (*protocol.CompletionMessage, error) {
+func (c *CompletionFuture) Await(ctx context.Context) (*protocol.CompletionMessage, error) {
+	c.Lock()
+	defer c.Unlock()
 	if c.done {
 		return c.CompletionMessage, nil
 	}
@@ -75,6 +77,29 @@ func (c *CompletionFuture) Done(ctx context.Context) (*protocol.CompletionMessag
 		return nil, ctx.Err()
 	case <-c.ch:
 		return c.CompletionMessage, nil
+	}
+}
+
+func (c *CompletionFuture) Done() (*protocol.CompletionMessage, bool) {
+	c.Lock()
+	defer c.Unlock()
+	if c.done {
+		return c.CompletionMessage, true
+	} else {
+		return nil, false
+	}
+}
+
+func (m *Machine) checkReplayCompletion(index uint32, msg wire.Message) {
+	switch msg.Type() {
+	case wire.SetStateEntryMessageType, wire.ClearStateEntryMessageType,
+		wire.ClearAllStateEntryMessageType, wire.CompleteAwakeableEntryMessageType,
+		wire.OneWayCallEntryMessageType:
+		// don't need completion
+	default:
+		if !msg.Flags().Completed() {
+			m.pendingCompletions[index] = newCompletion()
+		}
 	}
 }
 

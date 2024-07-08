@@ -293,6 +293,8 @@ func (m *Machine) process(ctx *Context, start *wire.StartMessage) error {
 			return fmt.Errorf("failed to read entry: %w", err)
 		}
 
+		m.checkReplayCompletion(i, msg)
+
 		m.log.Trace().Uint16("type", uint16(msg.Type())).Msg("replay log entry")
 		m.entries = append(m.entries, msg)
 	}

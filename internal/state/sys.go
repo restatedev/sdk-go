@@ -2,7 +2,6 @@ package state
 
 import (
 	"bytes"
-	"errors"
 	"fmt"
 	"sort"
 	"time"
@@ -171,7 +170,7 @@ func (m *Machine) _get(key string) ([]byte, error) {
 		return nil, err
 	}
 
-	completion, err := completionFut.Done(m.ctx)
+	completion, err := completionFut.Await(m.ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -249,7 +248,7 @@ func (m *Machine) _keys() ([]string, error) {
 		return nil, err
 	}
 
-	completion, err := completionFut.Done(m.ctx)
+	completion, err := completionFut.Await(m.ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -313,7 +312,7 @@ func (m *Machine) _sleep(until time.Time) error {
 		panic(&suspend{m.entryIndex})
 	}
 
-	if _, err := completionFut.Done(m.ctx); err != nil {
+	if _, err := completionFut.Await(m.ctx); err != nil {
 		return err
 	}
 
@@ -327,7 +326,7 @@ func (m *Machine) sideEffect(fn func() ([]byte, error)) ([]byte, error) {
 		func(entry *wire.RunEntryMessage) ([]byte, error) {
 			switch result := entry.Payload.Result.(type) {
 			case *protocol.RunEntryMessage_Failure:
-				return nil, restate.TerminalError(errors.New(result.Failure.Message), restate.Code(result.Failure.Code))
+				return nil, ErrorFromFailure(result.Failure)
 			case *protocol.RunEntryMessage_Value:
 				return result.Value, nil
 			case nil:

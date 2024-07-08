@@ -86,7 +86,7 @@ func (m *Machine) doCall(service, key, method string, params []byte) ([]byte, er
 
 			switch result := entry.Payload.Result.(type) {
 			case *protocol.CallEntryMessage_Failure:
-				return nil, restate.WithErrorCode(fmt.Errorf(result.Failure.Message), restate.Code(result.Failure.Code))
+				return nil, ErrorFromFailure(result.Failure)
 			case *protocol.CallEntryMessage_Value:
 				return result.Value, nil
 			}
@@ -109,7 +109,7 @@ func (m *Machine) _doCall(service, key, method string, params []byte) ([]byte, e
 		return nil, fmt.Errorf("failed to send request message: %w", err)
 	}
 
-	completion, err := completionFut.Done(m.ctx)
+	completion, err := completionFut.Await(m.ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -118,7 +118,7 @@ func (m *Machine) _doCall(service, key, method string, params []byte) ([]byte, e
 	case *protocol.CompletionMessage_Empty:
 		return nil, nil
 	case *protocol.CompletionMessage_Failure:
-		return nil, restate.WithErrorCode(fmt.Errorf(result.Failure.Message), restate.Code(result.Failure.Code))
+		return nil, ErrorFromFailure(result.Failure)
 	case *protocol.CompletionMessage_Value:
 		return result.Value, nil
 	}
@@ -174,4 +174,8 @@ func (c *Machine) _sendCall(service, key, method string, params []byte, delay ti
 	}
 
 	return nil
+}
+
+func ErrorFromFailure(failure *protocol.Failure) error {
+	return restate.TerminalError(fmt.Errorf(failure.Message), restate.Code(failure.Code))
 }

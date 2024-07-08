@@ -2,6 +2,7 @@ package state
 
 import (
 	"bytes"
+	"context"
 	"encoding/base64"
 	"encoding/binary"
 	"fmt"
@@ -13,8 +14,44 @@ import (
 
 const AWAKEABLE_IDENTIFIER_PREFIX = "prom_1"
 
-type awakeable[T any] interface {
-	restate.Awakeable[T]
+func resultFromCompletion(completion *protocol.CompletionMessage) restate.Result[[]byte] {
+	switch result := completion.Result.(type) {
+	case *protocol.CompletionMessage_Empty:
+		return restate.Result[[]byte]{Value: nil}
+	case *protocol.CompletionMessage_Value:
+		return restate.Result[[]byte]{Value: result.Value}
+	case *protocol.CompletionMessage_Failure:
+		return restate.Result[[]byte]{Err: restate.TerminalError(ErrorFromFailure(result.Failure))}
+	default:
+		panic("unreachable")
+	}
+}
+
+type completionAwakeable struct {
+	ctx           context.Context
+	invocationID  []byte
+	entryIndex    uint32
+	completionFut *CompletionFuture
+}
+
+func (c *completionAwakeable) Id() string { return awakeableID(c.invocationID, c.entryIndex) }
+func (c *completionAwakeable) Chan() <-chan restate.Result[[]byte] {
+	ch := make(chan restate.Result[[]byte], 1)
+	if completion, ok := c.completionFut.Done(); ok {
+		// fast path
+		ch <- resultFromCompletion(completion)
+		return ch
+	}
+	// slow path
+	go func() {
+		completion, err := c.completionFut.Await(c.ctx)
+		if err != nil {
+			ch <- restate.Result[[]byte]{Err: err}
+		} else {
+			ch <- resultFromCompletion(completion)
+		}
+	}()
+	return ch
 }
 
 type completedAwakeable[T any] struct {
@@ -30,20 +67,6 @@ func (c *completedAwakeable[T]) Chan() <-chan restate.Result[T] {
 	return ch
 }
 
-type suspendingAwakeable[T any] struct {
-	invocationID []byte
-	entryIndex   uint32
-}
-
-func (c *suspendingAwakeable[T]) Id() string { return awakeableID(c.invocationID, c.entryIndex) }
-
-// this is a temporary hack; always suspend when this channel is read
-// currently needed because we don't have a way to process the completion while the invocation is in progress
-// and so can only deal with it on replay
-func (c *suspendingAwakeable[T]) Chan() <-chan restate.Result[T] {
-	panic(&suspend{resumeEntry: c.entryIndex})
-}
-
 func awakeableID(invocationID []byte, entryIndex uint32) string {
 	bytes := make([]byte, 0, len(invocationID)+4)
 	bytes = append(bytes, invocationID...)
@@ -55,25 +78,25 @@ func (c *Machine) awakeable() (restate.Awakeable[[]byte], error) {
 	awakeable, err := replayOrNew(
 		c,
 		wire.AwakeableEntryMessageType,
-		func(entry *wire.AwakeableEntryMessage) (awakeable[[]byte], error) {
+		func(entry *wire.AwakeableEntryMessage) (restate.Awakeable[[]byte], error) {
 			if entry.Payload.Result == nil {
-				return &suspendingAwakeable[[]byte]{entryIndex: c.entryIndex, invocationID: c.id}, nil
+				completionFut := c.pendingCompletions[c.entryIndex]
+				if completionFut == nil {
+					return nil, restate.TerminalError(fmt.Errorf("replaying awakeable at index %d is not completed but no pending completion for it", c.entryIndex), restate.ErrProtocolViolation)
+				}
+				// replaying an uncompleted awakeable, there must be a pending entry for it
+				return &completionAwakeable{ctx: c.ctx, entryIndex: c.entryIndex, invocationID: c.id, completionFut: completionFut}, nil
 			}
 			switch result := entry.Payload.Result.(type) {
 			case *protocol.AwakeableEntryMessage_Value:
 				return &completedAwakeable[[]byte]{entryIndex: c.entryIndex, invocationID: c.id, result: restate.Result[[]byte]{Value: result.Value}}, nil
 			case *protocol.AwakeableEntryMessage_Failure:
-				return &completedAwakeable[[]byte]{entryIndex: c.entryIndex, invocationID: c.id, result: restate.Result[[]byte]{Err: restate.TerminalError(fmt.Errorf(result.Failure.Message), restate.Code(result.Failure.Code))}}, nil
+				return &completedAwakeable[[]byte]{entryIndex: c.entryIndex, invocationID: c.id, result: restate.Result[[]byte]{Err: nil}}, nil
 			default:
 				return nil, restate.TerminalError(fmt.Errorf("awakeable entry had invalid result: %v", entry.Payload.Result), restate.ErrProtocolViolation)
 			}
 		},
-		func() (awakeable[[]byte], error) {
-			if err := c._awakeable(); err != nil {
-				return nil, err
-			}
-			return &suspendingAwakeable[[]byte]{entryIndex: c.entryIndex, invocationID: c.id}, nil
-		},
+		c._awakeable,
 	)
 	if err != nil {
 		return nil, err
@@ -81,11 +104,12 @@ func (c *Machine) awakeable() (restate.Awakeable[[]byte], error) {
 	return awakeable, nil
 }
 
-func (c *Machine) _awakeable() error {
-	if err := c.OneWayWrite(&protocol.AwakeableEntryMessage{}); err != nil {
-		return err
+func (c *Machine) _awakeable() (restate.Awakeable[[]byte], error) {
+	completionFut, err := c.WriteWithCompletion(&protocol.AwakeableEntryMessage{})
+	if err != nil {
+		return nil, err
 	}
-	return nil
+	return &completionAwakeable{ctx: c.ctx, entryIndex: c.entryIndex, invocationID: c.id, completionFut: completionFut}, nil
 }
 
 func (c *Machine) resolveAwakeable(id string, value []byte) error {
