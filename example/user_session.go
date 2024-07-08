@@ -5,14 +5,15 @@ import (
 	"slices"
 	"time"
 
-	"github.com/restatedev/sdk-go"
+	restate "github.com/restatedev/sdk-go"
 	"github.com/rs/zerolog/log"
 )
 
-func addTicket(ctx restate.Context, userId, ticketId string) (bool, error) {
+func addTicket(ctx restate.ObjectContext, ticketId string) (bool, error) {
+	userId := ctx.Key()
 
 	var success bool
-	if err := ctx.Service(TicketServiceName).Method("reserve").Do(ticketId, userId, &success); err != nil {
+	if err := ctx.Object(TicketServiceName, ticketId).Method("reserve").Do(userId, &success); err != nil {
 		return false, err
 	}
 
@@ -33,14 +34,14 @@ func addTicket(ctx restate.Context, userId, ticketId string) (bool, error) {
 		return false, err
 	}
 
-	if err := ctx.Service(UserSessionServiceName).Method("expireTicket").Send(userId, ticketId, 15*time.Minute); err != nil {
+	if err := ctx.Object(UserSessionServiceName, ticketId).Method("expireTicket").Send(ticketId, 15*time.Minute); err != nil {
 		return false, err
 	}
 
 	return true, nil
 }
 
-func expireTicket(ctx restate.Context, _, ticketId string) (void restate.Void, err error) {
+func expireTicket(ctx restate.ObjectContext, ticketId string) (void restate.Void, err error) {
 	tickets, err := restate.GetAs[[]string](ctx, "tickets")
 	if err != nil && !errors.Is(err, restate.ErrKeyNotFound) {
 		return void, err
@@ -62,10 +63,11 @@ func expireTicket(ctx restate.Context, _, ticketId string) (void restate.Void, e
 		return void, err
 	}
 
-	return void, ctx.Service(TicketServiceName).Method("unreserve").Send(ticketId, nil, 0)
+	return void, ctx.Object(TicketServiceName, ticketId).Method("unreserve").Send(nil, 0)
 }
 
-func checkout(ctx restate.Context, userId string, _ restate.Void) (bool, error) {
+func checkout(ctx restate.ObjectContext, _ restate.Void) (bool, error) {
+	userId := ctx.Key()
 	tickets, err := restate.GetAs[[]string](ctx, "tickets")
 	if err != nil && !errors.Is(err, restate.ErrKeyNotFound) {
 		return false, err
@@ -78,17 +80,17 @@ func checkout(ctx restate.Context, userId string, _ restate.Void) (bool, error) 
 	}
 
 	var response PaymentResponse
-	if err := ctx.Service(CheckoutServiceName).
+	if err := ctx.Object(CheckoutServiceName, "").
 		Method("checkout").
-		Do("", PaymentRequest{UserID: userId, Tickets: tickets}, &response); err != nil {
+		Do(PaymentRequest{UserID: userId, Tickets: tickets}, &response); err != nil {
 		return false, err
 	}
 
 	log.Info().Str("id", response.ID).Int("price", response.Price).Msg("payment details")
 
-	call := ctx.Service(TicketServiceName).Method("markAsSold")
 	for _, ticket := range tickets {
-		if err := call.Send(ticket, nil, 0); err != nil {
+		call := ctx.Object(ticket, TicketServiceName).Method("markAsSold")
+		if err := call.Send(nil, 0); err != nil {
 			return false, err
 		}
 	}
@@ -97,8 +99,8 @@ func checkout(ctx restate.Context, userId string, _ restate.Void) (bool, error) 
 }
 
 var (
-	UserSession = restate.NewKeyedRouter().
-		Handler("addTicket", restate.NewKeyedHandler(addTicket)).
-		Handler("expireTicket", restate.NewKeyedHandler(expireTicket)).
-		Handler("checkout", restate.NewKeyedHandler(checkout))
+	UserSession = restate.NewObjectRouter().
+		Handler("addTicket", restate.NewObjectHandler(addTicket)).
+		Handler("expireTicket", restate.NewObjectHandler(expireTicket)).
+		Handler("checkout", restate.NewObjectHandler(checkout))
 )

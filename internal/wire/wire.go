@@ -9,9 +9,8 @@ import (
 	"io"
 	"math"
 
-	"github.com/restatedev/sdk-go/generated/proto/javascript"
-	"github.com/restatedev/sdk-go/generated/proto/protocol"
-	"github.com/rs/zerolog/log"
+	protocol "github.com/restatedev/sdk-go/generated/proto/protocol"
+	"github.com/rs/zerolog"
 	"google.golang.org/protobuf/proto"
 )
 
@@ -36,8 +35,8 @@ const (
 	EndMessageType        Type = 0x0000 + 5
 
 	// Input/Output
-	PollInputEntryMessageType    Type = 0x0400
-	OutputStreamEntryMessageType Type = 0x0400 + 1
+	InputEntryMessageType  Type = 0x0400
+	OutputEntryMessageType Type = 0x0400 + 1
 
 	// State
 	GetStateEntryMessageType      Type = 0x0800
@@ -47,12 +46,12 @@ const (
 	GetStateKeysEntryMessageType  Type = 0x0800 + 4
 
 	//SysCalls
-	SleepEntryMessageType            Type = 0x0C00
-	InvokeEntryMessageType           Type = 0x0C00 + 1
-	BackgroundInvokeEntryMessageType Type = 0x0C00 + 2
-
-	// SideEffect
-	SideEffectEntryMessageType Type = 0xFC00 + 1
+	SleepEntryMessageType             Type = 0x0C00
+	CallEntryMessageType              Type = 0x0C00 + 1
+	OneWayCallEntryMessageType        Type = 0x0C00 + 2
+	AwakeableEntryMessageType         Type = 0x0C00 + 3
+	CompleteAwakeableEntryMessageType Type = 0x0C00 + 4
+	RunEntryMessageType               Type = 0x0C00 + 5
 )
 
 type Type uint16
@@ -64,11 +63,6 @@ func (t Type) String() string {
 // Flag section of the header this can have
 // a different meaning based on message type.
 type Flag uint16
-
-// this is only valid with start message
-func (r Flag) version() uint16 {
-	return uint16(r) & VersionMask
-}
 
 func (r Flag) Completed() bool {
 	return r&FlagCompleted != 0
@@ -126,11 +120,12 @@ func (r *Reader) Next() <-chan ReaderMessage {
 // Note that Protocol is not concurrent safe and it's up to the user
 // to make sure it's used correctly
 type Protocol struct {
+	log    *zerolog.Logger
 	stream io.ReadWriter
 }
 
-func NewProtocol(stream io.ReadWriter) *Protocol {
-	return &Protocol{stream}
+func NewProtocol(log *zerolog.Logger, stream io.ReadWriter) *Protocol {
+	return &Protocol{log, stream}
 }
 
 // ReadHeader from stream
@@ -171,9 +166,13 @@ func (s *Protocol) Read() (Message, error) {
 		return nil, fmt.Errorf("unknown message type '%d'", header.TypeCode)
 	}
 
-	log.Trace().Stringer("type", header.TypeCode).Msg("received message")
-	return builder(header, buf)
+	msg, err := builder(header, buf)
+	if err != nil {
+		return nil, err
+	}
 
+	s.log.Trace().Stringer("type", header.TypeCode).Interface("msg", msg).Msg("received message")
+	return msg, nil
 }
 
 func (s *Protocol) Write(message proto.Message, flags ...Flag) error {
@@ -193,10 +192,10 @@ func (s *Protocol) Write(message proto.Message, flags ...Flag) error {
 		typ = StartMessageType
 	case *protocol.SuspensionMessage:
 		typ = SuspensionMessageType
-	case *protocol.PollInputStreamEntryMessage:
-		typ = PollInputEntryMessageType
-	case *protocol.OutputStreamEntryMessage:
-		typ = OutputStreamEntryMessageType
+	case *protocol.InputEntryMessage:
+		typ = InputEntryMessageType
+	case *protocol.OutputEntryMessage:
+		typ = OutputEntryMessageType
 	case *protocol.ErrorMessage:
 		typ = ErrorMessageType
 	case *protocol.EndMessage:
@@ -209,21 +208,25 @@ func (s *Protocol) Write(message proto.Message, flags ...Flag) error {
 		typ = ClearStateEntryMessageType
 	case *protocol.ClearAllStateEntryMessage:
 		typ = ClearAllStateEntryMessageType
-	case *protocol.SleepEntryMessage:
-		typ = SleepEntryMessageType
-	case *protocol.InvokeEntryMessage:
-		typ = InvokeEntryMessageType
-	case *protocol.BackgroundInvokeEntryMessage:
-		typ = BackgroundInvokeEntryMessageType
 	case *protocol.GetStateKeysEntryMessage:
 		typ = GetStateKeysEntryMessageType
-	case *javascript.SideEffectEntryMessage:
-		typ = SideEffectEntryMessageType
+	case *protocol.SleepEntryMessage:
+		typ = SleepEntryMessageType
+	case *protocol.CallEntryMessage:
+		typ = CallEntryMessageType
+	case *protocol.OneWayCallEntryMessage:
+		typ = OneWayCallEntryMessageType
+	case *protocol.AwakeableEntryMessage:
+		typ = AwakeableEntryMessageType
+	case *protocol.CompleteAwakeableEntryMessage:
+		typ = CompleteAwakeableEntryMessageType
+	case *protocol.RunEntryMessage:
+		typ = RunEntryMessageType
 	default:
 		return fmt.Errorf("can not send message of unknown message type")
 	}
 
-	log.Trace().Stringer("type", typ).Msg("sending message to runtime")
+	s.log.Trace().Stringer("type", typ).Interface("msg", message).Msg("sending message to runtime")
 
 	bytes, err := proto.Marshal(message)
 	if err != nil {
@@ -258,8 +261,7 @@ var (
 	builders = map[Type]messageBuilder{
 		StartMessageType: func(header Header, bytes []byte) (Message, error) {
 			msg := &StartMessage{
-				Header:  header,
-				Version: header.Flag.version(),
+				Header: header,
 			}
 
 			return msg, proto.Unmarshal(bytes, &msg.Payload)
@@ -271,15 +273,15 @@ var (
 
 			return msg, proto.Unmarshal(bytes, &msg.Payload)
 		},
-		PollInputEntryMessageType: func(header Header, bytes []byte) (Message, error) {
-			msg := &PollInputEntry{
+		InputEntryMessageType: func(header Header, bytes []byte) (Message, error) {
+			msg := &InputEntryMessage{
 				Header: header,
 			}
 
 			return msg, proto.Unmarshal(bytes, &msg.Payload)
 		},
-		OutputStreamEntryMessageType: func(header Header, bytes []byte) (Message, error) {
-			msg := &OutputStreamEntry{
+		OutputEntryMessageType: func(header Header, bytes []byte) (Message, error) {
+			msg := &OutputEntryMessage{
 				Header: header,
 			}
 
@@ -334,22 +336,36 @@ var (
 
 			return msg, proto.Unmarshal(bytes, &msg.Payload)
 		},
-		InvokeEntryMessageType: func(header Header, bytes []byte) (Message, error) {
-			msg := &InvokeEntryMessage{
+		CallEntryMessageType: func(header Header, bytes []byte) (Message, error) {
+			msg := &CallEntryMessage{
 				Header: header,
 			}
 
 			return msg, proto.Unmarshal(bytes, &msg.Payload)
 		},
-		BackgroundInvokeEntryMessageType: func(header Header, bytes []byte) (Message, error) {
-			msg := &BackgroundInvokeEntryMessage{
+		OneWayCallEntryMessageType: func(header Header, bytes []byte) (Message, error) {
+			msg := &OneWayCallEntryMessage{
 				Header: header,
 			}
 
 			return msg, proto.Unmarshal(bytes, &msg.Payload)
 		},
-		SideEffectEntryMessageType: func(header Header, bytes []byte) (Message, error) {
-			msg := &SideEffectEntryMessage{
+		AwakeableEntryMessageType: func(header Header, bytes []byte) (Message, error) {
+			msg := &AwakeableEntryMessage{
+				Header: header,
+			}
+
+			return msg, proto.Unmarshal(bytes, &msg.Payload)
+		},
+		CompleteAwakeableEntryMessageType: func(header Header, bytes []byte) (Message, error) {
+			msg := &CompleteAwakeableEntryMessage{
+				Header: header,
+			}
+
+			return msg, proto.Unmarshal(bytes, &msg.Payload)
+		},
+		RunEntryMessageType: func(header Header, bytes []byte) (Message, error) {
+			msg := &RunEntryMessage{
 				Header: header,
 			}
 
@@ -360,18 +376,17 @@ var (
 
 type StartMessage struct {
 	Header
-	Version uint16
 	Payload protocol.StartMessage
 }
 
-type PollInputEntry struct {
+type InputEntryMessage struct {
 	Header
-	Payload protocol.PollInputStreamEntryMessage
+	Payload protocol.InputEntryMessage
 }
 
-type OutputStreamEntry struct {
+type OutputEntryMessage struct {
 	Header
-	Payload protocol.OutputStreamEntryMessage
+	Payload protocol.OutputEntryMessage
 }
 
 type GetStateEntryMessage struct {
@@ -409,19 +424,29 @@ type SleepEntryMessage struct {
 	Payload protocol.SleepEntryMessage
 }
 
-type InvokeEntryMessage struct {
+type CallEntryMessage struct {
 	Header
-	Payload protocol.InvokeEntryMessage
+	Payload protocol.CallEntryMessage
 }
 
-type BackgroundInvokeEntryMessage struct {
+type OneWayCallEntryMessage struct {
 	Header
-	Payload protocol.BackgroundInvokeEntryMessage
+	Payload protocol.OneWayCallEntryMessage
 }
 
-type SideEffectEntryMessage struct {
+type AwakeableEntryMessage struct {
 	Header
-	Payload javascript.SideEffectEntryMessage
+	Payload protocol.AwakeableEntryMessage
+}
+
+type CompleteAwakeableEntryMessage struct {
+	Header
+	Payload protocol.CompleteAwakeableEntryMessage
+}
+
+type RunEntryMessage struct {
+	Header
+	Payload protocol.RunEntryMessage
 }
 
 type EntryAckMessage struct {

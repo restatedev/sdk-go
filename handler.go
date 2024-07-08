@@ -4,9 +4,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"reflect"
-
-	"github.com/restatedev/sdk-go/generated/proto/dynrpc"
-	"google.golang.org/protobuf/types/known/structpb"
 )
 
 // Void is a placeholder used usually for functions that their signature require that
@@ -22,31 +19,29 @@ func (v *Void) UnmarshalJSON(_ []byte) error {
 	return nil
 }
 
-type UnKeyedHandler struct {
+type ServiceHandler struct {
 	fn     reflect.Value
 	input  reflect.Type
 	output reflect.Type
 }
 
-// NewUnKeyedHandler create a new handler for an `un-keyed` function
-func NewUnKeyedHandler[I any, O any](fn UnKeyedHandlerFn[I, O]) *UnKeyedHandler {
-	return &UnKeyedHandler{
+// NewServiceHandler create a new handler for a service
+func NewServiceHandler[I any, O any](fn ServiceHandlerFn[I, O]) *ServiceHandler {
+	return &ServiceHandler{
 		fn:     reflect.ValueOf(fn),
 		input:  reflect.TypeFor[I](),
 		output: reflect.TypeFor[O](),
 	}
 }
 
-func (h *UnKeyedHandler) Call(ctx Context, request *dynrpc.RpcRequest) (*dynrpc.RpcResponse, error) {
-	bytes, err := request.Request.MarshalJSON()
-	if err != nil {
-		return nil, TerminalError(fmt.Errorf("request is not valid json: %w", err))
-	}
-
+func (h *ServiceHandler) Call(ctx Context, bytes []byte) ([]byte, error) {
 	input := reflect.New(h.input)
 
-	if err := json.Unmarshal(bytes, input.Interface()); err != nil {
-		return nil, TerminalError(fmt.Errorf("request doesn't match handler signature: %w", err))
+	if len(bytes) > 0 {
+		// use the zero value if there is no input data at all
+		if err := json.Unmarshal(bytes, input.Interface()); err != nil {
+			return nil, TerminalError(fmt.Errorf("request doesn't match handler signature: %w", err))
+		}
 	}
 
 	// we are sure about the fn signature so it's safe to do this
@@ -61,53 +56,43 @@ func (h *UnKeyedHandler) Call(ctx Context, request *dynrpc.RpcRequest) (*dynrpc.
 		return nil, errI.(error)
 	}
 
-	bytes, err = json.Marshal(outI)
+	bytes, err := json.Marshal(outI)
 	if err != nil {
 		return nil, TerminalError(fmt.Errorf("failed to serialize output: %w", err))
 	}
 
-	var response dynrpc.RpcResponse
-	response.Response = &structpb.Value{}
-
-	if err := response.Response.UnmarshalJSON(bytes); err != nil {
-		return nil, TerminalError(err)
-	}
-
-	return &response, nil
+	return bytes, nil
 }
 
-func (h *UnKeyedHandler) sealed() {}
+func (h *ServiceHandler) sealed() {}
 
-type KeyedHandler struct {
+type ObjectHandler struct {
 	fn     reflect.Value
 	input  reflect.Type
 	output reflect.Type
 }
 
-func NewKeyedHandler[I any, O any](fn KeyedHandlerFn[I, O]) *KeyedHandler {
-	return &KeyedHandler{
+func NewObjectHandler[I any, O any](fn ObjectHandlerFn[I, O]) *ObjectHandler {
+	return &ObjectHandler{
 		fn:     reflect.ValueOf(fn),
 		input:  reflect.TypeFor[I](),
 		output: reflect.TypeFor[O](),
 	}
 }
 
-func (h *KeyedHandler) Call(ctx Context, request *dynrpc.RpcRequest) (*dynrpc.RpcResponse, error) {
-	bytes, err := request.Request.MarshalJSON()
-	if err != nil {
-		return nil, TerminalError(fmt.Errorf("request is not valid json: %w", err))
-	}
-
+func (h *ObjectHandler) Call(ctx ObjectContext, bytes []byte) ([]byte, error) {
 	input := reflect.New(h.input)
 
-	if err := json.Unmarshal(bytes, input.Interface()); err != nil {
-		return nil, TerminalError(fmt.Errorf("request doesn't match handler signature: %w", err))
+	if len(bytes) > 0 {
+		// use the zero value if there is no input data at all
+		if err := json.Unmarshal(bytes, input.Interface()); err != nil {
+			return nil, TerminalError(fmt.Errorf("request doesn't match handler signature: %w", err))
+		}
 	}
 
 	// we are sure about the fn signature so it's safe to do this
 	output := h.fn.Call([]reflect.Value{
 		reflect.ValueOf(ctx),
-		reflect.ValueOf(request.Key),
 		input.Elem(),
 	})
 
@@ -117,19 +102,12 @@ func (h *KeyedHandler) Call(ctx Context, request *dynrpc.RpcRequest) (*dynrpc.Rp
 		return nil, errI.(error)
 	}
 
-	bytes, err = json.Marshal(outI)
+	bytes, err := json.Marshal(outI)
 	if err != nil {
 		return nil, TerminalError(fmt.Errorf("failed to serialize output: %w", err))
 	}
 
-	var response dynrpc.RpcResponse
-	response.Response = &structpb.Value{}
-
-	if err := response.Response.UnmarshalJSON(bytes); err != nil {
-		return nil, TerminalError(err)
-	}
-
-	return &response, nil
+	return bytes, nil
 }
 
-func (h *KeyedHandler) sealed() {}
+func (h *ObjectHandler) sealed() {}

@@ -2,33 +2,23 @@ package restate
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"time"
 
-	"github.com/cenkalti/backoff/v4"
-	"github.com/restatedev/sdk-go/generated/proto/dynrpc"
+	"github.com/restatedev/sdk-go/internal"
 	"github.com/vmihailenco/msgpack/v5"
 )
 
 var (
 	ErrKeyNotFound = fmt.Errorf("key not found")
-	//DefaultBackoffPolicy is an infinite exponential backoff
-	DefaultBackoffPolicy = backoff.ExponentialBackOff{
-		InitialInterval:     10 * time.Microsecond,
-		RandomizationFactor: backoff.DefaultRandomizationFactor,
-		Multiplier:          backoff.DefaultMultiplier,
-		MaxInterval:         backoff.DefaultMaxInterval,
-		MaxElapsedTime:      0,
-		Stop:                backoff.Stop,
-		Clock:               backoff.SystemClock,
-	}
 )
 
 type Call interface {
 	// Do makes a call and wait for the response
-	Do(key string, input any, output any) error
+	Do(input any, output any) error
 	// Send makes a call in the background (doesn't wait for response) after delay duration
-	Send(key string, body any, delay time.Duration) error
+	Send(body any, delay time.Duration) error
 }
 
 type Service interface {
@@ -36,9 +26,74 @@ type Service interface {
 	Method(method string) Call
 }
 
+type Object interface {
+	// Method creates a call to method with name
+	Method(method string) Call
+}
+
 type Context interface {
 	// Context of request.
 	Ctx() context.Context
+	// Sleep sleep during the execution until time is reached
+	Sleep(until time.Time) error
+	// Service gets a Service accessor by name where service
+	// must be another service known by restate runtime
+	Service(service string) Service
+	// Object gets a Object accessor by name where object
+	// must be another object known by restate runtime and
+	// key is any string representing the key for the object
+	Object(object, key string) Object
+
+	// SideEffects runs the function (fn) until it succeeds or permanently fails.
+	// this stores the results of the function inside restate runtime so a replay
+	// will produce the same value (think generating a unique id for example)
+	// Note: use the SideEffectAs helper function
+	SideEffect(fn func() ([]byte, error)) ([]byte, error)
+
+	Awakeable() (Awakeable[[]byte], error)
+	ResolveAwakeable(id string, value []byte) error
+	RejectAwakeable(id string, reason error) error
+}
+
+// Router interface
+type Router interface {
+	Type() internal.ServiceType
+	// Set of handlers associated with this router
+	Handlers() map[string]Handler
+}
+
+type Handler interface {
+	Call(ctx Context, request []byte) (output []byte, err error)
+	sealed()
+}
+
+type ServiceType string
+
+const (
+	ServiceType_VIRTUAL_OBJECT ServiceType = "VIRTUAL_OBJECT"
+	ServiceType_SERVICE        ServiceType = "SERVICE"
+)
+
+type ObjectHandlerWrapper struct {
+	h *ObjectHandler
+}
+
+func (o ObjectHandlerWrapper) Call(ctx Context, request []byte) ([]byte, error) {
+	switch ctx := ctx.(type) {
+	case ObjectContext:
+		return o.h.Call(ctx, request)
+	default:
+		panic("Object handler called with context that doesn't implement ObjectContext")
+	}
+}
+
+func (ObjectHandlerWrapper) sealed() {}
+
+type ServiceHandlerWrapper struct {
+	h ServiceHandler
+}
+
+type KeyValueStore interface {
 	// Set sets key value to bytes array. You can
 	// Note: Use SetAs helper function to seamlessly store
 	// a value of specific type.
@@ -55,94 +110,79 @@ type Context interface {
 	ClearAll() error
 	// Keys returns a list of all associated key
 	Keys() ([]string, error)
-	// Sleep sleep during the execution until time is reached
-	Sleep(until time.Time) error
-	// Service gets a Service accessor by name where service
-	// must be another service known by restate runtime
-	Service(service string) Service
-
-	// SideEffects runs the function (fn) with backoff strategy bo until it succeeds
-	// or permanently fail.
-	// this stores the results of the function inside restate runtime so a replay
-	// will produce the same value (think generating a unique id for example)
-	// Note: use the SideEffectAs helper function
-	SideEffect(fn func() ([]byte, error), bo ...backoff.BackOff) ([]byte, error)
 }
 
-// UnKeyedHandlerFn signature of `un-keyed` handler function
-type UnKeyedHandlerFn[I any, O any] func(ctx Context, input I) (output O, err error)
-
-// KeyedHandlerFn signature for `keyed` handler function
-type KeyedHandlerFn[I any, O any] func(ctx Context, key string, input I) (output O, err error)
-
-// Handler interface.
-type Handler interface {
-	Call(ctx Context, request *dynrpc.RpcRequest) (output *dynrpc.RpcResponse, err error)
-	sealed()
+type ObjectContext interface {
+	Context
+	KeyValueStore
+	Key() string
 }
 
-// Router interface
-type Router interface {
-	Keyed() bool
-	// Set of handlers associated with this router
-	Handlers() map[string]Handler
-}
+// ServiceHandlerFn signature of service (unkeyed) handler function
+type ServiceHandlerFn[I any, O any] func(ctx Context, input I) (output O, err error)
 
-// UnKeyedRouter implements Router
-type UnKeyedRouter struct {
+// ObjectHandlerFn signature for object (keyed) handler function
+type ObjectHandlerFn[I any, O any] func(ctx ObjectContext, input I) (output O, err error)
+
+// ServiceRouter implements Router
+type ServiceRouter struct {
 	handlers map[string]Handler
 }
 
-// NewUnKeyedRouter creates a new UnKeyedRouter
-func NewUnKeyedRouter() *UnKeyedRouter {
-	return &UnKeyedRouter{
+var _ Router = &ServiceRouter{}
+
+// NewServiceRouter creates a new ServiceRouter
+func NewServiceRouter() *ServiceRouter {
+	return &ServiceRouter{
 		handlers: make(map[string]Handler),
 	}
 }
 
 // Handler registers a new handler by name
-func (r *UnKeyedRouter) Handler(name string, handler *UnKeyedHandler) *UnKeyedRouter {
+func (r *ServiceRouter) Handler(name string, handler *ServiceHandler) *ServiceRouter {
 	r.handlers[name] = handler
 	return r
 }
 
-func (r *UnKeyedRouter) Keyed() bool {
-	return false
-}
-
-func (r *UnKeyedRouter) Handlers() map[string]Handler {
+func (r *ServiceRouter) Handlers() map[string]Handler {
 	return r.handlers
 }
 
-// KeyedRouter
-type KeyedRouter struct {
+func (r *ServiceRouter) Type() internal.ServiceType {
+	return internal.ServiceType_SERVICE
+}
+
+// ObjectRouter
+type ObjectRouter struct {
 	handlers map[string]Handler
 }
 
-func NewKeyedRouter() *KeyedRouter {
-	return &KeyedRouter{
+var _ Router = &ObjectRouter{}
+
+func NewObjectRouter() *ObjectRouter {
+	return &ObjectRouter{
 		handlers: make(map[string]Handler),
 	}
 }
 
-func (r *KeyedRouter) Handler(name string, handler *KeyedHandler) *KeyedRouter {
-	r.handlers[name] = handler
+func (r *ObjectRouter) Handler(name string, handler *ObjectHandler) *ObjectRouter {
+	r.handlers[name] = ObjectHandlerWrapper{h: handler}
 	return r
 }
 
-func (r *KeyedRouter) Keyed() bool {
-	return true
+func (r *ObjectRouter) Handlers() map[string]Handler {
+	return r.handlers
 }
 
-func (r *KeyedRouter) Handlers() map[string]Handler {
-	return r.handlers
+func (r *ObjectRouter) Type() internal.ServiceType {
+	return internal.ServiceType_VIRTUAL_OBJECT
 }
 
 // GetAs helper function to get a key as specific type. Note that
 // if there is no associated value with key, an error ErrKeyNotFound is
 // returned
 // it does encoding/decoding of bytes automatically using msgpack
-func GetAs[T any](ctx Context, key string) (output T, err error) {
+func GetAs[T any](ctx ObjectContext, key string) (output T, err error) {
 	bytes, err := ctx.Get(key)
 	if err != nil {
 		return output, err
@@ -160,7 +200,7 @@ func GetAs[T any](ctx Context, key string) (output T, err error) {
 
 // SetAs helper function to set a key value with a generic type T.
 // it does encoding/decoding of bytes automatically using msgpack
-func SetAs[T any](ctx Context, key string, value T) error {
+func SetAs[T any](ctx ObjectContext, key string, value T) error {
 	bytes, err := msgpack.Marshal(value)
 	if err != nil {
 		return err
@@ -171,7 +211,7 @@ func SetAs[T any](ctx Context, key string, value T) error {
 
 // SideEffectAs helper function runs a side effect function with specific concrete type as a result
 // it does encoding/decoding of bytes automatically using msgpack
-func SideEffectAs[T any](ctx Context, fn func() (T, error), bo ...backoff.BackOff) (output T, err error) {
+func SideEffectAs[T any](ctx Context, fn func() (T, error)) (output T, err error) {
 	bytes, err := ctx.SideEffect(func() ([]byte, error) {
 		out, err := fn()
 		if err != nil {
@@ -180,7 +220,7 @@ func SideEffectAs[T any](ctx Context, fn func() (T, error), bo ...backoff.BackOf
 
 		bytes, err := msgpack.Marshal(out)
 		return bytes, TerminalError(err)
-	}, bo...)
+	})
 
 	if err != nil {
 		return output, err
@@ -189,4 +229,55 @@ func SideEffectAs[T any](ctx Context, fn func() (T, error), bo ...backoff.BackOf
 	err = msgpack.Unmarshal(bytes, &output)
 
 	return output, TerminalError(err)
+}
+
+type Awakeable[T any] interface {
+	Id() string
+	Chan() <-chan Result[T]
+}
+
+type Result[T any] struct {
+	Value T
+	Err   error
+}
+
+type decodingAwakeable[T any] struct {
+	inner Awakeable[[]byte]
+}
+
+func (d decodingAwakeable[T]) Id() string { return d.inner.Id() }
+func (d decodingAwakeable[T]) Chan() <-chan Result[T] {
+	inner := d.inner.Chan()
+	out := make(chan Result[T], 1)
+	go func() {
+		result := <-inner
+		if result.Err != nil {
+			out <- Result[T]{Err: result.Err}
+		} else {
+			var value T
+			if err := json.Unmarshal(result.Value, &value); err != nil {
+				out <- Result[T]{Err: TerminalError(err)}
+			} else {
+				out <- Result[T]{Value: value}
+			}
+		}
+	}()
+	return out
+}
+
+func AwakeableAs[T any](ctx Context) (Awakeable[T], error) {
+	inner, err := ctx.Awakeable()
+	if err != nil {
+		return nil, err
+	}
+
+	return decodingAwakeable[T]{inner: inner}, nil
+}
+
+func ResolveAwakeableAs[T any](ctx Context, id string, value T) error {
+	bytes, err := json.Marshal(value)
+	if err != nil {
+		return TerminalError(err)
+	}
+	return ctx.ResolveAwakeable(id, bytes)
 }
