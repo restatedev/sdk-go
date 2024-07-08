@@ -346,7 +346,6 @@ func (m *Machine) sideEffect(fn func() ([]byte, error)) ([]byte, error) {
 func (m *Machine) _sideEffect(fn func() ([]byte, error)) ([]byte, error) {
 	bytes, err := fn()
 
-	var msg protocol.RunEntryMessage
 	if err != nil {
 		if restate.IsTerminalError(err) {
 			msg := protocol.RunEntryMessage{
@@ -380,10 +379,6 @@ func (m *Machine) _sideEffect(fn func() ([]byte, error)) ([]byte, error) {
 		if err := m.protocol.Write(&msg); err != nil {
 			return nil, err
 		}
-	}
-
-	if err := m.protocol.Write(&msg); err != nil {
-		return nil, err
 	}
 
 	return bytes, err
