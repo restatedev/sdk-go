@@ -125,6 +125,8 @@ func newContext(inner context.Context, machine *Machine) *Context {
 }
 
 type Machine struct {
+	ctx context.Context
+
 	handler  restate.Handler
 	protocol *wire.Protocol
 	mutex    sync.Mutex
@@ -137,16 +139,21 @@ type Machine struct {
 	current map[string][]byte
 
 	entries    []wire.Message
-	entryIndex int
+	entryIndex uint32
 
 	log zerolog.Logger
+
+	pendingCompletions map[uint32]*CompletionFuture
+	pendingAcks        map[uint32]*AckFuture
 }
 
 func NewMachine(handler restate.Handler, conn io.ReadWriter) *Machine {
 	m := &Machine{
-		handler: handler,
-		current: make(map[string][]byte),
-		log:     log.Logger,
+		handler:            handler,
+		current:            make(map[string][]byte),
+		log:                log.Logger,
+		pendingAcks:        map[uint32]*AckFuture{},
+		pendingCompletions: map[uint32]*CompletionFuture{},
 	}
 	m.protocol = wire.NewProtocol(&m.log, conn)
 	return m
@@ -167,6 +174,7 @@ func (m *Machine) Start(inner context.Context, trace string) error {
 
 	start := msg.(*wire.StartMessage)
 
+	m.ctx = inner
 	m.id = start.Payload.Id
 	m.key = start.Payload.Key
 
@@ -232,7 +240,7 @@ func (m *Machine) invoke(ctx *Context, input []byte) error {
 			m.log.Debug().Msg("suspending invocation")
 			err := m.protocol.Write(&protocol.SuspensionMessage{
 				EntryIndexes: []uint32{typ.resumeEntry},
-			})
+			}, 0)
 
 			if err != nil {
 				m.log.Error().Err(err).Msg("error sending failure message")
@@ -245,21 +253,21 @@ func (m *Machine) invoke(ctx *Context, input []byte) error {
 				Code:        500,
 				Message:     fmt.Sprint(typ),
 				Description: string(debug.Stack()),
-			})
+			}, 0)
 
 			if err != nil {
 				m.log.Error().Err(err).Msg("error sending failure message")
 			}
 		}
 
-		if err := m.protocol.Write(&protocol.EndMessage{}); err != nil {
+		if err := m.protocol.Write(&protocol.EndMessage{}, 0); err != nil {
 			m.log.Error().Err(err).Msg("error sending end message")
 		}
 	}()
 
 	output := m.output(m.handler.Call(ctx, input))
 
-	return m.protocol.Write(output)
+	return m.protocol.Write(output, 0)
 }
 
 func (m *Machine) process(ctx *Context, start *wire.StartMessage) error {
@@ -291,6 +299,8 @@ func (m *Machine) process(ctx *Context, start *wire.StartMessage) error {
 		m.entries = append(m.entries, msg)
 	}
 
+	go m.handleCompletionsAcks()
+
 	inputMsg := msg.(*wire.InputEntryMessage)
 	value := inputMsg.Payload.GetValue()
 	return m.invoke(ctx, value)
@@ -298,7 +308,7 @@ func (m *Machine) process(ctx *Context, start *wire.StartMessage) error {
 }
 
 func (c *Machine) currentEntry() (wire.Message, bool) {
-	if c.entryIndex < len(c.entries) {
+	if c.entryIndex < uint32(len(c.entries)) {
 		return c.entries[c.entryIndex], true
 	}
 

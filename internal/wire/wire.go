@@ -134,21 +134,6 @@ func (s *Protocol) header() (header Header, err error) {
 	return
 }
 
-func (s *Protocol) ReadAck() (uint32, error) {
-	msg, err := s.Read()
-	if err != nil {
-		return 0, err
-	}
-
-	if msg.Type() != EntryAckMessageType {
-		return 0, ErrUnexpectedMessage
-	}
-
-	ack := msg.(*EntryAckMessage)
-
-	return ack.Payload.EntryIndex, nil
-}
-
 func (s *Protocol) Read() (Message, error) {
 	header, err := s.header()
 	if err != nil {
@@ -175,15 +160,7 @@ func (s *Protocol) Read() (Message, error) {
 	return msg, nil
 }
 
-func (s *Protocol) Write(message proto.Message, flags ...Flag) error {
-	var flag Flag
-	if len(flags) > 1 {
-		// code error
-		panic("invalid flags, use | operator instead")
-	} else if len(flags) == 1 {
-		flag = flags[0]
-	}
-
+func (s *Protocol) Write(message proto.Message, flag Flag) error {
 	// all possible types sent by the sdk
 	var typ Type
 	switch message.(type) {

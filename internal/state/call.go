@@ -98,29 +98,23 @@ func (m *Machine) doCall(service, key, method string, params []byte) ([]byte, er
 }
 
 func (m *Machine) _doCall(service, key, method string, params []byte) ([]byte, error) {
-	err := m.protocol.Write(&protocol.CallEntryMessage{
+	msg := &protocol.CallEntryMessage{
 		ServiceName: service,
 		HandlerName: method,
 		Parameter:   params,
 		Key:         key,
-	})
-
+	}
+	completionFut, err := m.WriteWithCompletion(msg)
 	if err != nil {
 		return nil, fmt.Errorf("failed to send request message: %w", err)
 	}
 
-	response, err := m.protocol.Read()
+	completion, err := completionFut.Done(m.ctx)
 	if err != nil {
-		return nil, fmt.Errorf("failed to read response message: %w", err)
+		return nil, err
 	}
 
-	if response.Type() != wire.CompletionMessageType {
-		return nil, wire.ErrUnexpectedMessage
-	}
-
-	completion := response.(*wire.CompletionMessage)
-
-	switch result := completion.Payload.Result.(type) {
+	switch result := completion.Result.(type) {
 	case *protocol.CompletionMessage_Empty:
 		return nil, nil
 	case *protocol.CompletionMessage_Failure:
@@ -129,7 +123,7 @@ func (m *Machine) _doCall(service, key, method string, params []byte) ([]byte, e
 		return result.Value, nil
 	}
 
-	return nil, restate.TerminalError(fmt.Errorf("sync call completion had invalid result: %v", completion.Payload.Result), restate.ErrProtocolViolation)
+	return nil, restate.TerminalError(fmt.Errorf("sync call completion had invalid result: %v", completion.Result), restate.ErrProtocolViolation)
 }
 
 func (c *Machine) sendCall(service, key, method string, body any, delay time.Duration) error {
@@ -167,7 +161,7 @@ func (c *Machine) _sendCall(service, key, method string, params []byte, delay ti
 		invokeTime = uint64(time.Now().Add(delay).UnixMilli())
 	}
 
-	err := c.protocol.Write(&protocol.OneWayCallEntryMessage{
+	err := c.OneWayWrite(&protocol.OneWayCallEntryMessage{
 		ServiceName: service,
 		HandlerName: method,
 		Parameter:   params,

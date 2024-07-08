@@ -88,7 +88,7 @@ func (c *Machine) awakeable() (restate.Awakeable[[]byte], error) {
 }
 
 func (c *Machine) _awakeable() error {
-	if err := c.protocol.Write(&protocol.AwakeableEntryMessage{}); err != nil {
+	if err := c.OneWayWrite(&protocol.AwakeableEntryMessage{}); err != nil {
 		return err
 	}
 	return nil
@@ -116,7 +116,7 @@ func (c *Machine) resolveAwakeable(id string, value []byte) error {
 }
 
 func (c *Machine) _resolveAwakeable(id string, value []byte) error {
-	if err := c.protocol.Write(&protocol.CompleteAwakeableEntryMessage{
+	if err := c.OneWayWrite(&protocol.CompleteAwakeableEntryMessage{
 		Id:     id,
 		Result: &protocol.CompleteAwakeableEntryMessage_Value{Value: value},
 	}); err != nil {
@@ -147,7 +147,7 @@ func (c *Machine) rejectAwakeable(id string, reason error) error {
 }
 
 func (c *Machine) _rejectAwakeable(id string, reason error) error {
-	if err := c.protocol.Write(&protocol.CompleteAwakeableEntryMessage{
+	if err := c.OneWayWrite(&protocol.CompleteAwakeableEntryMessage{
 		Id: id,
 		Result: &protocol.CompleteAwakeableEntryMessage_Failure{Failure: &protocol.Failure{
 			Code:    uint32(restate.ErrorCode(reason)),
