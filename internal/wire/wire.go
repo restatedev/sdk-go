@@ -10,7 +10,7 @@ import (
 	"math"
 
 	protocol "github.com/restatedev/sdk-go/generated/proto/protocol"
-	"github.com/rs/zerolog/log"
+	"github.com/rs/zerolog"
 	"google.golang.org/protobuf/proto"
 )
 
@@ -120,11 +120,12 @@ func (r *Reader) Next() <-chan ReaderMessage {
 // Note that Protocol is not concurrent safe and it's up to the user
 // to make sure it's used correctly
 type Protocol struct {
+	log    *zerolog.Logger
 	stream io.ReadWriter
 }
 
-func NewProtocol(stream io.ReadWriter) *Protocol {
-	return &Protocol{stream}
+func NewProtocol(log *zerolog.Logger, stream io.ReadWriter) *Protocol {
+	return &Protocol{log, stream}
 }
 
 // ReadHeader from stream
@@ -165,9 +166,13 @@ func (s *Protocol) Read() (Message, error) {
 		return nil, fmt.Errorf("unknown message type '%d'", header.TypeCode)
 	}
 
-	log.Trace().Stringer("type", header.TypeCode).Msg("received message")
-	return builder(header, buf)
+	msg, err := builder(header, buf)
+	if err != nil {
+		return nil, err
+	}
 
+	s.log.Trace().Stringer("type", header.TypeCode).Interface("msg", msg).Msg("received message")
+	return msg, nil
 }
 
 func (s *Protocol) Write(message proto.Message, flags ...Flag) error {
@@ -221,7 +226,7 @@ func (s *Protocol) Write(message proto.Message, flags ...Flag) error {
 		return fmt.Errorf("can not send message of unknown message type")
 	}
 
-	log.Trace().Stringer("type", typ).Msg("sending message to runtime")
+	s.log.Trace().Stringer("type", typ).Interface("msg", message).Msg("sending message to runtime")
 
 	bytes, err := proto.Marshal(message)
 	if err != nil {

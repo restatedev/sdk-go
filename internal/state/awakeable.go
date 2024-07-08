@@ -131,7 +131,7 @@ func (c *Machine) rejectAwakeable(id string, reason error) error {
 		wire.CompleteAwakeableEntryMessageType,
 		func(entry *wire.CompleteAwakeableEntryMessage) (restate.Void, error) {
 			messageFailure, ok := entry.Payload.Result.(*protocol.CompleteAwakeableEntryMessage_Failure)
-			if entry.Payload.Id != id || !ok || messageFailure.Failure.Code != 500 || messageFailure.Failure.Message != reason.Error() {
+			if entry.Payload.Id != id || !ok || messageFailure.Failure.Code != uint32(restate.ErrorCode(reason)) || messageFailure.Failure.Message != reason.Error() {
 				return restate.Void{}, errEntryMismatch
 			}
 			return restate.Void{}, nil
@@ -150,7 +150,7 @@ func (c *Machine) _rejectAwakeable(id string, reason error) error {
 	if err := c.protocol.Write(&protocol.CompleteAwakeableEntryMessage{
 		Id: id,
 		Result: &protocol.CompleteAwakeableEntryMessage_Failure{Failure: &protocol.Failure{
-			Code:    500,
+			Code:    uint32(restate.ErrorCode(reason)),
 			Message: reason.Error(),
 		}},
 	}); err != nil {

@@ -143,11 +143,13 @@ type Machine struct {
 }
 
 func NewMachine(handler restate.Handler, conn io.ReadWriter) *Machine {
-	return &Machine{
-		handler:  handler,
-		protocol: wire.NewProtocol(conn),
-		current:  make(map[string][]byte),
+	m := &Machine{
+		handler: handler,
+		current: make(map[string][]byte),
+		log:     log.Logger,
 	}
+	m.protocol = wire.NewProtocol(&m.log, conn)
+	return m
 }
 
 // Start starts the state machine
@@ -168,7 +170,7 @@ func (m *Machine) Start(inner context.Context, trace string) error {
 	m.id = start.Payload.Id
 	m.key = start.Payload.Key
 
-	m.log = log.With().Str("id", start.Payload.DebugId).Str("method", trace).Logger()
+	m.log = m.log.With().Str("id", start.Payload.DebugId).Str("method", trace).Logger()
 
 	ctx := newContext(inner, m)
 
