@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"io"
 	"runtime/debug"
-	"sync"
 	"time"
 
 	restate "github.com/restatedev/sdk-go"
@@ -129,7 +128,6 @@ type Machine struct {
 
 	handler  restate.Handler
 	protocol *wire.Protocol
-	mutex    sync.Mutex
 
 	// state
 	id  []byte
@@ -338,9 +336,6 @@ func replayOrNew[M wire.Message, O any](
 	replay func(msg M) (O, error),
 	new func() (O, error),
 ) (output O, err error) {
-
-	m.mutex.Lock()
-	defer m.mutex.Unlock()
 
 	defer func() {
 		m.entryIndex += 1

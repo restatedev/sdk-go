@@ -18,9 +18,6 @@ var (
 )
 
 func (m *Machine) set(key string, value []byte) error {
-	m.mutex.Lock()
-	defer m.mutex.Unlock()
-
 	_, err := replayOrNew(
 		m,
 		wire.SetStateEntryMessageType,
@@ -51,9 +48,6 @@ func (m *Machine) _set(key string, value []byte) error {
 }
 
 func (m *Machine) clear(key string) error {
-	m.mutex.Lock()
-	defer m.mutex.Unlock()
-
 	_, err := replayOrNew(
 		m,
 		wire.ClearStateEntryMessageType,
@@ -86,9 +80,6 @@ func (m *Machine) _clear(key string) error {
 }
 
 func (m *Machine) clearAll() error {
-	m.mutex.Lock()
-	defer m.mutex.Unlock()
-
 	_, err := replayOrNew(
 		m,
 		wire.ClearAllStateEntryMessageType,
@@ -116,9 +107,6 @@ func (m *Machine) _clearAll() error {
 }
 
 func (m *Machine) get(key string) ([]byte, error) {
-	m.mutex.Lock()
-	defer m.mutex.Unlock()
-
 	return replayOrNew(
 		m,
 		wire.GetStateEntryMessageType,
@@ -205,9 +193,6 @@ func (m *Machine) _get(key string) ([]byte, error) {
 }
 
 func (m *Machine) keys() ([]string, error) {
-	m.mutex.Lock()
-	defer m.mutex.Unlock()
-
 	return replayOrNew(
 		m,
 		wire.GetStateKeysEntryMessageType,

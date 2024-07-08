@@ -160,24 +160,26 @@ func (m *Machine) handleCompletionsAcks() {
 			msg := msg.(*wire.CompletionMessage)
 			completion, ok := m.pendingCompletions[msg.Payload.EntryIndex]
 			if !ok {
-				m.log.Error().Uint32("index", msg.Payload.EntryIndex).Msg("Failed to find pending completion at index")
+				m.log.Error().Uint32("index", msg.Payload.EntryIndex).Msg("failed to find pending completion at index")
 				continue
 			}
 			if err := completion.complete(&msg.Payload); err != nil {
-				m.log.Error().Err(err).Msg("Failed to process completion")
+				m.log.Error().Err(err).Msg("failed to process completion")
 				continue
 			}
+			m.log.Debug().Uint32("index", msg.Payload.EntryIndex).Msg("processed completion")
 		case wire.EntryAckMessageType:
 			msg := msg.(*wire.EntryAckMessage)
 			ack, ok := m.pendingAcks[msg.Payload.EntryIndex]
 			if !ok {
-				m.log.Error().Uint32("index", msg.Payload.EntryIndex).Msg("Failed to find pending ack at index")
+				m.log.Error().Uint32("index", msg.Payload.EntryIndex).Msg("failed to find pending ack at index")
 				continue
 			}
 			if err := ack.ack(); err != nil {
 				m.log.Error().Err(err).Msg("Failed to process ack")
 				continue
 			}
+			m.log.Debug().Uint32("index", msg.Payload.EntryIndex).Msg("processed ack")
 		default:
 			m.log.Error().Stringer("type", msg.Type()).Msg("unexpected non-completion non-ack message during invocation")
 			continue
