@@ -9,6 +9,7 @@ import (
 
 	"github.com/restatedev/sdk-go/generated/proto/protocol"
 	"github.com/restatedev/sdk-go/internal/wire"
+	"golang.org/x/net/http2"
 	"google.golang.org/protobuf/proto"
 )
 
@@ -150,9 +151,15 @@ func (m *Machine) handleCompletionsAcks() {
 	for {
 		msg, err := m.protocol.Read()
 		if err != nil {
-			if !errors.Is(err, io.EOF) {
-				m.log.Error().Err(err).Msg("issue reading completions & acks")
+			if errors.Is(err, io.EOF) {
+				return
 			}
+			var t *http2.StreamError
+			if errors.As(err, &t) && t.Code == http2.ErrCodeNo {
+				// normal close
+				return
+			}
+			m.log.Error().Err(err).Msg("issue reading completions & acks")
 			return
 		}
 		switch msg.Type() {
