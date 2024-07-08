@@ -48,7 +48,7 @@ func (c *serviceCall) Do(input any, output any) error {
 
 // Send runs a call in the background after delay duration
 func (c *serviceCall) Send(body any, delay time.Duration) error {
-	return c.machine.sendCall(c.service, c.method, c.key, body, delay)
+	return c.machine.sendCall(c.service, c.key, c.method, body, delay)
 }
 
 func (m *Machine) doDynCall(service, key, method string, input, output any) error {
@@ -132,7 +132,7 @@ func (m *Machine) _doCall(service, key, method string, params []byte) ([]byte, e
 	return nil, errUnreachable
 }
 
-func (c *Machine) sendCall(service, method, key string, body any, delay time.Duration) error {
+func (c *Machine) sendCall(service, key, method string, body any, delay time.Duration) error {
 	c.log.Debug().Str("service", service).Str("method", method).Str("key", key).Msg("executing async call")
 
 	params, err := json.Marshal(body)
@@ -154,14 +154,14 @@ func (c *Machine) sendCall(service, method, key string, body any, delay time.Dur
 			return restate.Void{}, nil
 		},
 		func() (restate.Void, error) {
-			return restate.Void{}, c._sendCall(service, method, params, delay)
+			return restate.Void{}, c._sendCall(service, key, method, params, delay)
 		},
 	)
 
 	return err
 }
 
-func (c *Machine) _sendCall(service, method string, params []byte, delay time.Duration) error {
+func (c *Machine) _sendCall(service, key, method string, params []byte, delay time.Duration) error {
 	var invokeTime uint64
 	if delay != 0 {
 		invokeTime = uint64(time.Now().Add(delay).UnixMilli())
@@ -171,6 +171,7 @@ func (c *Machine) _sendCall(service, method string, params []byte, delay time.Du
 		ServiceName: service,
 		HandlerName: method,
 		Parameter:   params,
+		Key:         key,
 		InvokeTime:  invokeTime,
 	})
 
