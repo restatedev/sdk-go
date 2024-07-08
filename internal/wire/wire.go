@@ -218,7 +218,7 @@ func (s *Protocol) Write(message proto.Message, flags ...Flag) error {
 		typ = OneWayCallEntryMessageType
 	case *protocol.AwakeableEntryMessage:
 		typ = AwakeableEntryMessageType
-	case *protocol.CompletePromiseEntryMessage:
+	case *protocol.CompleteAwakeableEntryMessage:
 		typ = CompleteAwakeableEntryMessageType
 	case *protocol.RunEntryMessage:
 		typ = RunEntryMessageType
