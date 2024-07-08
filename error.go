@@ -7,6 +7,11 @@ import (
 
 type Code uint16
 
+const (
+	ErrJournalMismatch   Code = 570
+	ErrProtocolViolation Code = 571
+)
+
 type codeError struct {
 	code  Code
 	inner error

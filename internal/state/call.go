@@ -91,7 +91,7 @@ func (m *Machine) doCall(service, key, method string, params []byte) ([]byte, er
 				return result.Value, nil
 			}
 
-			return nil, errUnreachable
+			return nil, restate.TerminalError(fmt.Errorf("sync call entry  had invalid result: %v", entry.Payload.Result), restate.ErrProtocolViolation)
 		}, func() ([]byte, error) {
 			return m._doCall(service, key, method, params)
 		})
@@ -129,7 +129,7 @@ func (m *Machine) _doCall(service, key, method string, params []byte) ([]byte, e
 		return result.Value, nil
 	}
 
-	return nil, errUnreachable
+	return nil, restate.TerminalError(fmt.Errorf("sync call completion had invalid result: %v", completion.Payload.Result), restate.ErrProtocolViolation)
 }
 
 func (c *Machine) sendCall(service, key, method string, body any, delay time.Duration) error {

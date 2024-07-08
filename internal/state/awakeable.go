@@ -68,7 +68,7 @@ func (c *Machine) awakeable() (restate.Awakeable[[]byte], error) {
 			case *protocol.AwakeableEntryMessage_Failure:
 				return completedAwakeable[[]byte]{invocationID: c.id, result: restate.Result[[]byte]{Err: restate.TerminalError(fmt.Errorf(result.Failure.Message), restate.Code(result.Failure.Code))}}, nil
 			default:
-				panic("unreachable")
+				return nil, restate.TerminalError(fmt.Errorf("awakeable entry had invalid result: %v", entry.Payload.Result), restate.ErrProtocolViolation)
 			}
 		},
 		func() (awakeable[[]byte], error) {

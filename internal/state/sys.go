@@ -14,7 +14,6 @@ import (
 
 var (
 	errEntryMismatch = restate.WithErrorCode(fmt.Errorf("log entry mismatch"), 32)
-	errUnreachable   = fmt.Errorf("unreachable")
 )
 
 func (m *Machine) set(key string, value []byte) error {
@@ -126,7 +125,7 @@ func (m *Machine) get(key string) ([]byte, error) {
 				return result.Value, nil
 			}
 
-			return nil, fmt.Errorf("unreachable")
+			return nil, restate.TerminalError(fmt.Errorf("get state entry had invalid result: %v", entry.Payload.Result), restate.ErrProtocolViolation)
 		}, func() ([]byte, error) {
 			return m._get(key)
 		})
@@ -199,13 +198,14 @@ func (m *Machine) _get(key string) ([]byte, error) {
 	case *protocol.CompletionMessage_Failure:
 		// the get state entry message is not failable so this should
 		// never happen
+		// TODO terminal?
 		return nil, fmt.Errorf("[%d] %s", value.Failure.Code, value.Failure.Message)
 	case *protocol.CompletionMessage_Value:
 		m.current[key] = value.Value
 		return value.Value, nil
 	}
 
-	return nil, fmt.Errorf("unreachable")
+	return nil, restate.TerminalError(fmt.Errorf("get state completion had invalid result: %v", completion.Payload.Result), restate.ErrProtocolViolation)
 }
 
 func (m *Machine) keys() ([]string, error) {
@@ -224,7 +224,7 @@ func (m *Machine) keys() ([]string, error) {
 				return keys, nil
 			}
 
-			return nil, errUnreachable
+			return nil, restate.TerminalError(fmt.Errorf("found get state keys entry with invalid completion: %v", entry.Payload.Result), 571)
 		},
 		m._keys,
 	)
@@ -332,7 +332,7 @@ func (m *Machine) sideEffect(fn func() ([]byte, error)) ([]byte, error) {
 				return result.Value, nil
 			}
 
-			return nil, errUnreachable
+			return nil, restate.TerminalError(fmt.Errorf("side effect entry had invalid result: %v", entry.Payload.Result), restate.ErrProtocolViolation)
 		},
 		func() ([]byte, error) {
 			return m._sideEffect(fn)
