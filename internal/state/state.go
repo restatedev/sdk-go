@@ -306,8 +306,8 @@ func (m *Machine) process(ctx *Context, start *wire.StartMessage) error {
 }
 
 func (c *Machine) currentEntry() (wire.Message, bool) {
-	if c.entryIndex < uint32(len(c.entries)) {
-		return c.entries[c.entryIndex], true
+	if c.entryIndex <= uint32(len(c.entries)) {
+		return c.entries[c.entryIndex-1], true
 	}
 
 	return nil, false
@@ -337,9 +337,7 @@ func replayOrNew[M wire.Message, O any](
 	new func() (O, error),
 ) (output O, err error) {
 
-	defer func() {
-		m.entryIndex += 1
-	}()
+	m.entryIndex += 1
 
 	// check if there is an entry as this index
 	entry, ok := m.currentEntry()

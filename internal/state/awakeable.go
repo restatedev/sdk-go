@@ -15,7 +15,6 @@ const AWAKEABLE_IDENTIFIER_PREFIX = "prom_1"
 
 type awakeable[T any] interface {
 	restate.Awakeable[T]
-	setEntryIndex(entryIndex uint32)
 }
 
 type completedAwakeable[T any] struct {
@@ -30,7 +29,6 @@ func (c *completedAwakeable[T]) Chan() <-chan restate.Result[T] {
 	ch <- c.result
 	return ch
 }
-func (c *completedAwakeable[T]) setEntryIndex(entryIndex uint32) { c.entryIndex = entryIndex }
 
 type suspendingAwakeable[T any] struct {
 	invocationID []byte
@@ -45,7 +43,6 @@ func (c *suspendingAwakeable[T]) Id() string { return awakeableID(c.invocationID
 func (c *suspendingAwakeable[T]) Chan() <-chan restate.Result[T] {
 	panic(&suspend{resumeEntry: c.entryIndex})
 }
-func (c *suspendingAwakeable[T]) setEntryIndex(entryIndex uint32) { c.entryIndex = entryIndex }
 
 func awakeableID(invocationID []byte, entryIndex uint32) string {
 	bytes := make([]byte, 0, len(invocationID)+4)
@@ -60,13 +57,13 @@ func (c *Machine) awakeable() (restate.Awakeable[[]byte], error) {
 		wire.AwakeableEntryMessageType,
 		func(entry *wire.AwakeableEntryMessage) (awakeable[[]byte], error) {
 			if entry.Payload.Result == nil {
-				return &suspendingAwakeable[[]byte]{invocationID: c.id}, nil
+				return &suspendingAwakeable[[]byte]{entryIndex: c.entryIndex, invocationID: c.id}, nil
 			}
 			switch result := entry.Payload.Result.(type) {
 			case *protocol.AwakeableEntryMessage_Value:
-				return &completedAwakeable[[]byte]{invocationID: c.id, result: restate.Result[[]byte]{Value: result.Value}}, nil
+				return &completedAwakeable[[]byte]{entryIndex: c.entryIndex, invocationID: c.id, result: restate.Result[[]byte]{Value: result.Value}}, nil
 			case *protocol.AwakeableEntryMessage_Failure:
-				return &completedAwakeable[[]byte]{invocationID: c.id, result: restate.Result[[]byte]{Err: restate.TerminalError(fmt.Errorf(result.Failure.Message), restate.Code(result.Failure.Code))}}, nil
+				return &completedAwakeable[[]byte]{entryIndex: c.entryIndex, invocationID: c.id, result: restate.Result[[]byte]{Err: restate.TerminalError(fmt.Errorf(result.Failure.Message), restate.Code(result.Failure.Code))}}, nil
 			default:
 				return nil, restate.TerminalError(fmt.Errorf("awakeable entry had invalid result: %v", entry.Payload.Result), restate.ErrProtocolViolation)
 			}
@@ -75,15 +72,12 @@ func (c *Machine) awakeable() (restate.Awakeable[[]byte], error) {
 			if err := c._awakeable(); err != nil {
 				return nil, err
 			}
-			return &suspendingAwakeable[[]byte]{invocationID: c.id}, nil
+			return &suspendingAwakeable[[]byte]{entryIndex: c.entryIndex, invocationID: c.id}, nil
 		},
 	)
 	if err != nil {
 		return nil, err
 	}
-	// This needs to be done after handling the message in the state machine
-	// otherwise the index is not yet incremented.
-	awakeable.setEntryIndex(uint32(c.entryIndex))
 	return awakeable, nil
 }
 
