@@ -52,8 +52,6 @@ func (c *serviceCall) Send(body any, delay time.Duration) error {
 }
 
 func (m *Machine) doDynCall(service, key, method string, input, output any) error {
-	m.log.Debug().Str("service", service).Str("method", method).Msg("in do call")
-
 	params, err := json.Marshal(input)
 	if err != nil {
 		return err
@@ -73,6 +71,8 @@ func (m *Machine) doDynCall(service, key, method string, input, output any) erro
 }
 
 func (m *Machine) doCall(service, key, method string, params []byte) ([]byte, error) {
+	m.log.Debug().Str("service", service).Str("method", method).Str("key", key).Msg("executing sync call")
+
 	return replayOrNew(
 		m,
 		wire.CallEntryMessageType,
@@ -133,6 +133,8 @@ func (m *Machine) _doCall(service, key, method string, params []byte) ([]byte, e
 }
 
 func (c *Machine) sendCall(service, method, key string, body any, delay time.Duration) error {
+	c.log.Debug().Str("service", service).Str("method", method).Str("key", key).Msg("executing async call")
+
 	params, err := json.Marshal(body)
 	if err != nil {
 		return err
