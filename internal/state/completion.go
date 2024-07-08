@@ -150,7 +150,7 @@ func (m *Machine) handleCompletionsAcks() {
 	for {
 		msg, err := m.protocol.Read()
 		if err != nil {
-			if errors.Is(err, io.EOF) {
+			if !errors.Is(err, io.EOF) {
 				m.log.Error().Err(err).Msg("issue reading completions & acks")
 			}
 			return
