@@ -330,6 +330,9 @@ func (m *Machine) sideEffect(fn func() ([]byte, error)) ([]byte, error) {
 				return nil, restate.TerminalError(errors.New(result.Failure.Message), restate.Code(result.Failure.Code))
 			case *protocol.RunEntryMessage_Value:
 				return result.Value, nil
+			case nil:
+				// Empty result is valid
+				return nil, nil
 			}
 
 			return nil, restate.TerminalError(fmt.Errorf("side effect entry had invalid result: %v", entry.Payload.Result), restate.ErrProtocolViolation)
