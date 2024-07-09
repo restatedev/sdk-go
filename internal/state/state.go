@@ -73,18 +73,35 @@ func (c *Context) Sleep(until time.Time) error {
 	return c.machine.sleep(until)
 }
 
-func (c *Context) Service(service string) restate.Service {
+func (c *Context) Service(service string) restate.ServiceClient {
 	return &serviceProxy{
 		Context: c,
 		service: service,
 	}
 }
 
-func (c *Context) Object(service, key string) restate.Object {
+func (c *Context) ServiceSend(service string, delay time.Duration) restate.ServiceSendClient {
+	return &serviceSendProxy{
+		Context: c,
+		service: service,
+		delay:   delay,
+	}
+}
+
+func (c *Context) Object(service, key string) restate.ServiceClient {
 	return &serviceProxy{
 		Context: c,
 		service: service,
 		key:     key,
+	}
+}
+
+func (c *Context) ObjectSend(service, key string, delay time.Duration) restate.ServiceSendClient {
+	return &serviceSendProxy{
+		Context: c,
+		service: service,
+		key:     key,
+		delay:   delay,
 	}
 }
 

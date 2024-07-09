@@ -14,11 +14,14 @@ var (
 	ErrKeyNotFound = fmt.Errorf("key not found")
 )
 
-type Call interface {
+type CallClient interface {
 	// Request makes a call and returns a handle on a future response
 	Request(input any) ResponseFuture
-	// Send makes a call in the background (doesn't wait for response) after delay duration
-	Send(body any, delay time.Duration) error
+}
+
+type SendClient interface {
+	// Send makes a call in the background (doesn't wait for response)
+	Request(input any) error
 }
 
 type ResponseFuture interface {
@@ -28,14 +31,14 @@ type ResponseFuture interface {
 	Response(output any) error
 }
 
-type Service interface {
+type ServiceClient interface {
 	// Method creates a call to method with name
-	Method(method string) Call
+	Method(method string) CallClient
 }
 
-type Object interface {
+type ServiceSendClient interface {
 	// Method creates a call to method with name
-	Method(method string) Call
+	Method(method string) SendClient
 }
 
 type Context interface {
@@ -43,13 +46,24 @@ type Context interface {
 	Ctx() context.Context
 	// Sleep sleep during the execution until time is reached
 	Sleep(until time.Time) error
+
 	// Service gets a Service accessor by name where service
 	// must be another service known by restate runtime
-	Service(service string) Service
+	Service(service string) ServiceClient
+	// Service gets a Service send accessor by name where service
+	// must be another service known by restate runtime
+	// and delay is the duration with which to delay requests
+	ServiceSend(service string, delay time.Duration) ServiceSendClient
+
 	// Object gets a Object accessor by name where object
 	// must be another object known by restate runtime and
 	// key is any string representing the key for the object
-	Object(object, key string) Object
+	Object(object, key string) ServiceClient
+	// Object gets a Object accessor by name where object
+	// must be another object known by restate runtime,
+	// key is any string representing the key for the object,
+	// and delay is the duration with which to delay requests
+	ObjectSend(object, key string, delay time.Duration) ServiceSendClient
 
 	// SideEffects runs the function (fn) until it succeeds or permanently fails.
 	// this stores the results of the function inside restate runtime so a replay

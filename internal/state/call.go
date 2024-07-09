@@ -13,21 +13,36 @@ import (
 )
 
 var (
-	_ restate.Service = (*serviceProxy)(nil)
-	_ restate.Object  = (*serviceProxy)(nil)
-	_ restate.Call    = (*serviceCall)(nil)
+	_ restate.ServiceClient     = (*serviceProxy)(nil)
+	_ restate.ServiceSendClient = (*serviceSendProxy)(nil)
+	_ restate.CallClient        = (*serviceCall)(nil)
+	_ restate.SendClient        = (*serviceSend)(nil)
 )
 
-// service proxy only works as an extension to context
-// to implement other services function calls
 type serviceProxy struct {
 	*Context
 	service string
 	key     string
 }
 
-func (c *serviceProxy) Method(fn string) restate.Call {
+func (c *serviceProxy) Method(fn string) restate.CallClient {
 	return &serviceCall{
+		Context: c.Context,
+		service: c.service,
+		key:     c.key,
+		method:  fn,
+	}
+}
+
+type serviceSendProxy struct {
+	*Context
+	service string
+	key     string
+	delay   time.Duration
+}
+
+func (c *serviceSendProxy) Method(fn string) restate.SendClient {
+	return &serviceSend{
 		Context: c.Context,
 		service: c.service,
 		key:     c.key,
@@ -42,12 +57,6 @@ type serviceCall struct {
 	method  string
 }
 
-type responseFuture struct {
-	ctx context.Context
-	err error
-	msg *wire.CallEntryMessage
-}
-
 // Do makes a call and wait for the response
 func (c *serviceCall) Request(input any) restate.ResponseFuture {
 	if msg, err := c.machine.doDynCall(c.service, c.key, c.method, input); err != nil {
@@ -57,9 +66,24 @@ func (c *serviceCall) Request(input any) restate.ResponseFuture {
 	}
 }
 
+type serviceSend struct {
+	*Context
+	service string
+	key     string
+	method  string
+
+	delay time.Duration
+}
+
 // Send runs a call in the background after delay duration
-func (c *serviceCall) Send(body any, delay time.Duration) error {
-	return c.machine.sendCall(c.service, c.key, c.method, body, delay)
+func (c *serviceSend) Request(input any) error {
+	return c.machine.sendCall(c.service, c.key, c.method, input, c.delay)
+}
+
+type responseFuture struct {
+	ctx context.Context
+	err error
+	msg *wire.CallEntryMessage
 }
 
 func (r *responseFuture) Err() error {

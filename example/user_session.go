@@ -34,7 +34,7 @@ func addTicket(ctx restate.ObjectContext, ticketId string) (bool, error) {
 		return false, err
 	}
 
-	if err := ctx.Object(UserSessionServiceName, ticketId).Method("expireTicket").Send(ticketId, 15*time.Minute); err != nil {
+	if err := ctx.ObjectSend(UserSessionServiceName, ticketId, 15*time.Minute).Method("expireTicket").Request(ticketId); err != nil {
 		return false, err
 	}
 
@@ -63,7 +63,7 @@ func expireTicket(ctx restate.ObjectContext, ticketId string) (void restate.Void
 		return void, err
 	}
 
-	return void, ctx.Object(TicketServiceName, ticketId).Method("unreserve").Send(nil, 0)
+	return void, ctx.ObjectSend(TicketServiceName, ticketId, 0).Method("unreserve").Request(nil)
 }
 
 func checkout(ctx restate.ObjectContext, _ restate.Void) (bool, error) {
@@ -90,8 +90,8 @@ func checkout(ctx restate.ObjectContext, _ restate.Void) (bool, error) {
 	log.Info().Str("id", response.ID).Int("price", response.Price).Msg("payment details")
 
 	for _, ticket := range tickets {
-		call := ctx.Object(ticket, TicketServiceName).Method("markAsSold")
-		if err := call.Send(nil, 0); err != nil {
+		call := ctx.ObjectSend(ticket, TicketServiceName, 0).Method("markAsSold")
+		if err := call.Request(nil); err != nil {
 			return false, err
 		}
 	}
