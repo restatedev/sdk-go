@@ -73,9 +73,9 @@ func (m *Machine) doDynCall(service, key, method string, input, output any) erro
 func (m *Machine) doCall(service, key, method string, params []byte) ([]byte, error) {
 	m.log.Debug().Str("service", service).Str("method", method).Str("key", key).Msg("executing sync call")
 
-	return replayOrNew(
+	msg, err := replayOrNew(
 		m,
-		func(entry *wire.CallEntryMessage) ([]byte, error) {
+		func(entry *wire.CallEntryMessage) (*wire.CallEntryMessage, error) {
 			if entry.ServiceName != service ||
 				entry.Key != key ||
 				entry.HandlerName != method ||
@@ -83,30 +83,12 @@ func (m *Machine) doCall(service, key, method string, params []byte) ([]byte, er
 				return nil, errEntryMismatch
 			}
 
-			switch result := entry.Result.(type) {
-			case *protocol.CallEntryMessage_Failure:
-				return nil, ErrorFromFailure(result.Failure)
-			case *protocol.CallEntryMessage_Value:
-				return result.Value, nil
-			}
-
-			return nil, restate.TerminalError(fmt.Errorf("sync call entry  had invalid result: %v", entry.Result), restate.ErrProtocolViolation)
-		}, func() ([]byte, error) {
+			return entry, nil
+		}, func() (*wire.CallEntryMessage, error) {
 			return m._doCall(service, key, method, params)
 		})
-}
-
-func (m *Machine) _doCall(service, key, method string, params []byte) ([]byte, error) {
-	msg := &wire.CallEntryMessage{
-		CallEntryMessage: protocol.CallEntryMessage{
-			ServiceName: service,
-			HandlerName: method,
-			Parameter:   params,
-			Key:         key,
-		},
-	}
-	if err := m.Write(msg); err != nil {
-		return nil, fmt.Errorf("failed to send request message: %w", err)
+	if err != nil {
+		return nil, err
 	}
 
 	if err := msg.Await(m.ctx); err != nil {
@@ -121,6 +103,22 @@ func (m *Machine) _doCall(service, key, method string, params []byte) ([]byte, e
 	}
 
 	return nil, restate.TerminalError(fmt.Errorf("sync call had invalid result: %v", msg.Result), restate.ErrProtocolViolation)
+}
+
+func (m *Machine) _doCall(service, key, method string, params []byte) (*wire.CallEntryMessage, error) {
+	msg := &wire.CallEntryMessage{
+		CallEntryMessage: protocol.CallEntryMessage{
+			ServiceName: service,
+			HandlerName: method,
+			Parameter:   params,
+			Key:         key,
+		},
+	}
+	if err := m.Write(msg); err != nil {
+		return nil, fmt.Errorf("failed to send request message: %w", err)
+	}
+
+	return msg, nil
 }
 
 func (c *Machine) sendCall(service, key, method string, body any, delay time.Duration) error {

@@ -71,25 +71,26 @@ func awakeableID(invocationID []byte, entryIndex uint32) string {
 }
 
 func (c *Machine) awakeable() (restate.Awakeable[[]byte], error) {
-	awakeable, err := replayOrNew(
+	entry, err := replayOrNew(
 		c,
-		func(entry *wire.AwakeableEntryMessage) (restate.Awakeable[[]byte], error) {
-			return &completionAwakeable{ctx: c.ctx, entryIndex: c.entryIndex, invocationID: c.id, entry: entry}, nil
+		func(entry *wire.AwakeableEntryMessage) (*wire.AwakeableEntryMessage, error) {
+			return entry, nil
 		},
 		c._awakeable,
 	)
 	if err != nil {
 		return nil, err
 	}
-	return awakeable, nil
+
+	return &completionAwakeable{ctx: c.ctx, entryIndex: c.entryIndex, invocationID: c.id, entry: entry}, nil
 }
 
-func (c *Machine) _awakeable() (restate.Awakeable[[]byte], error) {
+func (c *Machine) _awakeable() (*wire.AwakeableEntryMessage, error) {
 	msg := &wire.AwakeableEntryMessage{}
 	if err := c.Write(msg); err != nil {
 		return nil, err
 	}
-	return &completionAwakeable{ctx: c.ctx, entryIndex: c.entryIndex, invocationID: c.id, entry: msg}, nil
+	return msg, nil
 }
 
 func (c *Machine) resolveAwakeable(id string, value []byte) error {
