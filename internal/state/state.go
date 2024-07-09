@@ -28,12 +28,6 @@ var (
 	_ restate.Context = (*Context)(nil)
 )
 
-// suspend is a struct we use to throw in a panic so we can rewind the stack
-// then specially handle to suspend the invocation
-type suspend struct {
-	resumeEntry uint32
-}
-
 type Context struct {
 	ctx     context.Context
 	machine *Machine
@@ -204,43 +198,6 @@ func (m *Machine) Start(inner context.Context, trace string) error {
 	return m.process(ctx, start)
 }
 
-// handle handler response and build proper response message
-func (m *Machine) output(bytes []byte, err error) wire.Message {
-	if err != nil {
-		m.log.Error().Err(err).Msg("failure")
-	}
-
-	if err != nil && restate.IsTerminalError(err) {
-		// terminal errors.
-		return &wire.OutputEntryMessage{
-			OutputEntryMessage: protocol.OutputEntryMessage{
-				Result: &protocol.OutputEntryMessage_Failure{
-					Failure: &protocol.Failure{
-						Code:    uint32(restate.ErrorCode(err)),
-						Message: err.Error(),
-					},
-				},
-			},
-		}
-	} else if err != nil {
-		// non terminal error!
-		return &wire.ErrorMessage{
-			ErrorMessage: protocol.ErrorMessage{
-				Code:    uint32(restate.ErrorCode(err)),
-				Message: err.Error(),
-			},
-		}
-	}
-
-	return &wire.OutputEntryMessage{
-		OutputEntryMessage: protocol.OutputEntryMessage{
-			Result: &protocol.OutputEntryMessage_Value{
-				Value: bytes,
-			},
-		},
-	}
-}
-
 func (m *Machine) invoke(ctx *Context, input []byte, outputSeen bool) error {
 	// always terminate the invocation with
 	// an end message.
@@ -254,51 +211,70 @@ func (m *Machine) invoke(ctx *Context, input []byte, outputSeen bool) error {
 
 		switch typ := recovered.(type) {
 		case nil:
-			// nothing to do, just send end message and exit
-			break
-		case *suspend:
-			// suspend object with thrown. we need to send a suspension
-			// message. then terminate the connection
-			m.log.Debug().Msg("suspending invocation")
-			err := m.protocol.Write(&wire.SuspensionMessage{
-				SuspensionMessage: protocol.SuspensionMessage{
-					EntryIndexes: []uint32{typ.resumeEntry},
-				},
-			})
-
-			if err != nil {
-				m.log.Error().Err(err).Msg("error sending failure message")
-			}
+			// nothing to do, just exit
 			return
 		default:
 			// unknown panic!
 			// send an error message (retryable)
-			err := m.protocol.Write(&wire.ErrorMessage{
+			if err := m.protocol.Write(&wire.ErrorMessage{
 				ErrorMessage: protocol.ErrorMessage{
 					Code:        500,
 					Message:     fmt.Sprint(typ),
 					Description: string(debug.Stack()),
 				},
-			})
-
-			if err != nil {
+			}); err != nil {
 				m.log.Error().Err(err).Msg("error sending failure message")
 			}
-		}
 
-		if err := m.protocol.Write(&wire.EndMessage{}); err != nil {
-			m.log.Error().Err(err).Msg("error sending end message")
+			return
 		}
 	}()
 
 	if outputSeen {
-		// dont send a duplicate output message
-		return nil
+		return m.protocol.Write(&wire.EndMessage{})
 	}
 
-	output := m.output(m.handler.Call(ctx, input))
+	bytes, err := m.handler.Call(ctx, input)
+	if err != nil {
+		m.log.Error().Err(err).Msg("failure")
+	}
 
-	return m.protocol.Write(output)
+	if err != nil && restate.IsTerminalError(err) {
+		// terminal errors.
+		if err := m.protocol.Write(&wire.OutputEntryMessage{
+			OutputEntryMessage: protocol.OutputEntryMessage{
+				Result: &protocol.OutputEntryMessage_Failure{
+					Failure: &protocol.Failure{
+						Code:    uint32(restate.ErrorCode(err)),
+						Message: err.Error(),
+					},
+				},
+			},
+		}); err != nil {
+			return err
+		}
+		return m.protocol.Write(&wire.EndMessage{})
+	} else if err != nil {
+		// non terminal error - no end message
+		return m.protocol.Write(&wire.ErrorMessage{
+			ErrorMessage: protocol.ErrorMessage{
+				Code:    uint32(restate.ErrorCode(err)),
+				Message: err.Error(),
+			},
+		})
+	} else {
+		if err := m.protocol.Write(&wire.OutputEntryMessage{
+			OutputEntryMessage: protocol.OutputEntryMessage{
+				Result: &protocol.OutputEntryMessage_Value{
+					Value: bytes,
+				},
+			},
+		}); err != nil {
+			return err
+		}
+
+		return m.protocol.Write(&wire.EndMessage{})
+	}
 }
 
 func (m *Machine) process(ctx *Context, start *wire.StartMessage) error {
