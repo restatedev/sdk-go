@@ -307,7 +307,7 @@ func (m *Machine) process(ctx *Context, start *wire.StartMessage) error {
 		m.log.Trace().Type("type", msg).Msg("replay log entry")
 		m.entries = append(m.entries, msg)
 
-		if _, ok := msg.(*wire.OutputEntryMessage); !ok {
+		if _, ok := msg.(*wire.OutputEntryMessage); ok {
 			outputSeen = true
 		}
 	}
