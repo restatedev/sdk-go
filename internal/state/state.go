@@ -167,18 +167,17 @@ func (m *Machine) Start(inner context.Context, trace string) error {
 		return err
 	}
 
-	if msg.Type() != wire.StartMessageType {
+	start, ok := msg.(*wire.StartMessage)
+	if !ok {
 		// invalid negotiation
 		return wire.ErrUnexpectedMessage
 	}
 
-	start := msg.(*wire.StartMessage)
-
 	m.ctx = inner
-	m.id = start.StartMessage.Id
-	m.key = start.StartMessage.Key
+	m.id = start.Id
+	m.key = start.Key
 
-	m.log = m.log.With().Str("id", start.StartMessage.DebugId).Str("method", trace).Logger()
+	m.log = m.log.With().Str("id", start.DebugId).Str("method", trace).Logger()
 
 	ctx := newContext(inner, m)
 
@@ -248,7 +247,7 @@ func (m *Machine) invoke(ctx *Context, input []byte, outputSeen bool) error {
 				SuspensionMessage: protocol.SuspensionMessage{
 					EntryIndexes: []uint32{typ.resumeEntry},
 				},
-			}, 0)
+			})
 
 			if err != nil {
 				m.log.Error().Err(err).Msg("error sending failure message")
@@ -263,14 +262,14 @@ func (m *Machine) invoke(ctx *Context, input []byte, outputSeen bool) error {
 					Message:     fmt.Sprint(typ),
 					Description: string(debug.Stack()),
 				},
-			}, 0)
+			})
 
 			if err != nil {
 				m.log.Error().Err(err).Msg("error sending failure message")
 			}
 		}
 
-		if err := m.protocol.Write(&wire.EndMessage{}, 0); err != nil {
+		if err := m.protocol.Write(&wire.EndMessage{}); err != nil {
 			m.log.Error().Err(err).Msg("error sending end message")
 		}
 	}()
@@ -282,11 +281,11 @@ func (m *Machine) invoke(ctx *Context, input []byte, outputSeen bool) error {
 
 	output := m.output(m.handler.Call(ctx, input))
 
-	return m.protocol.Write(output, 0)
+	return m.protocol.Write(output)
 }
 
 func (m *Machine) process(ctx *Context, start *wire.StartMessage) error {
-	for _, entry := range start.StartMessage.StateMap {
+	for _, entry := range start.StateMap {
 		m.current[string(entry.Key)] = entry.Value
 	}
 
@@ -296,26 +295,26 @@ func (m *Machine) process(ctx *Context, start *wire.StartMessage) error {
 		return err
 	}
 
-	if msg.Type() != wire.InputEntryMessageType {
+	if _, ok := msg.(*wire.InputEntryMessage); !ok {
 		return wire.ErrUnexpectedMessage
 	}
 
-	m.log.Trace().Uint32("known entries", start.StartMessage.KnownEntries).Msg("known entires")
-	m.entries = make([]wire.Message, 0, start.StartMessage.KnownEntries-1)
+	m.log.Trace().Uint32("known entries", start.KnownEntries).Msg("known entires")
+	m.entries = make([]wire.Message, 0, start.KnownEntries-1)
 
 	outputSeen := false
 
 	// we don't track the poll input entry
-	for i := uint32(1); i < start.StartMessage.KnownEntries; i++ {
+	for i := uint32(1); i < start.KnownEntries; i++ {
 		msg, err := m.protocol.Read()
 		if err != nil {
 			return fmt.Errorf("failed to read entry: %w", err)
 		}
 
-		m.log.Trace().Uint16("type", uint16(msg.Type())).Msg("replay log entry")
+		m.log.Trace().Type("type", msg).Msg("replay log entry")
 		m.entries = append(m.entries, msg)
 
-		if msg.Type() == wire.OutputEntryMessageType {
+		if _, ok := msg.(*wire.OutputEntryMessage); !ok {
 			outputSeen = true
 		}
 	}
@@ -323,7 +322,7 @@ func (m *Machine) process(ctx *Context, start *wire.StartMessage) error {
 	go m.handleCompletionsAcks()
 
 	inputMsg := msg.(*wire.InputEntryMessage)
-	value := inputMsg.InputEntryMessage.GetValue()
+	value := inputMsg.GetValue()
 	return m.invoke(ctx, value, outputSeen)
 
 }
@@ -355,7 +354,6 @@ func (c *Machine) currentEntry() (wire.Message, bool) {
 // by sending the proper runtime messages
 func replayOrNew[M wire.Message, O any](
 	m *Machine,
-	typ wire.Type,
 	replay func(msg M) (O, error),
 	new func() (O, error),
 ) (output O, err error) {
@@ -368,10 +366,11 @@ func replayOrNew[M wire.Message, O any](
 	// if entry exists, we need to replay it
 	// by calling the replay function
 	if ok {
-		if entry.Type() != typ {
+		if entry, ok := entry.(M); !ok {
 			return output, errEntryMismatch
+		} else {
+			return replay(entry)
 		}
-		return replay(entry.(M))
 	}
 
 	// other wise call the new function

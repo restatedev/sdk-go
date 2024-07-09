@@ -27,7 +27,6 @@ func (m *Machine) ackable(entryIndex uint32) wire.AckableMessage {
 }
 
 func (m *Machine) Write(message wire.Message) error {
-	var flag wire.Flag
 	if message, ok := message.(wire.CompleteableMessage); ok && !message.Completed() {
 		m.mutex.Lock()
 		m.pendingCompletions[m.entryIndex] = message
@@ -37,9 +36,8 @@ func (m *Machine) Write(message wire.Message) error {
 		m.mutex.Lock()
 		m.pendingAcks[m.entryIndex] = message
 		m.mutex.Unlock()
-		flag |= wire.FlagRequiresAck
 	}
-	return m.protocol.Write(message, flag)
+	return m.protocol.Write(message)
 }
 
 func (m *Machine) handleCompletionsAcks() {
@@ -48,27 +46,25 @@ func (m *Machine) handleCompletionsAcks() {
 		if err != nil {
 			return
 		}
-		switch msg.Type() {
-		case wire.CompletionMessageType:
-			msg := msg.(*wire.CompletionMessage)
+		switch msg := msg.(type) {
+		case *wire.CompletionMessage:
 			completable := m.completable(msg.EntryIndex)
 			if completable == nil {
-				m.log.Error().Uint32("index", msg.CompletionMessage.EntryIndex).Msg("failed to find pending completion at index")
+				m.log.Error().Uint32("index", msg.EntryIndex).Msg("failed to find pending completion at index")
 				continue
 			}
 			completable.Complete(&msg.CompletionMessage)
-			m.log.Debug().Uint32("index", msg.CompletionMessage.EntryIndex).Msg("processed completion")
-		case wire.EntryAckMessageType:
-			msg := msg.(*wire.EntryAckMessage)
-			ackable := m.ackable(msg.EntryAckMessage.EntryIndex)
+			m.log.Debug().Uint32("index", msg.EntryIndex).Msg("processed completion")
+		case *wire.EntryAckMessage:
+			ackable := m.ackable(msg.EntryIndex)
 			if ackable == nil {
-				m.log.Error().Uint32("index", msg.EntryAckMessage.EntryIndex).Msg("failed to find pending ack at index")
+				m.log.Error().Uint32("index", msg.EntryIndex).Msg("failed to find pending ack at index")
 				continue
 			}
 			ackable.Ack()
-			m.log.Debug().Uint32("index", msg.EntryAckMessage.EntryIndex).Msg("processed ack")
+			m.log.Debug().Uint32("index", msg.EntryIndex).Msg("processed ack")
 		default:
-			m.log.Error().Stringer("type", msg.Type()).Msg("unexpected non-completion non-ack message during invocation")
+			m.log.Error().Type("type", msg).Msg("unexpected non-completion non-ack message during invocation")
 			continue
 		}
 	}

@@ -90,8 +90,6 @@ func (t *Header) Flags() Flag {
 }
 
 type Message interface {
-	Type() Type
-	Flags() Flag
 	proto.Message
 }
 
@@ -164,7 +162,16 @@ func (s *Protocol) Read() (Message, error) {
 	return msg, nil
 }
 
-func (s *Protocol) Write(message Message, flag Flag) error {
+func (s *Protocol) Write(message Message) error {
+	var flag Flag
+
+	if message, ok := message.(CompleteableMessage); ok && message.Completed() {
+		flag |= FlagCompleted
+	}
+	if message, ok := message.(AckableMessage); ok && !message.Acked() {
+		flag |= FlagRequiresAck
+	}
+
 	// all possible types sent by the sdk
 	var typ Type
 	switch message.(type) {
@@ -251,162 +258,112 @@ var (
 				Header: header,
 			}
 
-			return msg, proto.Unmarshal(bytes, &msg.EntryAckMessage)
+			return msg, proto.Unmarshal(bytes, msg)
 		},
 		InputEntryMessageType: func(header Header, bytes []byte) (Message, error) {
 			msg := &InputEntryMessage{
 				Header: header,
 			}
 
-			return msg, proto.Unmarshal(bytes, &msg.InputEntryMessage)
+			return msg, proto.Unmarshal(bytes, msg)
 		},
 		OutputEntryMessageType: func(header Header, bytes []byte) (Message, error) {
 			msg := &OutputEntryMessage{
 				Header: header,
 			}
 
-			return msg, proto.Unmarshal(bytes, &msg.OutputEntryMessage)
+			return msg, proto.Unmarshal(bytes, msg)
 		},
 		GetStateEntryMessageType: func(header Header, bytes []byte) (Message, error) {
-			msg := &GetStateEntryMessage{
-				Header: header,
-			}
+			msg := &GetStateEntryMessage{}
 
-			if err := proto.Unmarshal(bytes, msg); err != nil {
-				return nil, err
-			}
-
-			if msg.Result == nil {
-				msg.completable.init()
-			} else {
+			if header.Flag.Completed() {
 				msg.completable.complete()
 			}
 
-			return msg, nil
+			return msg, proto.Unmarshal(bytes, msg)
 		},
 		SetStateEntryMessageType: func(header Header, bytes []byte) (Message, error) {
-			msg := &SetStateEntryMessage{
-				Header: header,
-			}
+			msg := &SetStateEntryMessage{}
 
-			return msg, proto.Unmarshal(bytes, &msg.SetStateEntryMessage)
+			return msg, proto.Unmarshal(bytes, msg)
 		},
 		ClearStateEntryMessageType: func(header Header, bytes []byte) (Message, error) {
-			msg := &ClearStateEntryMessage{
-				Header: header,
-			}
+			msg := &ClearStateEntryMessage{}
 
-			return msg, proto.Unmarshal(bytes, &msg.ClearStateEntryMessage)
+			return msg, proto.Unmarshal(bytes, msg)
 		},
 		ClearAllStateEntryMessageType: func(header Header, bytes []byte) (Message, error) {
 			msg := &ClearAllStateEntryMessage{
 				Header: header,
 			}
 
-			return msg, proto.Unmarshal(bytes, &msg.ClearAllStateEntryMessage)
+			return msg, proto.Unmarshal(bytes, msg)
 		},
 		GetStateKeysEntryMessageType: func(header Header, bytes []byte) (Message, error) {
-			msg := &GetStateKeysEntryMessage{
-				Header: header,
-			}
+			msg := &GetStateKeysEntryMessage{}
 
-			if err := proto.Unmarshal(bytes, msg); err != nil {
-				return nil, err
-			}
-
-			if msg.Result == nil {
-				msg.completable.init()
-			} else {
+			if header.Flag.Completed() {
 				msg.completable.complete()
 			}
 
-			return msg, nil
+			return msg, proto.Unmarshal(bytes, msg)
 		},
 		CompletionMessageType: func(header Header, bytes []byte) (Message, error) {
 			msg := &CompletionMessage{
 				Header: header,
 			}
 
-			return msg, proto.Unmarshal(bytes, &msg.CompletionMessage)
+			return msg, proto.Unmarshal(bytes, msg)
 		},
 		SleepEntryMessageType: func(header Header, bytes []byte) (Message, error) {
-			msg := &SleepEntryMessage{
-				Header: header,
-			}
+			msg := &SleepEntryMessage{}
 
-			if err := proto.Unmarshal(bytes, msg); err != nil {
-				return nil, err
-			}
-
-			if msg.Result == nil {
-				msg.completable.init()
-			} else {
+			if header.Flag.Completed() {
 				msg.completable.complete()
 			}
 
-			return msg, nil
+			return msg, proto.Unmarshal(bytes, msg)
 		},
 		CallEntryMessageType: func(header Header, bytes []byte) (Message, error) {
-			msg := &CallEntryMessage{
-				Header: header,
-			}
+			msg := &CallEntryMessage{}
 
-			if err := proto.Unmarshal(bytes, msg); err != nil {
-				return nil, err
-			}
-
-			if msg.Result == nil {
-				msg.completable.init()
-			} else {
+			if header.Flag.Completed() {
 				msg.completable.complete()
 			}
 
-			return msg, nil
+			return msg, proto.Unmarshal(bytes, msg)
 		},
 		OneWayCallEntryMessageType: func(header Header, bytes []byte) (Message, error) {
 			msg := &OneWayCallEntryMessage{
 				Header: header,
 			}
 
-			return msg, proto.Unmarshal(bytes, &msg.OneWayCallEntryMessage)
+			return msg, proto.Unmarshal(bytes, msg)
 		},
 		AwakeableEntryMessageType: func(header Header, bytes []byte) (Message, error) {
-			msg := &AwakeableEntryMessage{
-				Header: header,
-			}
+			msg := &AwakeableEntryMessage{}
 
-			if err := proto.Unmarshal(bytes, &msg.AwakeableEntryMessage); err != nil {
-				return nil, err
-			}
-
-			if msg.Result == nil {
-				msg.completable.init()
-			} else {
+			if header.Flag.Completed() {
 				msg.completable.complete()
 			}
 
-			return msg, nil
+			return msg, proto.Unmarshal(bytes, msg)
 		},
 		CompleteAwakeableEntryMessageType: func(header Header, bytes []byte) (Message, error) {
 			msg := &CompleteAwakeableEntryMessage{
 				Header: header,
 			}
 
-			return msg, proto.Unmarshal(bytes, &msg.CompleteAwakeableEntryMessage)
+			return msg, proto.Unmarshal(bytes, msg)
 		},
 		RunEntryMessageType: func(header Header, bytes []byte) (Message, error) {
-			msg := &RunEntryMessage{
-				Header: header,
-			}
-
-			if err := proto.Unmarshal(bytes, msg); err != nil {
-				return nil, err
-			}
+			msg := &RunEntryMessage{}
 
 			// replayed side effects are inherently acked
 			msg.Ack()
 
-			return msg, proto.Unmarshal(bytes, &msg.RunEntryMessage)
+			return msg, proto.Unmarshal(bytes, msg)
 		},
 	}
 )
@@ -442,14 +399,11 @@ type EndMessage struct {
 }
 
 type GetStateEntryMessage struct {
-	Header
 	completable
 	protocol.GetStateEntryMessage
 }
 
 func (a *GetStateEntryMessage) Complete(c *protocol.CompletionMessage) {
-	a.Flag |= FlagCompleted
-
 	switch result := c.Result.(type) {
 	case *protocol.CompletionMessage_Value:
 		a.Result = &protocol.GetStateEntryMessage_Value{Value: result.Value}
@@ -478,14 +432,11 @@ type ClearAllStateEntryMessage struct {
 }
 
 type GetStateKeysEntryMessage struct {
-	Header
 	completable
 	protocol.GetStateKeysEntryMessage
 }
 
 func (a *GetStateKeysEntryMessage) Complete(c *protocol.CompletionMessage) {
-	a.Flag |= FlagCompleted
-
 	switch result := c.Result.(type) {
 	case *protocol.CompletionMessage_Value:
 		var keys protocol.GetStateKeysEntryMessage_StateKeys
@@ -512,14 +463,11 @@ type CompletionMessage struct {
 }
 
 type SleepEntryMessage struct {
-	Header
 	completable
 	protocol.SleepEntryMessage
 }
 
 func (a *SleepEntryMessage) Complete(c *protocol.CompletionMessage) {
-	a.Flag |= FlagCompleted
-
 	switch result := c.Result.(type) {
 	case *protocol.CompletionMessage_Empty:
 		a.Result = &protocol.SleepEntryMessage_Empty{Empty: result.Empty}
@@ -534,14 +482,11 @@ func (a *SleepEntryMessage) Complete(c *protocol.CompletionMessage) {
 }
 
 type CallEntryMessage struct {
-	Header
 	completable
 	protocol.CallEntryMessage
 }
 
 func (a *CallEntryMessage) Complete(c *protocol.CompletionMessage) {
-	a.Flag |= FlagCompleted
-
 	switch result := c.Result.(type) {
 	case *protocol.CompletionMessage_Value:
 		a.Result = &protocol.CallEntryMessage_Value{Value: result.Value}
@@ -561,14 +506,11 @@ type OneWayCallEntryMessage struct {
 }
 
 type AwakeableEntryMessage struct {
-	Header
 	completable
 	protocol.AwakeableEntryMessage
 }
 
 func (a *AwakeableEntryMessage) Complete(c *protocol.CompletionMessage) {
-	a.Flag |= FlagCompleted
-
 	switch result := c.Result.(type) {
 	case *protocol.CompletionMessage_Value:
 		a.Result = &protocol.AwakeableEntryMessage_Value{Value: result.Value}
@@ -588,7 +530,6 @@ type CompleteAwakeableEntryMessage struct {
 }
 
 type RunEntryMessage struct {
-	Header
 	ackable
 	protocol.RunEntryMessage
 }

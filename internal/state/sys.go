@@ -19,9 +19,8 @@ var (
 func (m *Machine) set(key string, value []byte) error {
 	_, err := replayOrNew(
 		m,
-		wire.SetStateEntryMessageType,
 		func(entry *wire.SetStateEntryMessage) (void restate.Void, err error) {
-			if string(entry.SetStateEntryMessage.Key) != key || !bytes.Equal(entry.SetStateEntryMessage.Value, value) {
+			if string(entry.Key) != key || !bytes.Equal(entry.Value, value) {
 				return void, errEntryMismatch
 			}
 
@@ -51,9 +50,8 @@ func (m *Machine) _set(key string, value []byte) error {
 func (m *Machine) clear(key string) error {
 	_, err := replayOrNew(
 		m,
-		wire.ClearStateEntryMessageType,
 		func(entry *wire.ClearStateEntryMessage) (void restate.Void, err error) {
-			if string(entry.ClearStateEntryMessage.Key) != key {
+			if string(entry.Key) != key {
 				return void, errEntryMismatch
 			}
 
@@ -85,7 +83,6 @@ func (m *Machine) _clear(key string) error {
 func (m *Machine) clearAll() error {
 	_, err := replayOrNew(
 		m,
-		wire.ClearAllStateEntryMessageType,
 		func(entry *wire.ClearAllStateEntryMessage) (void restate.Void, err error) {
 			return
 		}, func() (restate.Void, error) {
@@ -112,13 +109,12 @@ func (m *Machine) _clearAll() error {
 func (m *Machine) get(key string) ([]byte, error) {
 	return replayOrNew(
 		m,
-		wire.GetStateEntryMessageType,
 		func(entry *wire.GetStateEntryMessage) ([]byte, error) {
-			if string(entry.GetStateEntryMessage.Key) != key {
+			if string(entry.Key) != key {
 				return nil, errEntryMismatch
 			}
 
-			switch result := entry.GetStateEntryMessage.Result.(type) {
+			switch result := entry.Result.(type) {
 			case *protocol.GetStateEntryMessage_Empty:
 				return nil, nil
 			case *protocol.GetStateEntryMessage_Failure:
@@ -127,7 +123,7 @@ func (m *Machine) get(key string) ([]byte, error) {
 				return result.Value, nil
 			}
 
-			return nil, restate.TerminalError(fmt.Errorf("get state entry had invalid result: %v", entry.GetStateEntryMessage.Result), restate.ErrProtocolViolation)
+			return nil, restate.TerminalError(fmt.Errorf("get state entry had invalid result: %v", entry.Result), restate.ErrProtocolViolation)
 		}, func() ([]byte, error) {
 			return m._get(key)
 		})
@@ -196,9 +192,8 @@ func (m *Machine) _get(key string) ([]byte, error) {
 func (m *Machine) keys() ([]string, error) {
 	return replayOrNew(
 		m,
-		wire.GetStateKeysEntryMessageType,
 		func(entry *wire.GetStateKeysEntryMessage) ([]string, error) {
-			switch result := entry.GetStateKeysEntryMessage.Result.(type) {
+			switch result := entry.Result.(type) {
 			case *protocol.GetStateKeysEntryMessage_Failure:
 				return nil, fmt.Errorf("[%d] %s", result.Failure.Code, result.Failure.Message)
 			case *protocol.GetStateKeysEntryMessage_Value:
@@ -209,7 +204,7 @@ func (m *Machine) keys() ([]string, error) {
 				return keys, nil
 			}
 
-			return nil, restate.TerminalError(fmt.Errorf("found get state keys entry with invalid completion: %v", entry.GetStateKeysEntryMessage.Result), 571)
+			return nil, restate.TerminalError(fmt.Errorf("found get state keys entry with invalid completion: %v", entry.Result), 571)
 		},
 		m._keys,
 	)
@@ -277,7 +272,6 @@ func (m *Machine) _keys() ([]string, error) {
 func (m *Machine) sleep(until time.Time) error {
 	_, err := replayOrNew(
 		m,
-		wire.SleepEntryMessageType,
 		func(entry *wire.SleepEntryMessage) (void restate.Void, err error) {
 			// we shouldn't verify the time because this would be different every time
 			return
@@ -318,9 +312,8 @@ func (m *Machine) _sleep(until time.Time) error {
 func (m *Machine) sideEffect(fn func() ([]byte, error)) ([]byte, error) {
 	return replayOrNew(
 		m,
-		wire.RunEntryMessageType,
 		func(entry *wire.RunEntryMessage) ([]byte, error) {
-			switch result := entry.RunEntryMessage.Result.(type) {
+			switch result := entry.Result.(type) {
 			case *protocol.RunEntryMessage_Failure:
 				return nil, ErrorFromFailure(result.Failure)
 			case *protocol.RunEntryMessage_Value:
@@ -330,7 +323,7 @@ func (m *Machine) sideEffect(fn func() ([]byte, error)) ([]byte, error) {
 				return nil, nil
 			}
 
-			return nil, restate.TerminalError(fmt.Errorf("side effect entry had invalid result: %v", entry.RunEntryMessage.Result), restate.ErrProtocolViolation)
+			return nil, restate.TerminalError(fmt.Errorf("side effect entry had invalid result: %v", entry.Result), restate.ErrProtocolViolation)
 		},
 		func() ([]byte, error) {
 			return m._sideEffect(fn)
@@ -367,7 +360,7 @@ func (m *Machine) _sideEffect(fn func() ([]byte, error)) ([]byte, error) {
 					RelatedEntryType: &ty,
 				},
 			}
-			if err := m.protocol.Write(&msg, 0); err != nil {
+			if err := m.protocol.Write(&msg); err != nil {
 				return nil, err
 			}
 		}

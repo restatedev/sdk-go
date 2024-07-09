@@ -75,23 +75,22 @@ func (m *Machine) doCall(service, key, method string, params []byte) ([]byte, er
 
 	return replayOrNew(
 		m,
-		wire.CallEntryMessageType,
 		func(entry *wire.CallEntryMessage) ([]byte, error) {
-			if entry.CallEntryMessage.ServiceName != service ||
-				entry.CallEntryMessage.Key != key ||
-				entry.CallEntryMessage.HandlerName != method ||
-				!bytes.Equal(entry.CallEntryMessage.Parameter, params) {
+			if entry.ServiceName != service ||
+				entry.Key != key ||
+				entry.HandlerName != method ||
+				!bytes.Equal(entry.Parameter, params) {
 				return nil, errEntryMismatch
 			}
 
-			switch result := entry.CallEntryMessage.Result.(type) {
+			switch result := entry.Result.(type) {
 			case *protocol.CallEntryMessage_Failure:
 				return nil, ErrorFromFailure(result.Failure)
 			case *protocol.CallEntryMessage_Value:
 				return result.Value, nil
 			}
 
-			return nil, restate.TerminalError(fmt.Errorf("sync call entry  had invalid result: %v", entry.CallEntryMessage.Result), restate.ErrProtocolViolation)
+			return nil, restate.TerminalError(fmt.Errorf("sync call entry  had invalid result: %v", entry.Result), restate.ErrProtocolViolation)
 		}, func() ([]byte, error) {
 			return m._doCall(service, key, method, params)
 		})
@@ -134,12 +133,11 @@ func (c *Machine) sendCall(service, key, method string, body any, delay time.Dur
 
 	_, err = replayOrNew(
 		c,
-		wire.OneWayCallEntryMessageType,
 		func(entry *wire.OneWayCallEntryMessage) (restate.Void, error) {
-			if entry.OneWayCallEntryMessage.ServiceName != service ||
-				entry.OneWayCallEntryMessage.Key != key ||
-				entry.OneWayCallEntryMessage.HandlerName != method ||
-				!bytes.Equal(entry.OneWayCallEntryMessage.Parameter, params) {
+			if entry.ServiceName != service ||
+				entry.Key != key ||
+				entry.HandlerName != method ||
+				!bytes.Equal(entry.Parameter, params) {
 				return restate.Void{}, errEntryMismatch
 			}
 

@@ -73,7 +73,6 @@ func awakeableID(invocationID []byte, entryIndex uint32) string {
 func (c *Machine) awakeable() (restate.Awakeable[[]byte], error) {
 	awakeable, err := replayOrNew(
 		c,
-		wire.AwakeableEntryMessageType,
 		func(entry *wire.AwakeableEntryMessage) (restate.Awakeable[[]byte], error) {
 			return &completionAwakeable{ctx: c.ctx, entryIndex: c.entryIndex, invocationID: c.id, entry: entry}, nil
 		},
@@ -96,10 +95,9 @@ func (c *Machine) _awakeable() (restate.Awakeable[[]byte], error) {
 func (c *Machine) resolveAwakeable(id string, value []byte) error {
 	_, err := replayOrNew(
 		c,
-		wire.CompleteAwakeableEntryMessageType,
 		func(entry *wire.CompleteAwakeableEntryMessage) (restate.Void, error) {
-			messageValue, ok := entry.CompleteAwakeableEntryMessage.Result.(*protocol.CompleteAwakeableEntryMessage_Value)
-			if entry.CompleteAwakeableEntryMessage.Id != id || !ok || !bytes.Equal(messageValue.Value, value) {
+			messageValue, ok := entry.Result.(*protocol.CompleteAwakeableEntryMessage_Value)
+			if entry.Id != id || !ok || !bytes.Equal(messageValue.Value, value) {
 				return restate.Void{}, errEntryMismatch
 			}
 			return restate.Void{}, nil
@@ -129,10 +127,9 @@ func (c *Machine) _resolveAwakeable(id string, value []byte) error {
 func (c *Machine) rejectAwakeable(id string, reason error) error {
 	_, err := replayOrNew(
 		c,
-		wire.CompleteAwakeableEntryMessageType,
 		func(entry *wire.CompleteAwakeableEntryMessage) (restate.Void, error) {
-			messageFailure, ok := entry.CompleteAwakeableEntryMessage.Result.(*protocol.CompleteAwakeableEntryMessage_Failure)
-			if entry.CompleteAwakeableEntryMessage.Id != id || !ok || messageFailure.Failure.Code != uint32(restate.ErrorCode(reason)) || messageFailure.Failure.Message != reason.Error() {
+			messageFailure, ok := entry.Result.(*protocol.CompleteAwakeableEntryMessage_Failure)
+			if entry.Id != id || !ok || messageFailure.Failure.Code != uint32(restate.ErrorCode(reason)) || messageFailure.Failure.Message != reason.Error() {
 				return restate.Void{}, errEntryMismatch
 			}
 			return restate.Void{}, nil
