@@ -217,7 +217,7 @@ func (m *Machine) output(bytes []byte, err error) proto.Message {
 	}
 }
 
-func (m *Machine) invoke(ctx *Context, input []byte) error {
+func (m *Machine) invoke(ctx *Context, input []byte, outputSeen bool) error {
 	// always terminate the invocation with
 	// an end message.
 	// this will always terminate the connection
@@ -263,6 +263,11 @@ func (m *Machine) invoke(ctx *Context, input []byte) error {
 		}
 	}()
 
+	if outputSeen {
+		// dont send a duplicate output message
+		return nil
+	}
+
 	output := m.output(m.handler.Call(ctx, input))
 
 	return m.protocol.Write(output, 0)
@@ -286,6 +291,8 @@ func (m *Machine) process(ctx *Context, start *wire.StartMessage) error {
 	m.log.Trace().Uint32("known entries", start.Payload.KnownEntries).Msg("known entires")
 	m.entries = make([]wire.Message, 0, start.Payload.KnownEntries-1)
 
+	outputSeen := false
+
 	// we don't track the poll input entry
 	for i := uint32(1); i < start.Payload.KnownEntries; i++ {
 		msg, err := m.protocol.Read()
@@ -297,13 +304,17 @@ func (m *Machine) process(ctx *Context, start *wire.StartMessage) error {
 
 		m.log.Trace().Uint16("type", uint16(msg.Type())).Msg("replay log entry")
 		m.entries = append(m.entries, msg)
+
+		if msg.Type() == wire.OutputEntryMessageType {
+			outputSeen = true
+		}
 	}
 
 	go m.handleCompletionsAcks()
 
 	inputMsg := msg.(*wire.InputEntryMessage)
 	value := inputMsg.Payload.GetValue()
-	return m.invoke(ctx, value)
+	return m.invoke(ctx, value, outputSeen)
 
 }
 
