@@ -70,11 +70,16 @@ func awakeableID(invocationID []byte, entryIndex uint32) string {
 	return "prom_1" + base64.RawURLEncoding.EncodeToString(bytes)
 }
 
+type indexedEntry struct {
+	entry      *wire.AwakeableEntryMessage
+	entryIndex uint32
+}
+
 func (c *Machine) awakeable() (restate.Awakeable[[]byte], error) {
-	entry, err := replayOrNew(
+	indexedEntry, err := replayOrNew(
 		c,
-		func(entry *wire.AwakeableEntryMessage) (*wire.AwakeableEntryMessage, error) {
-			return entry, nil
+		func(entry *wire.AwakeableEntryMessage) (indexedEntry, error) {
+			return indexedEntry{entry, c.entryIndex}, nil
 		},
 		c._awakeable,
 	)
@@ -82,15 +87,15 @@ func (c *Machine) awakeable() (restate.Awakeable[[]byte], error) {
 		return nil, err
 	}
 
-	return &completionAwakeable{ctx: c.ctx, entryIndex: c.entryIndex, invocationID: c.id, entry: entry}, nil
+	return &completionAwakeable{ctx: c.ctx, entryIndex: indexedEntry.entryIndex, invocationID: c.id, entry: indexedEntry.entry}, nil
 }
 
-func (c *Machine) _awakeable() (*wire.AwakeableEntryMessage, error) {
+func (c *Machine) _awakeable() (indexedEntry, error) {
 	msg := &wire.AwakeableEntryMessage{}
 	if err := c.Write(msg); err != nil {
-		return nil, err
+		return indexedEntry{}, err
 	}
-	return msg, nil
+	return indexedEntry{msg, c.entryIndex}, nil
 }
 
 func (c *Machine) resolveAwakeable(id string, value []byte) error {

@@ -138,13 +138,13 @@ type Machine struct {
 
 	entries    []wire.Message
 	entryIndex uint32
+	entryMutex sync.Mutex
 
 	log zerolog.Logger
 
 	pendingCompletions map[uint32]wire.CompleteableMessage
 	pendingAcks        map[uint32]wire.AckableMessage
-
-	mutex sync.RWMutex
+	pendingMutex       sync.RWMutex
 }
 
 func NewMachine(handler restate.Handler, conn io.ReadWriter) *Machine {
@@ -357,6 +357,9 @@ func replayOrNew[M wire.Message, O any](
 	replay func(msg M) (O, error),
 	new func() (O, error),
 ) (output O, err error) {
+	// lock around preparing the entry, but we would never await an ack or completion with this held.
+	m.entryMutex.Lock()
+	defer m.entryMutex.Unlock()
 
 	m.entryIndex += 1
 

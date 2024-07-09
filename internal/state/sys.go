@@ -296,28 +296,39 @@ func (m *Machine) _sleep(until time.Time) (*wire.SleepEntryMessage, error) {
 }
 
 func (m *Machine) sideEffect(fn func() ([]byte, error)) ([]byte, error) {
-	return replayOrNew(
+	entry, err := replayOrNew(
 		m,
-		func(entry *wire.RunEntryMessage) ([]byte, error) {
-			switch result := entry.Result.(type) {
-			case *protocol.RunEntryMessage_Failure:
-				return nil, ErrorFromFailure(result.Failure)
-			case *protocol.RunEntryMessage_Value:
-				return result.Value, nil
-			case nil:
-				// Empty result is valid
-				return nil, nil
-			}
-
-			return nil, restate.TerminalError(fmt.Errorf("side effect entry had invalid result: %v", entry.Result), restate.ErrProtocolViolation)
+		func(entry *wire.RunEntryMessage) (*wire.RunEntryMessage, error) {
+			return entry, nil
 		},
-		func() ([]byte, error) {
+		func() (*wire.RunEntryMessage, error) {
 			return m._sideEffect(fn)
 		},
 	)
+	if err != nil {
+		// either a transient error from the fn or from our sending of the result
+		return nil, err
+	}
+
+	// side effect must be acknowledged before proceeding
+	if err := entry.Await(m.ctx); err != nil {
+		return nil, err
+	}
+
+	switch result := entry.Result.(type) {
+	case *protocol.RunEntryMessage_Failure:
+		return nil, ErrorFromFailure(result.Failure)
+	case *protocol.RunEntryMessage_Value:
+		return result.Value, nil
+	case nil:
+		// Empty result is valid
+		return nil, nil
+	}
+
+	return nil, restate.TerminalError(fmt.Errorf("side effect entry had invalid result: %v", entry.Result), restate.ErrProtocolViolation)
 }
 
-func (m *Machine) _sideEffect(fn func() ([]byte, error)) ([]byte, error) {
+func (m *Machine) _sideEffect(fn func() ([]byte, error)) (*wire.RunEntryMessage, error) {
 	bytes, err := fn()
 
 	if err != nil {
@@ -334,9 +345,11 @@ func (m *Machine) _sideEffect(fn func() ([]byte, error)) ([]byte, error) {
 			}
 			if err := m.Write(msg); err != nil {
 				return nil, err
-			} else if err := msg.Await(m.ctx); err != nil {
-				return nil, err
 			}
+
+			// don't return the original error, we will turn the entry back into an error later
+			// that way its not different replay vs non-replay
+			return msg, nil
 		} else {
 			ty := uint32(wire.RunEntryMessageType)
 			msg := wire.ErrorMessage{
@@ -349,6 +362,8 @@ func (m *Machine) _sideEffect(fn func() ([]byte, error)) ([]byte, error) {
 			if err := m.protocol.Write(&msg); err != nil {
 				return nil, err
 			}
+
+			return nil, err
 		}
 	} else {
 		msg := &wire.RunEntryMessage{
@@ -360,10 +375,8 @@ func (m *Machine) _sideEffect(fn func() ([]byte, error)) ([]byte, error) {
 		}
 		if err := m.Write(msg); err != nil {
 			return nil, err
-		} else if err := msg.Await(m.ctx); err != nil {
-			return nil, err
 		}
-	}
 
-	return bytes, err
+		return msg, nil
+	}
 }

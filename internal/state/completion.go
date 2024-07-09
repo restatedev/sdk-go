@@ -15,27 +15,27 @@ func (m *Machine) completable(entryIndex uint32) wire.CompleteableMessage {
 	}
 
 	// completion for an outgoing entry
-	m.mutex.RLock()
-	defer m.mutex.RUnlock()
+	m.pendingMutex.RLock()
+	defer m.pendingMutex.RUnlock()
 	return m.pendingCompletions[entryIndex]
 }
 
 func (m *Machine) ackable(entryIndex uint32) wire.AckableMessage {
-	m.mutex.RLock()
-	defer m.mutex.RUnlock()
+	m.pendingMutex.RLock()
+	defer m.pendingMutex.RUnlock()
 	return m.pendingAcks[entryIndex]
 }
 
 func (m *Machine) Write(message wire.Message) error {
 	if message, ok := message.(wire.CompleteableMessage); ok && !message.Completed() {
-		m.mutex.Lock()
+		m.pendingMutex.Lock()
 		m.pendingCompletions[m.entryIndex] = message
-		m.mutex.Unlock()
+		m.pendingMutex.Unlock()
 	}
 	if message, ok := message.(wire.AckableMessage); ok && !message.Acked() {
-		m.mutex.Lock()
+		m.pendingMutex.Lock()
 		m.pendingAcks[m.entryIndex] = message
-		m.mutex.Unlock()
+		m.pendingMutex.Unlock()
 	}
 	return m.protocol.Write(message)
 }
