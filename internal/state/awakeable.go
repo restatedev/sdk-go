@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/base64"
 	"encoding/binary"
+	"fmt"
 
 	restate "github.com/restatedev/sdk-go"
 	"github.com/restatedev/sdk-go/generated/proto/protocol"
@@ -32,35 +33,19 @@ type completionAwakeable struct {
 }
 
 func (c *completionAwakeable) Id() string { return awakeableID(c.invocationID, c.entryIndex) }
-func (c *completionAwakeable) Chan() <-chan restate.Result[[]byte] {
-	ch := make(chan restate.Result[[]byte], 1)
-	if c.entry.Completed() {
-		// fast path
-		ch <- resultFromAwakeable(c.entry)
-		return ch
-	}
-	// slow path
-	go func() {
-		if err := c.entry.Await(c.ctx); err != nil {
-			ch <- restate.Result[[]byte]{Err: err}
-		} else {
-			ch <- resultFromAwakeable(c.entry)
+func (c *completionAwakeable) Result() ([]byte, error) {
+	if err := c.entry.Await(c.ctx); err != nil {
+		return nil, err
+	} else {
+		switch result := c.entry.Result.(type) {
+		case *protocol.AwakeableEntryMessage_Value:
+			return result.Value, nil
+		case *protocol.AwakeableEntryMessage_Failure:
+			return nil, ErrorFromFailure(result.Failure)
+		default:
+			return nil, fmt.Errorf("unexpected result in completed awakeable entry: %v", c.entry.Result)
 		}
-	}()
-	return ch
-}
-
-type completedAwakeable[T any] struct {
-	invocationID []byte
-	entryIndex   uint32
-	result       restate.Result[T]
-}
-
-func (c *completedAwakeable[T]) Id() string { return awakeableID(c.invocationID, c.entryIndex) }
-func (c *completedAwakeable[T]) Chan() <-chan restate.Result[T] {
-	ch := make(chan restate.Result[T], 1)
-	ch <- c.result
-	return ch
+	}
 }
 
 func awakeableID(invocationID []byte, entryIndex uint32) string {

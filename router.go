@@ -254,7 +254,7 @@ func SideEffectAs[T any](ctx Context, fn func() (T, error)) (output T, err error
 
 type Awakeable[T any] interface {
 	Id() string
-	Chan() <-chan Result[T]
+	Result() (T, error)
 }
 
 type Result[T any] struct {
@@ -267,23 +267,15 @@ type decodingAwakeable[T any] struct {
 }
 
 func (d decodingAwakeable[T]) Id() string { return d.inner.Id() }
-func (d decodingAwakeable[T]) Chan() <-chan Result[T] {
-	inner := d.inner.Chan()
-	out := make(chan Result[T], 1)
-	go func() {
-		result := <-inner
-		if result.Err != nil {
-			out <- Result[T]{Err: result.Err}
-		} else {
-			var value T
-			if err := json.Unmarshal(result.Value, &value); err != nil {
-				out <- Result[T]{Err: TerminalError(err)}
-			} else {
-				out <- Result[T]{Value: value}
-			}
-		}
-	}()
-	return out
+func (d decodingAwakeable[T]) Result() (out T, err error) {
+	bytes, err := d.inner.Result()
+	if err != nil {
+		return out, err
+	}
+	if err := json.Unmarshal(bytes, &out); err != nil {
+		return out, err
+	}
+	return
 }
 
 func AwakeableAs[T any](ctx Context) (Awakeable[T], error) {
