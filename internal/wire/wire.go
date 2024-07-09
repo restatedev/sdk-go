@@ -8,9 +8,12 @@ import (
 	"fmt"
 	"io"
 	"math"
+	"sync"
+	"sync/atomic"
 
 	protocol "github.com/restatedev/sdk-go/generated/proto/protocol"
 	"github.com/rs/zerolog"
+	"github.com/rs/zerolog/log"
 	"google.golang.org/protobuf/proto"
 )
 
@@ -269,7 +272,17 @@ var (
 				Header: header,
 			}
 
-			return msg, proto.Unmarshal(bytes, &msg.GetStateEntryMessage)
+			if err := proto.Unmarshal(bytes, msg); err != nil {
+				return nil, err
+			}
+
+			if msg.Result == nil {
+				msg.completable.init()
+			} else {
+				msg.completable.complete()
+			}
+
+			return msg, nil
 		},
 		SetStateEntryMessageType: func(header Header, bytes []byte) (Message, error) {
 			msg := &SetStateEntryMessage{
@@ -297,7 +310,17 @@ var (
 				Header: header,
 			}
 
-			return msg, proto.Unmarshal(bytes, &msg.GetStateKeysEntryMessage)
+			if err := proto.Unmarshal(bytes, msg); err != nil {
+				return nil, err
+			}
+
+			if msg.Result == nil {
+				msg.completable.init()
+			} else {
+				msg.completable.complete()
+			}
+
+			return msg, nil
 		},
 		CompletionMessageType: func(header Header, bytes []byte) (Message, error) {
 			msg := &CompletionMessage{
@@ -311,14 +334,34 @@ var (
 				Header: header,
 			}
 
-			return msg, proto.Unmarshal(bytes, &msg.SleepEntryMessage)
+			if err := proto.Unmarshal(bytes, msg); err != nil {
+				return nil, err
+			}
+
+			if msg.Result == nil {
+				msg.completable.init()
+			} else {
+				msg.completable.complete()
+			}
+
+			return msg, nil
 		},
 		CallEntryMessageType: func(header Header, bytes []byte) (Message, error) {
 			msg := &CallEntryMessage{
 				Header: header,
 			}
 
-			return msg, proto.Unmarshal(bytes, &msg.CallEntryMessage)
+			if err := proto.Unmarshal(bytes, msg); err != nil {
+				return nil, err
+			}
+
+			if msg.Result == nil {
+				msg.completable.init()
+			} else {
+				msg.completable.complete()
+			}
+
+			return msg, nil
 		},
 		OneWayCallEntryMessageType: func(header Header, bytes []byte) (Message, error) {
 			msg := &OneWayCallEntryMessage{
@@ -332,7 +375,17 @@ var (
 				Header: header,
 			}
 
-			return msg, proto.Unmarshal(bytes, &msg.AwakeableEntryMessage)
+			if err := proto.Unmarshal(bytes, &msg.AwakeableEntryMessage); err != nil {
+				return nil, err
+			}
+
+			if msg.Result == nil {
+				msg.completable.init()
+			} else {
+				msg.completable.complete()
+			}
+
+			return msg, nil
 		},
 		CompleteAwakeableEntryMessageType: func(header Header, bytes []byte) (Message, error) {
 			msg := &CompleteAwakeableEntryMessage{
@@ -345,6 +398,13 @@ var (
 			msg := &RunEntryMessage{
 				Header: header,
 			}
+
+			if err := proto.Unmarshal(bytes, msg); err != nil {
+				return nil, err
+			}
+
+			// replayed side effects are inherently acked
+			msg.Ack()
 
 			return msg, proto.Unmarshal(bytes, &msg.RunEntryMessage)
 		},
@@ -383,7 +443,23 @@ type EndMessage struct {
 
 type GetStateEntryMessage struct {
 	Header
+	completable
 	protocol.GetStateEntryMessage
+}
+
+func (a *GetStateEntryMessage) Complete(c *protocol.CompletionMessage) {
+	a.Flag |= FlagCompleted
+
+	switch result := c.Result.(type) {
+	case *protocol.CompletionMessage_Value:
+		a.Result = &protocol.GetStateEntryMessage_Value{Value: result.Value}
+	case *protocol.CompletionMessage_Failure:
+		a.Result = &protocol.GetStateEntryMessage_Failure{Failure: result.Failure}
+	case *protocol.CompletionMessage_Empty:
+		a.Result = &protocol.GetStateEntryMessage_Empty{Empty: result.Empty}
+	}
+
+	a.complete()
 }
 
 type SetStateEntryMessage struct {
@@ -403,7 +479,31 @@ type ClearAllStateEntryMessage struct {
 
 type GetStateKeysEntryMessage struct {
 	Header
+	completable
 	protocol.GetStateKeysEntryMessage
+}
+
+func (a *GetStateKeysEntryMessage) Complete(c *protocol.CompletionMessage) {
+	a.Flag |= FlagCompleted
+
+	switch result := c.Result.(type) {
+	case *protocol.CompletionMessage_Value:
+		var keys protocol.GetStateKeysEntryMessage_StateKeys
+
+		if err := proto.Unmarshal(result.Value, &keys); err != nil {
+			log.Error().Err(err).Msg("received invalid value for getstatekeys")
+			return
+		}
+
+		a.Result = &protocol.GetStateKeysEntryMessage_Value{Value: &keys}
+	case *protocol.CompletionMessage_Failure:
+		a.Result = &protocol.GetStateKeysEntryMessage_Failure{Failure: result.Failure}
+	case *protocol.CompletionMessage_Empty:
+		log.Error().Msg("received empty completion for getstatekeys")
+		return
+	}
+
+	a.complete()
 }
 
 type CompletionMessage struct {
@@ -413,12 +513,46 @@ type CompletionMessage struct {
 
 type SleepEntryMessage struct {
 	Header
+	completable
 	protocol.SleepEntryMessage
+}
+
+func (a *SleepEntryMessage) Complete(c *protocol.CompletionMessage) {
+	a.Flag |= FlagCompleted
+
+	switch result := c.Result.(type) {
+	case *protocol.CompletionMessage_Empty:
+		a.Result = &protocol.SleepEntryMessage_Empty{Empty: result.Empty}
+	case *protocol.CompletionMessage_Failure:
+		a.Result = &protocol.SleepEntryMessage_Failure{Failure: result.Failure}
+	case *protocol.CompletionMessage_Value:
+		log.Error().Msg("received value completion for sleep")
+		return
+	}
+
+	a.complete()
 }
 
 type CallEntryMessage struct {
 	Header
+	completable
 	protocol.CallEntryMessage
+}
+
+func (a *CallEntryMessage) Complete(c *protocol.CompletionMessage) {
+	a.Flag |= FlagCompleted
+
+	switch result := c.Result.(type) {
+	case *protocol.CompletionMessage_Value:
+		a.Result = &protocol.CallEntryMessage_Value{Value: result.Value}
+	case *protocol.CompletionMessage_Failure:
+		a.Result = &protocol.CallEntryMessage_Failure{Failure: result.Failure}
+	case *protocol.CompletionMessage_Empty:
+		log.Error().Msg("received empty completion for call")
+		return
+	}
+
+	a.complete()
 }
 
 type OneWayCallEntryMessage struct {
@@ -428,7 +562,24 @@ type OneWayCallEntryMessage struct {
 
 type AwakeableEntryMessage struct {
 	Header
+	completable
 	protocol.AwakeableEntryMessage
+}
+
+func (a *AwakeableEntryMessage) Complete(c *protocol.CompletionMessage) {
+	a.Flag |= FlagCompleted
+
+	switch result := c.Result.(type) {
+	case *protocol.CompletionMessage_Value:
+		a.Result = &protocol.AwakeableEntryMessage_Value{Value: result.Value}
+	case *protocol.CompletionMessage_Failure:
+		a.Result = &protocol.AwakeableEntryMessage_Failure{Failure: result.Failure}
+	case *protocol.CompletionMessage_Empty:
+		log.Error().Msg("received empty completion for an awakeable")
+		return
+	}
+
+	a.complete()
 }
 
 type CompleteAwakeableEntryMessage struct {
@@ -438,10 +589,101 @@ type CompleteAwakeableEntryMessage struct {
 
 type RunEntryMessage struct {
 	Header
+	ackable
 	protocol.RunEntryMessage
 }
 
 type EntryAckMessage struct {
 	Header
 	protocol.EntryAckMessage
+}
+
+type CompleteableMessage interface {
+	Message
+	Completed() bool
+	Await(ctx context.Context) error
+	Complete(*protocol.CompletionMessage)
+}
+
+type completable struct {
+	initialise sync.Once
+	completed  atomic.Bool
+	done       chan struct{}
+}
+
+func (c *completable) init() {
+	c.initialise.Do(func() {
+		c.done = make(chan struct{})
+	})
+}
+
+func (c *completable) Completed() bool {
+	c.init()
+
+	return c.completed.Load()
+}
+
+func (c *completable) Await(ctx context.Context) error {
+	c.init()
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-c.done:
+		return nil
+	}
+}
+
+func (c *completable) complete() {
+	c.init()
+	if !c.completed.Swap(true) {
+		// we swapped it into being true; we can safely close
+		close(c.done)
+	} else {
+		// already completed
+	}
+}
+
+type AckableMessage interface {
+	Message
+	Acked() bool
+	Await(ctx context.Context) error
+	Ack()
+}
+
+type ackable struct {
+	initialise sync.Once
+	acked      atomic.Bool
+	done       chan struct{}
+}
+
+func (c *ackable) init() {
+	c.initialise.Do(func() {
+		c.done = make(chan struct{})
+	})
+}
+
+func (c *ackable) Acked() bool {
+	c.init()
+
+	return c.acked.Load()
+}
+
+func (c *ackable) Await(ctx context.Context) error {
+	c.init()
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-c.done:
+		return nil
+	}
+}
+
+func (c *ackable) Ack() {
+	c.init()
+	if !c.acked.Swap(true) {
+		// we swapped it into being true; we can safely close
+		close(c.done)
+	} else {
+		// already completed
+	}
 }

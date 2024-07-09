@@ -106,26 +106,22 @@ func (m *Machine) _doCall(service, key, method string, params []byte) ([]byte, e
 			Key:         key,
 		},
 	}
-	completionFut, err := m.WriteWithCompletion(msg)
-	if err != nil {
+	if err := m.Write(msg); err != nil {
 		return nil, fmt.Errorf("failed to send request message: %w", err)
 	}
 
-	completion, err := completionFut.Await(m.ctx)
-	if err != nil {
+	if err := msg.Await(m.ctx); err != nil {
 		return nil, err
 	}
 
-	switch result := completion.Result.(type) {
-	case *protocol.CompletionMessage_Empty:
-		return nil, nil
-	case *protocol.CompletionMessage_Failure:
+	switch result := msg.Result.(type) {
+	case *protocol.CallEntryMessage_Failure:
 		return nil, ErrorFromFailure(result.Failure)
-	case *protocol.CompletionMessage_Value:
+	case *protocol.CallEntryMessage_Value:
 		return result.Value, nil
 	}
 
-	return nil, restate.TerminalError(fmt.Errorf("sync call completion had invalid result: %v", completion.Result), restate.ErrProtocolViolation)
+	return nil, restate.TerminalError(fmt.Errorf("sync call had invalid result: %v", msg.Result), restate.ErrProtocolViolation)
 }
 
 func (c *Machine) sendCall(service, key, method string, body any, delay time.Duration) error {
@@ -163,7 +159,7 @@ func (c *Machine) _sendCall(service, key, method string, params []byte, delay ti
 		invokeTime = uint64(time.Now().Add(delay).UnixMilli())
 	}
 
-	err := c.OneWayWrite(&wire.OneWayCallEntryMessage{
+	err := c.Write(&wire.OneWayCallEntryMessage{
 		OneWayCallEntryMessage: protocol.OneWayCallEntryMessage{
 			ServiceName: service,
 			HandlerName: method,

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"runtime/debug"
+	"sync"
 	"time"
 
 	restate "github.com/restatedev/sdk-go"
@@ -140,8 +141,10 @@ type Machine struct {
 
 	log zerolog.Logger
 
-	pendingCompletions map[uint32]*CompletionFuture
-	pendingAcks        map[uint32]*AckFuture
+	pendingCompletions map[uint32]wire.CompleteableMessage
+	pendingAcks        map[uint32]wire.AckableMessage
+
+	mutex sync.RWMutex
 }
 
 func NewMachine(handler restate.Handler, conn io.ReadWriter) *Machine {
@@ -149,8 +152,8 @@ func NewMachine(handler restate.Handler, conn io.ReadWriter) *Machine {
 		handler:            handler,
 		current:            make(map[string][]byte),
 		log:                log.Logger,
-		pendingAcks:        map[uint32]*AckFuture{},
-		pendingCompletions: map[uint32]*CompletionFuture{},
+		pendingAcks:        map[uint32]wire.AckableMessage{},
+		pendingCompletions: map[uint32]wire.CompleteableMessage{},
 	}
 	m.protocol = wire.NewProtocol(&m.log, conn)
 	return m
@@ -308,8 +311,6 @@ func (m *Machine) process(ctx *Context, start *wire.StartMessage) error {
 		if err != nil {
 			return fmt.Errorf("failed to read entry: %w", err)
 		}
-
-		m.checkReplayCompletion(i, msg)
 
 		m.log.Trace().Uint16("type", uint16(msg.Type())).Msg("replay log entry")
 		m.entries = append(m.entries, msg)
