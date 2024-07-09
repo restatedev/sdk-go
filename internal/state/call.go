@@ -2,6 +2,7 @@ package state
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"time"
@@ -41,9 +42,19 @@ type serviceCall struct {
 	method  string
 }
 
+type responseFuture struct {
+	ctx context.Context
+	err error
+	msg *wire.CallEntryMessage
+}
+
 // Do makes a call and wait for the response
-func (c *serviceCall) Do(input any, output any) error {
-	return c.machine.doDynCall(c.service, c.key, c.method, input, output)
+func (c *serviceCall) Request(input any) restate.ResponseFuture {
+	if msg, err := c.machine.doDynCall(c.service, c.key, c.method, input); err != nil {
+		return &responseFuture{ctx: c.ctx, err: err}
+	} else {
+		return &responseFuture{ctx: c.ctx, msg: msg}
+	}
 }
 
 // Send runs a call in the background after delay duration
@@ -51,15 +62,28 @@ func (c *serviceCall) Send(body any, delay time.Duration) error {
 	return c.machine.sendCall(c.service, c.key, c.method, body, delay)
 }
 
-func (m *Machine) doDynCall(service, key, method string, input, output any) error {
-	params, err := json.Marshal(input)
-	if err != nil {
+func (r *responseFuture) Err() error {
+	return r.err
+}
+
+func (r *responseFuture) Response(output any) error {
+	if r.err != nil {
+		return r.err
+	}
+
+	if err := r.msg.Await(r.ctx); err != nil {
 		return err
 	}
 
-	bytes, err := m.doCall(service, key, method, params)
-	if err != nil {
-		return err
+	var bytes []byte
+	switch result := r.msg.Result.(type) {
+	case *protocol.CallEntryMessage_Failure:
+		return ErrorFromFailure(result.Failure)
+	case *protocol.CallEntryMessage_Value:
+		bytes = result.Value
+	default:
+		return restate.TerminalError(fmt.Errorf("sync call had invalid result: %v", r.msg.Result), restate.ErrProtocolViolation)
+
 	}
 
 	if err := json.Unmarshal(bytes, output); err != nil {
@@ -70,10 +94,19 @@ func (m *Machine) doDynCall(service, key, method string, input, output any) erro
 	return nil
 }
 
-func (m *Machine) doCall(service, key, method string, params []byte) ([]byte, error) {
+func (m *Machine) doDynCall(service, key, method string, input any) (*wire.CallEntryMessage, error) {
+	params, err := json.Marshal(input)
+	if err != nil {
+		return nil, err
+	}
+
+	return m.doCall(service, key, method, params)
+}
+
+func (m *Machine) doCall(service, key, method string, params []byte) (*wire.CallEntryMessage, error) {
 	m.log.Debug().Str("service", service).Str("method", method).Str("key", key).Msg("executing sync call")
 
-	msg, err := replayOrNew(
+	return replayOrNew(
 		m,
 		func(entry *wire.CallEntryMessage) (*wire.CallEntryMessage, error) {
 			if entry.ServiceName != service ||
@@ -87,22 +120,6 @@ func (m *Machine) doCall(service, key, method string, params []byte) ([]byte, er
 		}, func() (*wire.CallEntryMessage, error) {
 			return m._doCall(service, key, method, params)
 		})
-	if err != nil {
-		return nil, err
-	}
-
-	if err := msg.Await(m.ctx); err != nil {
-		return nil, err
-	}
-
-	switch result := msg.Result.(type) {
-	case *protocol.CallEntryMessage_Failure:
-		return nil, ErrorFromFailure(result.Failure)
-	case *protocol.CallEntryMessage_Value:
-		return result.Value, nil
-	}
-
-	return nil, restate.TerminalError(fmt.Errorf("sync call had invalid result: %v", msg.Result), restate.ErrProtocolViolation)
 }
 
 func (m *Machine) _doCall(service, key, method string, params []byte) (*wire.CallEntryMessage, error) {

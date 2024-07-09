@@ -13,7 +13,7 @@ func addTicket(ctx restate.ObjectContext, ticketId string) (bool, error) {
 	userId := ctx.Key()
 
 	var success bool
-	if err := ctx.Object(TicketServiceName, ticketId).Method("reserve").Do(userId, &success); err != nil {
+	if err := ctx.Object(TicketServiceName, ticketId).Method("reserve").Request(userId).Response(&success); err != nil {
 		return false, err
 	}
 
@@ -82,7 +82,8 @@ func checkout(ctx restate.ObjectContext, _ restate.Void) (bool, error) {
 	var response PaymentResponse
 	if err := ctx.Object(CheckoutServiceName, "").
 		Method("checkout").
-		Do(PaymentRequest{UserID: userId, Tickets: tickets}, &response); err != nil {
+		Request(PaymentRequest{UserID: userId, Tickets: tickets}).
+		Response(&response); err != nil {
 		return false, err
 	}
 

@@ -15,10 +15,17 @@ var (
 )
 
 type Call interface {
-	// Do makes a call and wait for the response
-	Do(input any, output any) error
+	// Request makes a call and returns a handle on a future response
+	Request(input any) ResponseFuture
 	// Send makes a call in the background (doesn't wait for response) after delay duration
 	Send(body any, delay time.Duration) error
+}
+
+type ResponseFuture interface {
+	// Err returns errors that occurred when sending off the request, without having to wait for the response
+	Err() error
+	// Response waits for the response to the call and unmarshals it into output
+	Response(output any) error
 }
 
 type Service interface {
