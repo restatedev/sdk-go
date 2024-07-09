@@ -13,7 +13,6 @@ import (
 
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
-	"google.golang.org/protobuf/proto"
 )
 
 const (
@@ -173,10 +172,10 @@ func (m *Machine) Start(inner context.Context, trace string) error {
 	start := msg.(*wire.StartMessage)
 
 	m.ctx = inner
-	m.id = start.Payload.Id
-	m.key = start.Payload.Key
+	m.id = start.StartMessage.Id
+	m.key = start.StartMessage.Key
 
-	m.log = m.log.With().Str("id", start.Payload.DebugId).Str("method", trace).Logger()
+	m.log = m.log.With().Str("id", start.StartMessage.DebugId).Str("method", trace).Logger()
 
 	ctx := newContext(inner, m)
 
@@ -187,32 +186,38 @@ func (m *Machine) Start(inner context.Context, trace string) error {
 }
 
 // handle handler response and build proper response message
-func (m *Machine) output(bytes []byte, err error) proto.Message {
+func (m *Machine) output(bytes []byte, err error) wire.Message {
 	if err != nil {
 		m.log.Error().Err(err).Msg("failure")
 	}
 
 	if err != nil && restate.IsTerminalError(err) {
 		// terminal errors.
-		return &protocol.OutputEntryMessage{
-			Result: &protocol.OutputEntryMessage_Failure{
-				Failure: &protocol.Failure{
-					Code:    uint32(restate.ErrorCode(err)),
-					Message: err.Error(),
+		return &wire.OutputEntryMessage{
+			OutputEntryMessage: protocol.OutputEntryMessage{
+				Result: &protocol.OutputEntryMessage_Failure{
+					Failure: &protocol.Failure{
+						Code:    uint32(restate.ErrorCode(err)),
+						Message: err.Error(),
+					},
 				},
 			},
 		}
 	} else if err != nil {
 		// non terminal error!
-		return &protocol.ErrorMessage{
-			Code:    uint32(restate.ErrorCode(err)),
-			Message: err.Error(),
+		return &wire.ErrorMessage{
+			ErrorMessage: protocol.ErrorMessage{
+				Code:    uint32(restate.ErrorCode(err)),
+				Message: err.Error(),
+			},
 		}
 	}
 
-	return &protocol.OutputEntryMessage{
-		Result: &protocol.OutputEntryMessage_Value{
-			Value: bytes,
+	return &wire.OutputEntryMessage{
+		OutputEntryMessage: protocol.OutputEntryMessage{
+			Result: &protocol.OutputEntryMessage_Value{
+				Value: bytes,
+			},
 		},
 	}
 }
@@ -236,8 +241,10 @@ func (m *Machine) invoke(ctx *Context, input []byte, outputSeen bool) error {
 			// suspend object with thrown. we need to send a suspension
 			// message. then terminate the connection
 			m.log.Debug().Msg("suspending invocation")
-			err := m.protocol.Write(&protocol.SuspensionMessage{
-				EntryIndexes: []uint32{typ.resumeEntry},
+			err := m.protocol.Write(&wire.SuspensionMessage{
+				SuspensionMessage: protocol.SuspensionMessage{
+					EntryIndexes: []uint32{typ.resumeEntry},
+				},
 			}, 0)
 
 			if err != nil {
@@ -247,10 +254,12 @@ func (m *Machine) invoke(ctx *Context, input []byte, outputSeen bool) error {
 		default:
 			// unknown panic!
 			// send an error message (retryable)
-			err := m.protocol.Write(&protocol.ErrorMessage{
-				Code:        500,
-				Message:     fmt.Sprint(typ),
-				Description: string(debug.Stack()),
+			err := m.protocol.Write(&wire.ErrorMessage{
+				ErrorMessage: protocol.ErrorMessage{
+					Code:        500,
+					Message:     fmt.Sprint(typ),
+					Description: string(debug.Stack()),
+				},
 			}, 0)
 
 			if err != nil {
@@ -258,7 +267,7 @@ func (m *Machine) invoke(ctx *Context, input []byte, outputSeen bool) error {
 			}
 		}
 
-		if err := m.protocol.Write(&protocol.EndMessage{}, 0); err != nil {
+		if err := m.protocol.Write(&wire.EndMessage{}, 0); err != nil {
 			m.log.Error().Err(err).Msg("error sending end message")
 		}
 	}()
@@ -274,7 +283,7 @@ func (m *Machine) invoke(ctx *Context, input []byte, outputSeen bool) error {
 }
 
 func (m *Machine) process(ctx *Context, start *wire.StartMessage) error {
-	for _, entry := range start.Payload.StateMap {
+	for _, entry := range start.StartMessage.StateMap {
 		m.current[string(entry.Key)] = entry.Value
 	}
 
@@ -288,13 +297,13 @@ func (m *Machine) process(ctx *Context, start *wire.StartMessage) error {
 		return wire.ErrUnexpectedMessage
 	}
 
-	m.log.Trace().Uint32("known entries", start.Payload.KnownEntries).Msg("known entires")
-	m.entries = make([]wire.Message, 0, start.Payload.KnownEntries-1)
+	m.log.Trace().Uint32("known entries", start.StartMessage.KnownEntries).Msg("known entires")
+	m.entries = make([]wire.Message, 0, start.StartMessage.KnownEntries-1)
 
 	outputSeen := false
 
 	// we don't track the poll input entry
-	for i := uint32(1); i < start.Payload.KnownEntries; i++ {
+	for i := uint32(1); i < start.StartMessage.KnownEntries; i++ {
 		msg, err := m.protocol.Read()
 		if err != nil {
 			return fmt.Errorf("failed to read entry: %w", err)
@@ -313,7 +322,7 @@ func (m *Machine) process(ctx *Context, start *wire.StartMessage) error {
 	go m.handleCompletionsAcks()
 
 	inputMsg := msg.(*wire.InputEntryMessage)
-	value := inputMsg.Payload.GetValue()
+	value := inputMsg.InputEntryMessage.GetValue()
 	return m.invoke(ctx, value, outputSeen)
 
 }

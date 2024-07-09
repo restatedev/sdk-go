@@ -21,7 +21,7 @@ func (m *Machine) set(key string, value []byte) error {
 		m,
 		wire.SetStateEntryMessageType,
 		func(entry *wire.SetStateEntryMessage) (void restate.Void, err error) {
-			if string(entry.Payload.Key) != key || !bytes.Equal(entry.Payload.Value, value) {
+			if string(entry.SetStateEntryMessage.Key) != key || !bytes.Equal(entry.SetStateEntryMessage.Value, value) {
 				return void, errEntryMismatch
 			}
 
@@ -40,9 +40,11 @@ func (m *Machine) set(key string, value []byte) error {
 
 func (m *Machine) _set(key string, value []byte) error {
 	return m.OneWayWrite(
-		&protocol.SetStateEntryMessage{
-			Key:   []byte(key),
-			Value: value,
+		&wire.SetStateEntryMessage{
+			SetStateEntryMessage: protocol.SetStateEntryMessage{
+				Key:   []byte(key),
+				Value: value,
+			},
 		})
 }
 
@@ -51,7 +53,7 @@ func (m *Machine) clear(key string) error {
 		m,
 		wire.ClearStateEntryMessageType,
 		func(entry *wire.ClearStateEntryMessage) (void restate.Void, err error) {
-			if string(entry.Payload.Key) != key {
+			if string(entry.ClearStateEntryMessage.Key) != key {
 				return void, errEntryMismatch
 			}
 
@@ -72,8 +74,10 @@ func (m *Machine) clear(key string) error {
 
 func (m *Machine) _clear(key string) error {
 	return m.OneWayWrite(
-		&protocol.ClearStateEntryMessage{
-			Key: []byte(key),
+		&wire.ClearStateEntryMessage{
+			ClearStateEntryMessage: protocol.ClearStateEntryMessage{
+				Key: []byte(key),
+			},
 		},
 	)
 }
@@ -101,7 +105,7 @@ func (m *Machine) clearAll() error {
 // clearAll drops all associated keys
 func (m *Machine) _clearAll() error {
 	return m.OneWayWrite(
-		&protocol.ClearAllStateEntryMessage{},
+		&wire.ClearAllStateEntryMessage{},
 	)
 }
 
@@ -110,11 +114,11 @@ func (m *Machine) get(key string) ([]byte, error) {
 		m,
 		wire.GetStateEntryMessageType,
 		func(entry *wire.GetStateEntryMessage) ([]byte, error) {
-			if string(entry.Payload.Key) != key {
+			if string(entry.GetStateEntryMessage.Key) != key {
 				return nil, errEntryMismatch
 			}
 
-			switch result := entry.Payload.Result.(type) {
+			switch result := entry.GetStateEntryMessage.Result.(type) {
 			case *protocol.GetStateEntryMessage_Empty:
 				return nil, nil
 			case *protocol.GetStateEntryMessage_Failure:
@@ -123,15 +127,17 @@ func (m *Machine) get(key string) ([]byte, error) {
 				return result.Value, nil
 			}
 
-			return nil, restate.TerminalError(fmt.Errorf("get state entry had invalid result: %v", entry.Payload.Result), restate.ErrProtocolViolation)
+			return nil, restate.TerminalError(fmt.Errorf("get state entry had invalid result: %v", entry.GetStateEntryMessage.Result), restate.ErrProtocolViolation)
 		}, func() ([]byte, error) {
 			return m._get(key)
 		})
 }
 
 func (m *Machine) _get(key string) ([]byte, error) {
-	msg := &protocol.GetStateEntryMessage{
-		Key: []byte(key),
+	msg := &wire.GetStateEntryMessage{
+		GetStateEntryMessage: protocol.GetStateEntryMessage{
+			Key: []byte(key),
+		},
 	}
 
 	value, ok := m.current[key]
@@ -139,7 +145,7 @@ func (m *Machine) _get(key string) ([]byte, error) {
 	if ok {
 		// value in map, we still send the current
 		// value to the runtime
-		msg.Result = &protocol.GetStateEntryMessage_Value{
+		msg.GetStateEntryMessage.Result = &protocol.GetStateEntryMessage_Value{
 			Value: value,
 		}
 
@@ -154,7 +160,7 @@ func (m *Machine) _get(key string) ([]byte, error) {
 	if !m.partial {
 		// current is complete. we need to return nil to the user
 		// but also send an empty get state entry message
-		msg.Result = &protocol.GetStateEntryMessage_Empty{}
+		msg.GetStateEntryMessage.Result = &protocol.GetStateEntryMessage_Empty{}
 
 		if err := m.OneWayWrite(msg); err != nil {
 			return nil, err
@@ -196,7 +202,7 @@ func (m *Machine) keys() ([]string, error) {
 		m,
 		wire.GetStateKeysEntryMessageType,
 		func(entry *wire.GetStateKeysEntryMessage) ([]string, error) {
-			switch result := entry.Payload.Result.(type) {
+			switch result := entry.GetStateKeysEntryMessage.Result.(type) {
 			case *protocol.GetStateKeysEntryMessage_Failure:
 				return nil, fmt.Errorf("[%d] %s", result.Failure.Code, result.Failure.Message)
 			case *protocol.GetStateKeysEntryMessage_Value:
@@ -207,14 +213,14 @@ func (m *Machine) keys() ([]string, error) {
 				return keys, nil
 			}
 
-			return nil, restate.TerminalError(fmt.Errorf("found get state keys entry with invalid completion: %v", entry.Payload.Result), 571)
+			return nil, restate.TerminalError(fmt.Errorf("found get state keys entry with invalid completion: %v", entry.GetStateKeysEntryMessage.Result), 571)
 		},
 		m._keys,
 	)
 }
 
 func (m *Machine) _keys() ([]string, error) {
-	msg := &protocol.GetStateKeysEntryMessage{}
+	msg := &wire.GetStateKeysEntryMessage{}
 	if !m.partial {
 		keys := make([]string, 0, len(m.current))
 		for k := range m.current {
@@ -230,7 +236,7 @@ func (m *Machine) _keys() ([]string, error) {
 		// we can return keys entirely from cache
 		// current is complete. we need to return nil to the user
 		// but also send an empty get state entry message
-		msg.Result = &protocol.GetStateKeysEntryMessage_Value{
+		msg.GetStateKeysEntryMessage.Result = &protocol.GetStateKeysEntryMessage_Value{
 			Value: &protocol.GetStateKeysEntryMessage_StateKeys{
 				Keys: byteKeys,
 			},
@@ -298,8 +304,10 @@ func (m *Machine) sleep(until time.Time) error {
 // as a form of optimization
 func (m *Machine) _sleep(until time.Time) error {
 	// TODO; why are we ack here?
-	ack, completionFut, err := m.Write(&protocol.SleepEntryMessage{
-		WakeUpTime: uint64(until.UnixMilli()),
+	ack, completionFut, err := m.Write(&wire.SleepEntryMessage{
+		SleepEntryMessage: protocol.SleepEntryMessage{
+			WakeUpTime: uint64(until.UnixMilli()),
+		},
 	}, wire.FlagRequiresAck)
 	if err != nil {
 		return err
@@ -324,7 +332,7 @@ func (m *Machine) sideEffect(fn func() ([]byte, error)) ([]byte, error) {
 		m,
 		wire.RunEntryMessageType,
 		func(entry *wire.RunEntryMessage) ([]byte, error) {
-			switch result := entry.Payload.Result.(type) {
+			switch result := entry.RunEntryMessage.Result.(type) {
 			case *protocol.RunEntryMessage_Failure:
 				return nil, ErrorFromFailure(result.Failure)
 			case *protocol.RunEntryMessage_Value:
@@ -334,7 +342,7 @@ func (m *Machine) sideEffect(fn func() ([]byte, error)) ([]byte, error) {
 				return nil, nil
 			}
 
-			return nil, restate.TerminalError(fmt.Errorf("side effect entry had invalid result: %v", entry.Payload.Result), restate.ErrProtocolViolation)
+			return nil, restate.TerminalError(fmt.Errorf("side effect entry had invalid result: %v", entry.RunEntryMessage.Result), restate.ErrProtocolViolation)
 		},
 		func() ([]byte, error) {
 			return m._sideEffect(fn)
@@ -347,11 +355,13 @@ func (m *Machine) _sideEffect(fn func() ([]byte, error)) ([]byte, error) {
 
 	if err != nil {
 		if restate.IsTerminalError(err) {
-			msg := protocol.RunEntryMessage{
-				Result: &protocol.RunEntryMessage_Failure{
-					Failure: &protocol.Failure{
-						Code:    uint32(restate.ErrorCode(err)),
-						Message: err.Error(),
+			msg := wire.RunEntryMessage{
+				RunEntryMessage: protocol.RunEntryMessage{
+					Result: &protocol.RunEntryMessage_Failure{
+						Failure: &protocol.Failure{
+							Code:    uint32(restate.ErrorCode(err)),
+							Message: err.Error(),
+						},
 					},
 				},
 			}
@@ -362,19 +372,23 @@ func (m *Machine) _sideEffect(fn func() ([]byte, error)) ([]byte, error) {
 			}
 		} else {
 			ty := uint32(wire.RunEntryMessageType)
-			msg := protocol.ErrorMessage{
-				Code:             uint32(restate.ErrorCode(err)),
-				Message:          err.Error(),
-				RelatedEntryType: &ty,
+			msg := wire.ErrorMessage{
+				ErrorMessage: protocol.ErrorMessage{
+					Code:             uint32(restate.ErrorCode(err)),
+					Message:          err.Error(),
+					RelatedEntryType: &ty,
+				},
 			}
 			if err := m.protocol.Write(&msg, 0); err != nil {
 				return nil, err
 			}
 		}
 	} else {
-		msg := protocol.RunEntryMessage{
-			Result: &protocol.RunEntryMessage_Value{
-				Value: bytes,
+		msg := wire.RunEntryMessage{
+			RunEntryMessage: protocol.RunEntryMessage{
+				Result: &protocol.RunEntryMessage_Value{
+					Value: bytes,
+				},
 			},
 		}
 		if ack, err := m.WriteWithAck(&msg); err != nil {

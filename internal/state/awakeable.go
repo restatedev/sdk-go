@@ -79,7 +79,7 @@ func (c *Machine) awakeable() (restate.Awakeable[[]byte], error) {
 		c,
 		wire.AwakeableEntryMessageType,
 		func(entry *wire.AwakeableEntryMessage) (restate.Awakeable[[]byte], error) {
-			if entry.Payload.Result == nil {
+			if entry.AwakeableEntryMessage.Result == nil {
 				completionFut := c.pendingCompletions[c.entryIndex]
 				if completionFut == nil {
 					return nil, restate.TerminalError(fmt.Errorf("replaying awakeable at index %d is not completed but no pending completion for it", c.entryIndex), restate.ErrProtocolViolation)
@@ -87,13 +87,13 @@ func (c *Machine) awakeable() (restate.Awakeable[[]byte], error) {
 				// replaying an uncompleted awakeable, there must be a pending entry for it
 				return &completionAwakeable{ctx: c.ctx, entryIndex: c.entryIndex, invocationID: c.id, completionFut: completionFut}, nil
 			}
-			switch result := entry.Payload.Result.(type) {
+			switch result := entry.AwakeableEntryMessage.Result.(type) {
 			case *protocol.AwakeableEntryMessage_Value:
 				return &completedAwakeable[[]byte]{entryIndex: c.entryIndex, invocationID: c.id, result: restate.Result[[]byte]{Value: result.Value}}, nil
 			case *protocol.AwakeableEntryMessage_Failure:
 				return &completedAwakeable[[]byte]{entryIndex: c.entryIndex, invocationID: c.id, result: restate.Result[[]byte]{Err: nil}}, nil
 			default:
-				return nil, restate.TerminalError(fmt.Errorf("awakeable entry had invalid result: %v", entry.Payload.Result), restate.ErrProtocolViolation)
+				return nil, restate.TerminalError(fmt.Errorf("awakeable entry had invalid result: %v", entry.AwakeableEntryMessage.Result), restate.ErrProtocolViolation)
 			}
 		},
 		c._awakeable,
@@ -105,7 +105,7 @@ func (c *Machine) awakeable() (restate.Awakeable[[]byte], error) {
 }
 
 func (c *Machine) _awakeable() (restate.Awakeable[[]byte], error) {
-	completionFut, err := c.WriteWithCompletion(&protocol.AwakeableEntryMessage{})
+	completionFut, err := c.WriteWithCompletion(&wire.AwakeableEntryMessage{})
 	if err != nil {
 		return nil, err
 	}
@@ -117,8 +117,8 @@ func (c *Machine) resolveAwakeable(id string, value []byte) error {
 		c,
 		wire.CompleteAwakeableEntryMessageType,
 		func(entry *wire.CompleteAwakeableEntryMessage) (restate.Void, error) {
-			messageValue, ok := entry.Payload.Result.(*protocol.CompleteAwakeableEntryMessage_Value)
-			if entry.Payload.Id != id || !ok || !bytes.Equal(messageValue.Value, value) {
+			messageValue, ok := entry.CompleteAwakeableEntryMessage.Result.(*protocol.CompleteAwakeableEntryMessage_Value)
+			if entry.CompleteAwakeableEntryMessage.Id != id || !ok || !bytes.Equal(messageValue.Value, value) {
 				return restate.Void{}, errEntryMismatch
 			}
 			return restate.Void{}, nil
@@ -134,9 +134,11 @@ func (c *Machine) resolveAwakeable(id string, value []byte) error {
 }
 
 func (c *Machine) _resolveAwakeable(id string, value []byte) error {
-	if err := c.OneWayWrite(&protocol.CompleteAwakeableEntryMessage{
-		Id:     id,
-		Result: &protocol.CompleteAwakeableEntryMessage_Value{Value: value},
+	if err := c.OneWayWrite(&wire.CompleteAwakeableEntryMessage{
+		CompleteAwakeableEntryMessage: protocol.CompleteAwakeableEntryMessage{
+			Id:     id,
+			Result: &protocol.CompleteAwakeableEntryMessage_Value{Value: value},
+		},
 	}); err != nil {
 		return err
 	}
@@ -148,8 +150,8 @@ func (c *Machine) rejectAwakeable(id string, reason error) error {
 		c,
 		wire.CompleteAwakeableEntryMessageType,
 		func(entry *wire.CompleteAwakeableEntryMessage) (restate.Void, error) {
-			messageFailure, ok := entry.Payload.Result.(*protocol.CompleteAwakeableEntryMessage_Failure)
-			if entry.Payload.Id != id || !ok || messageFailure.Failure.Code != uint32(restate.ErrorCode(reason)) || messageFailure.Failure.Message != reason.Error() {
+			messageFailure, ok := entry.CompleteAwakeableEntryMessage.Result.(*protocol.CompleteAwakeableEntryMessage_Failure)
+			if entry.CompleteAwakeableEntryMessage.Id != id || !ok || messageFailure.Failure.Code != uint32(restate.ErrorCode(reason)) || messageFailure.Failure.Message != reason.Error() {
 				return restate.Void{}, errEntryMismatch
 			}
 			return restate.Void{}, nil
@@ -165,12 +167,14 @@ func (c *Machine) rejectAwakeable(id string, reason error) error {
 }
 
 func (c *Machine) _rejectAwakeable(id string, reason error) error {
-	if err := c.OneWayWrite(&protocol.CompleteAwakeableEntryMessage{
-		Id: id,
-		Result: &protocol.CompleteAwakeableEntryMessage_Failure{Failure: &protocol.Failure{
-			Code:    uint32(restate.ErrorCode(reason)),
-			Message: reason.Error(),
-		}},
+	if err := c.OneWayWrite(&wire.CompleteAwakeableEntryMessage{
+		CompleteAwakeableEntryMessage: protocol.CompleteAwakeableEntryMessage{
+			Id: id,
+			Result: &protocol.CompleteAwakeableEntryMessage_Failure{Failure: &protocol.Failure{
+				Code:    uint32(restate.ErrorCode(reason)),
+				Message: reason.Error(),
+			}},
+		},
 	}); err != nil {
 		return err
 	}

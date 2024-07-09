@@ -89,6 +89,7 @@ func (t *Header) Flags() Flag {
 type Message interface {
 	Type() Type
 	Flags() Flag
+	proto.Message
 }
 
 type ReaderMessage struct {
@@ -160,44 +161,43 @@ func (s *Protocol) Read() (Message, error) {
 	return msg, nil
 }
 
-func (s *Protocol) Write(message proto.Message, flag Flag) error {
+func (s *Protocol) Write(message Message, flag Flag) error {
 	// all possible types sent by the sdk
 	var typ Type
 	switch message.(type) {
-	case *protocol.StartMessage:
-		// TODO: sdk should never write this message
+	case *StartMessage:
 		typ = StartMessageType
-	case *protocol.SuspensionMessage:
+	case *SuspensionMessage:
 		typ = SuspensionMessageType
-	case *protocol.InputEntryMessage:
+	case *InputEntryMessage:
 		typ = InputEntryMessageType
-	case *protocol.OutputEntryMessage:
+	case *OutputEntryMessage:
 		typ = OutputEntryMessageType
-	case *protocol.ErrorMessage:
+	case *ErrorMessage:
 		typ = ErrorMessageType
-	case *protocol.EndMessage:
+	case *EndMessage:
 		typ = EndMessageType
-	case *protocol.GetStateEntryMessage:
+	case *GetStateEntryMessage:
 		typ = GetStateEntryMessageType
-	case *protocol.SetStateEntryMessage:
+	case *SetStateEntryMessage:
 		typ = SetStateEntryMessageType
-	case *protocol.ClearStateEntryMessage:
+	case *ClearStateEntryMessage:
 		typ = ClearStateEntryMessageType
-	case *protocol.ClearAllStateEntryMessage:
+	case *ClearAllStateEntryMessage:
 		typ = ClearAllStateEntryMessageType
-	case *protocol.GetStateKeysEntryMessage:
+	case *GetStateKeysEntryMessage:
 		typ = GetStateKeysEntryMessageType
-	case *protocol.SleepEntryMessage:
+	case *SleepEntryMessage:
 		typ = SleepEntryMessageType
-	case *protocol.CallEntryMessage:
+	case *CallEntryMessage:
 		typ = CallEntryMessageType
-	case *protocol.OneWayCallEntryMessage:
+	case *OneWayCallEntryMessage:
 		typ = OneWayCallEntryMessageType
-	case *protocol.AwakeableEntryMessage:
+	case *AwakeableEntryMessage:
 		typ = AwakeableEntryMessageType
-	case *protocol.CompleteAwakeableEntryMessage:
+	case *CompleteAwakeableEntryMessage:
 		typ = CompleteAwakeableEntryMessageType
-	case *protocol.RunEntryMessage:
+	case *RunEntryMessage:
 		typ = RunEntryMessageType
 	default:
 		return fmt.Errorf("can not send message of unknown message type")
@@ -241,192 +241,207 @@ var (
 				Header: header,
 			}
 
-			return msg, proto.Unmarshal(bytes, &msg.Payload)
+			return msg, proto.Unmarshal(bytes, &msg.StartMessage)
 		},
 		EntryAckMessageType: func(header Header, bytes []byte) (Message, error) {
 			msg := &EntryAckMessage{
 				Header: header,
 			}
 
-			return msg, proto.Unmarshal(bytes, &msg.Payload)
+			return msg, proto.Unmarshal(bytes, &msg.EntryAckMessage)
 		},
 		InputEntryMessageType: func(header Header, bytes []byte) (Message, error) {
 			msg := &InputEntryMessage{
 				Header: header,
 			}
 
-			return msg, proto.Unmarshal(bytes, &msg.Payload)
+			return msg, proto.Unmarshal(bytes, &msg.InputEntryMessage)
 		},
 		OutputEntryMessageType: func(header Header, bytes []byte) (Message, error) {
 			msg := &OutputEntryMessage{
 				Header: header,
 			}
 
-			return msg, proto.Unmarshal(bytes, &msg.Payload)
+			return msg, proto.Unmarshal(bytes, &msg.OutputEntryMessage)
 		},
 		GetStateEntryMessageType: func(header Header, bytes []byte) (Message, error) {
 			msg := &GetStateEntryMessage{
 				Header: header,
 			}
 
-			return msg, proto.Unmarshal(bytes, &msg.Payload)
+			return msg, proto.Unmarshal(bytes, &msg.GetStateEntryMessage)
 		},
 		SetStateEntryMessageType: func(header Header, bytes []byte) (Message, error) {
 			msg := &SetStateEntryMessage{
 				Header: header,
 			}
 
-			return msg, proto.Unmarshal(bytes, &msg.Payload)
+			return msg, proto.Unmarshal(bytes, &msg.SetStateEntryMessage)
 		},
 		ClearStateEntryMessageType: func(header Header, bytes []byte) (Message, error) {
 			msg := &ClearStateEntryMessage{
 				Header: header,
 			}
 
-			return msg, proto.Unmarshal(bytes, &msg.Payload)
+			return msg, proto.Unmarshal(bytes, &msg.ClearStateEntryMessage)
 		},
 		ClearAllStateEntryMessageType: func(header Header, bytes []byte) (Message, error) {
 			msg := &ClearAllStateEntryMessage{
 				Header: header,
 			}
 
-			return msg, proto.Unmarshal(bytes, &msg.Payload)
+			return msg, proto.Unmarshal(bytes, &msg.ClearAllStateEntryMessage)
 		},
 		GetStateKeysEntryMessageType: func(header Header, bytes []byte) (Message, error) {
 			msg := &GetStateKeysEntryMessage{
 				Header: header,
 			}
 
-			return msg, proto.Unmarshal(bytes, &msg.Payload)
+			return msg, proto.Unmarshal(bytes, &msg.GetStateKeysEntryMessage)
 		},
 		CompletionMessageType: func(header Header, bytes []byte) (Message, error) {
 			msg := &CompletionMessage{
 				Header: header,
 			}
 
-			return msg, proto.Unmarshal(bytes, &msg.Payload)
+			return msg, proto.Unmarshal(bytes, &msg.CompletionMessage)
 		},
 		SleepEntryMessageType: func(header Header, bytes []byte) (Message, error) {
 			msg := &SleepEntryMessage{
 				Header: header,
 			}
 
-			return msg, proto.Unmarshal(bytes, &msg.Payload)
+			return msg, proto.Unmarshal(bytes, &msg.SleepEntryMessage)
 		},
 		CallEntryMessageType: func(header Header, bytes []byte) (Message, error) {
 			msg := &CallEntryMessage{
 				Header: header,
 			}
 
-			return msg, proto.Unmarshal(bytes, &msg.Payload)
+			return msg, proto.Unmarshal(bytes, &msg.CallEntryMessage)
 		},
 		OneWayCallEntryMessageType: func(header Header, bytes []byte) (Message, error) {
 			msg := &OneWayCallEntryMessage{
 				Header: header,
 			}
 
-			return msg, proto.Unmarshal(bytes, &msg.Payload)
+			return msg, proto.Unmarshal(bytes, &msg.OneWayCallEntryMessage)
 		},
 		AwakeableEntryMessageType: func(header Header, bytes []byte) (Message, error) {
 			msg := &AwakeableEntryMessage{
 				Header: header,
 			}
 
-			return msg, proto.Unmarshal(bytes, &msg.Payload)
+			return msg, proto.Unmarshal(bytes, &msg.AwakeableEntryMessage)
 		},
 		CompleteAwakeableEntryMessageType: func(header Header, bytes []byte) (Message, error) {
 			msg := &CompleteAwakeableEntryMessage{
 				Header: header,
 			}
 
-			return msg, proto.Unmarshal(bytes, &msg.Payload)
+			return msg, proto.Unmarshal(bytes, &msg.CompleteAwakeableEntryMessage)
 		},
 		RunEntryMessageType: func(header Header, bytes []byte) (Message, error) {
 			msg := &RunEntryMessage{
 				Header: header,
 			}
 
-			return msg, proto.Unmarshal(bytes, &msg.Payload)
+			return msg, proto.Unmarshal(bytes, &msg.RunEntryMessage)
 		},
 	}
 )
 
 type StartMessage struct {
 	Header
-	Payload protocol.StartMessage
+	protocol.StartMessage
+}
+
+type SuspensionMessage struct {
+	Header
+	protocol.SuspensionMessage
 }
 
 type InputEntryMessage struct {
 	Header
-	Payload protocol.InputEntryMessage
+	protocol.InputEntryMessage
 }
 
 type OutputEntryMessage struct {
 	Header
-	Payload protocol.OutputEntryMessage
+	protocol.OutputEntryMessage
+}
+
+type ErrorMessage struct {
+	Header
+	protocol.ErrorMessage
+}
+
+type EndMessage struct {
+	Header
+	protocol.EndMessage
 }
 
 type GetStateEntryMessage struct {
 	Header
-	Payload protocol.GetStateEntryMessage
+	protocol.GetStateEntryMessage
 }
 
 type SetStateEntryMessage struct {
 	Header
-	Payload protocol.SetStateEntryMessage
+	protocol.SetStateEntryMessage
 }
 
 type ClearStateEntryMessage struct {
 	Header
-	Payload protocol.ClearStateEntryMessage
+	protocol.ClearStateEntryMessage
 }
 
 type ClearAllStateEntryMessage struct {
 	Header
-	Payload protocol.ClearAllStateEntryMessage
+	protocol.ClearAllStateEntryMessage
 }
 
 type GetStateKeysEntryMessage struct {
 	Header
-	Payload protocol.GetStateKeysEntryMessage
+	protocol.GetStateKeysEntryMessage
 }
 
 type CompletionMessage struct {
 	Header
-	Payload protocol.CompletionMessage
+	protocol.CompletionMessage
 }
 
 type SleepEntryMessage struct {
 	Header
-	Payload protocol.SleepEntryMessage
+	protocol.SleepEntryMessage
 }
 
 type CallEntryMessage struct {
 	Header
-	Payload protocol.CallEntryMessage
+	protocol.CallEntryMessage
 }
 
 type OneWayCallEntryMessage struct {
 	Header
-	Payload protocol.OneWayCallEntryMessage
+	protocol.OneWayCallEntryMessage
 }
 
 type AwakeableEntryMessage struct {
 	Header
-	Payload protocol.AwakeableEntryMessage
+	protocol.AwakeableEntryMessage
 }
 
 type CompleteAwakeableEntryMessage struct {
 	Header
-	Payload protocol.CompleteAwakeableEntryMessage
+	protocol.CompleteAwakeableEntryMessage
 }
 
 type RunEntryMessage struct {
 	Header
-	Payload protocol.RunEntryMessage
+	protocol.RunEntryMessage
 }
 
 type EntryAckMessage struct {
 	Header
-	Payload protocol.EntryAckMessage
+	protocol.EntryAckMessage
 }

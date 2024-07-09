@@ -7,7 +7,6 @@ import (
 
 	"github.com/restatedev/sdk-go/generated/proto/protocol"
 	"github.com/restatedev/sdk-go/internal/wire"
-	"google.golang.org/protobuf/proto"
 )
 
 type AckFuture struct {
@@ -103,7 +102,7 @@ func (m *Machine) checkReplayCompletion(index uint32, msg wire.Message) {
 	}
 }
 
-func (m *Machine) Write(message proto.Message, flag wire.Flag) (*AckFuture, *CompletionFuture, error) {
+func (m *Machine) Write(message wire.Message, flag wire.Flag) (*AckFuture, *CompletionFuture, error) {
 	index := m.entryIndex
 	ack := m.pendingAcks[index]
 	completion := m.pendingCompletions[index]
@@ -115,13 +114,13 @@ func (m *Machine) Write(message proto.Message, flag wire.Flag) (*AckFuture, *Com
 
 	if completion == nil {
 		switch message := message.(type) {
-		case *protocol.SetStateEntryMessage, *protocol.ClearStateEntryMessage,
-			*protocol.ClearAllStateEntryMessage, *protocol.CompleteAwakeableEntryMessage,
-			*protocol.OneWayCallEntryMessage:
+		case *wire.SetStateEntryMessage, *wire.ClearStateEntryMessage,
+			*wire.ClearAllStateEntryMessage, *wire.CompleteAwakeableEntryMessage,
+			*wire.OneWayCallEntryMessage:
 			// don't need completion, nil is ok
-		case *protocol.GetStateEntryMessage:
+		case *wire.GetStateEntryMessage:
 			completion = newCompletion()
-			if message.Result == nil {
+			if message.GetStateEntryMessage.Result == nil {
 				m.pendingCompletions[index] = completion
 				break
 			} else {
@@ -129,9 +128,9 @@ func (m *Machine) Write(message proto.Message, flag wire.Flag) (*AckFuture, *Com
 				flag |= wire.FlagCompleted
 				break
 			}
-		case *protocol.GetStateKeysEntryMessage:
+		case *wire.GetStateKeysEntryMessage:
 			completion = newCompletion()
-			if message.Result == nil {
+			if message.GetStateKeysEntryMessage.Result == nil {
 				m.pendingCompletions[index] = completion
 				break
 			} else {
@@ -151,22 +150,22 @@ func (m *Machine) Write(message proto.Message, flag wire.Flag) (*AckFuture, *Com
 	return ack, completion, nil
 }
 
-func (m *Machine) OneWayWrite(message proto.Message) error {
+func (m *Machine) OneWayWrite(message wire.Message) error {
 	_, _, err := m.Write(message, 0)
 	return err
 }
 
-func (m *Machine) WriteWithCompletion(message proto.Message) (*CompletionFuture, error) {
-	_, ack, err := m.Write(message, 0)
-	if ack == nil {
+func (m *Machine) WriteWithCompletion(message wire.Message) (*CompletionFuture, error) {
+	_, completionFut, err := m.Write(message, 0)
+	if completionFut == nil {
 		return nil, fmt.Errorf("completion requested for message type that does not get completions")
 	}
-	return ack, err
+	return completionFut, err
 }
 
-func (m *Machine) WriteWithAck(message proto.Message) (*AckFuture, error) {
-	completion, _, err := m.Write(message, wire.FlagRequiresAck)
-	return completion, err
+func (m *Machine) WriteWithAck(message wire.Message) (*AckFuture, error) {
+	ackFut, _, err := m.Write(message, wire.FlagRequiresAck)
+	return ackFut, err
 }
 
 func (m *Machine) handleCompletionsAcks() {
@@ -178,28 +177,28 @@ func (m *Machine) handleCompletionsAcks() {
 		switch msg.Type() {
 		case wire.CompletionMessageType:
 			msg := msg.(*wire.CompletionMessage)
-			completion, ok := m.pendingCompletions[msg.Payload.EntryIndex]
+			completion, ok := m.pendingCompletions[msg.CompletionMessage.EntryIndex]
 			if !ok {
-				m.log.Error().Uint32("index", msg.Payload.EntryIndex).Msg("failed to find pending completion at index")
+				m.log.Error().Uint32("index", msg.CompletionMessage.EntryIndex).Msg("failed to find pending completion at index")
 				continue
 			}
-			if err := completion.complete(&msg.Payload); err != nil {
+			if err := completion.complete(&msg.CompletionMessage); err != nil {
 				m.log.Error().Err(err).Msg("failed to process completion")
 				continue
 			}
-			m.log.Debug().Uint32("index", msg.Payload.EntryIndex).Msg("processed completion")
+			m.log.Debug().Uint32("index", msg.CompletionMessage.EntryIndex).Msg("processed completion")
 		case wire.EntryAckMessageType:
 			msg := msg.(*wire.EntryAckMessage)
-			ack, ok := m.pendingAcks[msg.Payload.EntryIndex]
+			ack, ok := m.pendingAcks[msg.EntryAckMessage.EntryIndex]
 			if !ok {
-				m.log.Error().Uint32("index", msg.Payload.EntryIndex).Msg("failed to find pending ack at index")
+				m.log.Error().Uint32("index", msg.EntryAckMessage.EntryIndex).Msg("failed to find pending ack at index")
 				continue
 			}
 			if err := ack.ack(); err != nil {
 				m.log.Error().Err(err).Msg("Failed to process ack")
 				continue
 			}
-			m.log.Debug().Uint32("index", msg.Payload.EntryIndex).Msg("processed ack")
+			m.log.Debug().Uint32("index", msg.EntryAckMessage.EntryIndex).Msg("processed ack")
 		default:
 			m.log.Error().Stringer("type", msg.Type()).Msg("unexpected non-completion non-ack message during invocation")
 			continue

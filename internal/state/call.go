@@ -77,32 +77,34 @@ func (m *Machine) doCall(service, key, method string, params []byte) ([]byte, er
 		m,
 		wire.CallEntryMessageType,
 		func(entry *wire.CallEntryMessage) ([]byte, error) {
-			if entry.Payload.ServiceName != service ||
-				entry.Payload.Key != key ||
-				entry.Payload.HandlerName != method ||
-				!bytes.Equal(entry.Payload.Parameter, params) {
+			if entry.CallEntryMessage.ServiceName != service ||
+				entry.CallEntryMessage.Key != key ||
+				entry.CallEntryMessage.HandlerName != method ||
+				!bytes.Equal(entry.CallEntryMessage.Parameter, params) {
 				return nil, errEntryMismatch
 			}
 
-			switch result := entry.Payload.Result.(type) {
+			switch result := entry.CallEntryMessage.Result.(type) {
 			case *protocol.CallEntryMessage_Failure:
 				return nil, ErrorFromFailure(result.Failure)
 			case *protocol.CallEntryMessage_Value:
 				return result.Value, nil
 			}
 
-			return nil, restate.TerminalError(fmt.Errorf("sync call entry  had invalid result: %v", entry.Payload.Result), restate.ErrProtocolViolation)
+			return nil, restate.TerminalError(fmt.Errorf("sync call entry  had invalid result: %v", entry.CallEntryMessage.Result), restate.ErrProtocolViolation)
 		}, func() ([]byte, error) {
 			return m._doCall(service, key, method, params)
 		})
 }
 
 func (m *Machine) _doCall(service, key, method string, params []byte) ([]byte, error) {
-	msg := &protocol.CallEntryMessage{
-		ServiceName: service,
-		HandlerName: method,
-		Parameter:   params,
-		Key:         key,
+	msg := &wire.CallEntryMessage{
+		CallEntryMessage: protocol.CallEntryMessage{
+			ServiceName: service,
+			HandlerName: method,
+			Parameter:   params,
+			Key:         key,
+		},
 	}
 	completionFut, err := m.WriteWithCompletion(msg)
 	if err != nil {
@@ -138,10 +140,10 @@ func (c *Machine) sendCall(service, key, method string, body any, delay time.Dur
 		c,
 		wire.OneWayCallEntryMessageType,
 		func(entry *wire.OneWayCallEntryMessage) (restate.Void, error) {
-			if entry.Payload.ServiceName != service ||
-				entry.Payload.Key != key ||
-				entry.Payload.HandlerName != method ||
-				!bytes.Equal(entry.Payload.Parameter, params) {
+			if entry.OneWayCallEntryMessage.ServiceName != service ||
+				entry.OneWayCallEntryMessage.Key != key ||
+				entry.OneWayCallEntryMessage.HandlerName != method ||
+				!bytes.Equal(entry.OneWayCallEntryMessage.Parameter, params) {
 				return restate.Void{}, errEntryMismatch
 			}
 
@@ -161,12 +163,14 @@ func (c *Machine) _sendCall(service, key, method string, params []byte, delay ti
 		invokeTime = uint64(time.Now().Add(delay).UnixMilli())
 	}
 
-	err := c.OneWayWrite(&protocol.OneWayCallEntryMessage{
-		ServiceName: service,
-		HandlerName: method,
-		Parameter:   params,
-		Key:         key,
-		InvokeTime:  invokeTime,
+	err := c.OneWayWrite(&wire.OneWayCallEntryMessage{
+		OneWayCallEntryMessage: protocol.OneWayCallEntryMessage{
+			ServiceName: service,
+			HandlerName: method,
+			Parameter:   params,
+			Key:         key,
+			InvokeTime:  invokeTime,
+		},
 	})
 
 	if err != nil {
