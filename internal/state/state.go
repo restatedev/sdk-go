@@ -63,8 +63,16 @@ func (c *Context) Keys() ([]string, error) {
 	return c.machine.keys()
 }
 
-func (c *Context) Sleep(until time.Time) error {
-	return c.machine.sleep(until)
+func (c *Context) Sleep(d time.Duration) error {
+	after, err := c.machine.after(d)
+	if err != nil {
+		return err
+	}
+	return after.Done()
+}
+
+func (c *Context) After(d time.Duration) (restate.After, error) {
+	return c.machine.after(d)
 }
 
 func (c *Context) Service(service string) restate.ServiceClient {

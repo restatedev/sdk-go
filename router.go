@@ -44,8 +44,11 @@ type ServiceSendClient interface {
 type Context interface {
 	// Context of request.
 	Ctx() context.Context
-	// Sleep sleep during the execution until time is reached
-	Sleep(until time.Time) error
+
+	// Sleep for the duration d
+	Sleep(d time.Duration) error
+	// Return a handle on a sleep duration which can be combined
+	After(d time.Duration) (After, error)
 
 	// Service gets a Service accessor by name where service
 	// must be another service known by restate runtime
@@ -257,11 +260,6 @@ type Awakeable[T any] interface {
 	Result() (T, error)
 }
 
-type Result[T any] struct {
-	Value T
-	Err   error
-}
-
 type decodingAwakeable[T any] struct {
 	inner Awakeable[[]byte]
 }
@@ -293,4 +291,8 @@ func ResolveAwakeableAs[T any](ctx Context, id string, value T) error {
 		return TerminalError(err)
 	}
 	return ctx.ResolveAwakeable(id, bytes)
+}
+
+type After interface {
+	Done() error
 }

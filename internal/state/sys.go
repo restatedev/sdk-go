@@ -2,6 +2,7 @@ package state
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"sort"
 	"time"
@@ -258,34 +259,46 @@ func (m *Machine) _keys() (*wire.GetStateKeysEntryMessage, error) {
 	return msg, nil
 }
 
-func (m *Machine) sleep(until time.Time) error {
+type after struct {
+	ctx   context.Context
+	entry *wire.SleepEntryMessage
+}
+
+func (a *after) Done() error {
+	return a.entry.Await(a.ctx)
+}
+
+func (m *Machine) after(d time.Duration) (restate.After, error) {
 	entry, err := replayOrNew(
 		m,
 		func(entry *wire.SleepEntryMessage) (*wire.SleepEntryMessage, error) {
 			// we shouldn't verify the time because this would be different every time
 			return entry, nil
 		}, func() (*wire.SleepEntryMessage, error) {
-			return m._sleep(until)
+			return m._sleep(d)
 		},
 	)
+	if err != nil {
+		return nil, err
+	}
+
+	return &after{m.ctx, entry}, nil
+}
+
+func (m *Machine) sleep(d time.Duration) error {
+	after, err := m.after(d)
 	if err != nil {
 		return err
 	}
 
-	if err := entry.Await(m.ctx); err != nil {
-		return err
-	}
-
-	return err
+	return after.Done()
 }
 
-// _sleep creating a new sleep entry. The implementation of this function
-// will also suspend execution if sleep duration is greater than 1 second
-// as a form of optimization
-func (m *Machine) _sleep(until time.Time) (*wire.SleepEntryMessage, error) {
+// _sleep creating a new sleep entry.
+func (m *Machine) _sleep(d time.Duration) (*wire.SleepEntryMessage, error) {
 	msg := &wire.SleepEntryMessage{
 		SleepEntryMessage: protocol.SleepEntryMessage{
-			WakeUpTime: uint64(until.UnixMilli()),
+			WakeUpTime: uint64(time.Now().Add(d).UnixMilli()),
 		},
 	}
 	if err := m.Write(msg); err != nil {

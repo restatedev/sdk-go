@@ -14,17 +14,6 @@ import (
 
 const AWAKEABLE_IDENTIFIER_PREFIX = "prom_1"
 
-func resultFromAwakeable(entry *wire.AwakeableEntryMessage) restate.Result[[]byte] {
-	switch result := entry.Result.(type) {
-	case *protocol.AwakeableEntryMessage_Value:
-		return restate.Result[[]byte]{Value: result.Value}
-	case *protocol.AwakeableEntryMessage_Failure:
-		return restate.Result[[]byte]{Err: restate.TerminalError(ErrorFromFailure(result.Failure))}
-	default:
-		panic("unreachable")
-	}
-}
-
 type completionAwakeable struct {
 	ctx          context.Context
 	invocationID []byte
