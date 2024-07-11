@@ -2,47 +2,12 @@ package state
 
 import (
 	"bytes"
-	"context"
-	"encoding/base64"
-	"encoding/binary"
-	"fmt"
 
 	restate "github.com/restatedev/sdk-go"
 	"github.com/restatedev/sdk-go/generated/proto/protocol"
+	"github.com/restatedev/sdk-go/internal/futures"
 	"github.com/restatedev/sdk-go/internal/wire"
 )
-
-const AWAKEABLE_IDENTIFIER_PREFIX = "prom_1"
-
-type completionAwakeable struct {
-	ctx          context.Context
-	invocationID []byte
-	entryIndex   uint32
-	entry        *wire.AwakeableEntryMessage
-}
-
-func (c *completionAwakeable) Id() string { return awakeableID(c.invocationID, c.entryIndex) }
-func (c *completionAwakeable) Result() ([]byte, error) {
-	if err := c.entry.Await(c.ctx); err != nil {
-		return nil, err
-	} else {
-		switch result := c.entry.Result.(type) {
-		case *protocol.AwakeableEntryMessage_Value:
-			return result.Value, nil
-		case *protocol.AwakeableEntryMessage_Failure:
-			return nil, ErrorFromFailure(result.Failure)
-		default:
-			return nil, fmt.Errorf("unexpected result in completed awakeable entry: %v", c.entry.Result)
-		}
-	}
-}
-
-func awakeableID(invocationID []byte, entryIndex uint32) string {
-	bytes := make([]byte, 0, len(invocationID)+4)
-	bytes = append(bytes, invocationID...)
-	bytes = binary.BigEndian.AppendUint32(bytes, entryIndex)
-	return "prom_1" + base64.RawURLEncoding.EncodeToString(bytes)
-}
 
 type indexedEntry struct {
 	entry      *wire.AwakeableEntryMessage
@@ -61,7 +26,7 @@ func (c *Machine) awakeable() (restate.Awakeable[[]byte], error) {
 		return nil, err
 	}
 
-	return &completionAwakeable{ctx: c.ctx, entryIndex: indexedEntry.entryIndex, invocationID: c.id, entry: indexedEntry.entry}, nil
+	return futures.NewAwakeable(c.ctx, c.id, indexedEntry.entryIndex, indexedEntry.entry), nil
 }
 
 func (c *Machine) _awakeable() (indexedEntry, error) {

@@ -566,6 +566,10 @@ func (c *completable) Completed() bool {
 
 func (c *completable) Await(ctx context.Context) error {
 	c.init()
+	if c.completed.Load() {
+		// fast path
+		return nil
+	}
 	select {
 	case <-ctx.Done():
 		return ctx.Err()
@@ -611,6 +615,10 @@ func (c *ackable) Acked() bool {
 
 func (c *ackable) Await(ctx context.Context) error {
 	c.init()
+	if c.acked.Load() {
+		// fast path
+		return nil
+	}
 	select {
 	case <-ctx.Done():
 		return ctx.Err()

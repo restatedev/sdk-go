@@ -2,13 +2,14 @@ package state
 
 import (
 	"bytes"
-	"context"
 	"fmt"
 	"sort"
 	"time"
 
 	restate "github.com/restatedev/sdk-go"
 	"github.com/restatedev/sdk-go/generated/proto/protocol"
+	"github.com/restatedev/sdk-go/internal/errors"
+	"github.com/restatedev/sdk-go/internal/futures"
 	"github.com/restatedev/sdk-go/internal/wire"
 	"google.golang.org/protobuf/proto"
 )
@@ -139,7 +140,7 @@ func (m *Machine) get(key string) ([]byte, error) {
 		return value.Value, nil
 	}
 
-	return nil, restate.TerminalError(fmt.Errorf("get state had invalid result: %v", entry.Result), restate.ErrProtocolViolation)
+	return nil, restate.TerminalError(fmt.Errorf("get state had invalid result: %v", entry.Result), errors.ErrProtocolViolation)
 }
 
 func (m *Machine) _get(key string) (*wire.GetStateEntryMessage, error) {
@@ -259,15 +260,6 @@ func (m *Machine) _keys() (*wire.GetStateKeysEntryMessage, error) {
 	return msg, nil
 }
 
-type after struct {
-	ctx   context.Context
-	entry *wire.SleepEntryMessage
-}
-
-func (a *after) Done() error {
-	return a.entry.Await(a.ctx)
-}
-
 func (m *Machine) after(d time.Duration) (restate.After, error) {
 	entry, err := replayOrNew(
 		m,
@@ -282,7 +274,7 @@ func (m *Machine) after(d time.Duration) (restate.After, error) {
 		return nil, err
 	}
 
-	return &after{m.ctx, entry}, nil
+	return futures.NewAfter(m.ctx, entry), nil
 }
 
 func (m *Machine) sleep(d time.Duration) error {
@@ -330,7 +322,7 @@ func (m *Machine) sideEffect(fn func() ([]byte, error)) ([]byte, error) {
 
 	switch result := entry.Result.(type) {
 	case *protocol.RunEntryMessage_Failure:
-		return nil, ErrorFromFailure(result.Failure)
+		return nil, errors.ErrorFromFailure(result.Failure)
 	case *protocol.RunEntryMessage_Value:
 		return result.Value, nil
 	case nil:
@@ -338,7 +330,7 @@ func (m *Machine) sideEffect(fn func() ([]byte, error)) ([]byte, error) {
 		return nil, nil
 	}
 
-	return nil, restate.TerminalError(fmt.Errorf("side effect entry had invalid result: %v", entry.Result), restate.ErrProtocolViolation)
+	return nil, restate.TerminalError(fmt.Errorf("side effect entry had invalid result: %v", entry.Result), errors.ErrProtocolViolation)
 }
 
 func (m *Machine) _sideEffect(fn func() ([]byte, error)) (*wire.RunEntryMessage, error) {

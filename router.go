@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/restatedev/sdk-go/internal"
+	"github.com/restatedev/sdk-go/internal/futures"
 	"github.com/vmihailenco/msgpack/v5"
 )
 
@@ -29,6 +30,7 @@ type ResponseFuture interface {
 	Err() error
 	// Response waits for the response to the call and unmarshals it into output
 	Response(output any) error
+	futures.Selectable
 }
 
 type ServiceClient interface {
@@ -258,15 +260,16 @@ func SideEffectAs[T any](ctx Context, fn func() (T, error)) (output T, err error
 type Awakeable[T any] interface {
 	Id() string
 	Result() (T, error)
+	futures.Selectable
 }
 
 type decodingAwakeable[T any] struct {
-	inner Awakeable[[]byte]
+	Awakeable[[]byte]
 }
 
-func (d decodingAwakeable[T]) Id() string { return d.inner.Id() }
+func (d decodingAwakeable[T]) Id() string { return d.Awakeable.Id() }
 func (d decodingAwakeable[T]) Result() (out T, err error) {
-	bytes, err := d.inner.Result()
+	bytes, err := d.Awakeable.Result()
 	if err != nil {
 		return out, err
 	}
@@ -282,7 +285,7 @@ func AwakeableAs[T any](ctx Context) (Awakeable[T], error) {
 		return nil, err
 	}
 
-	return decodingAwakeable[T]{inner: inner}, nil
+	return decodingAwakeable[T]{Awakeable: inner}, nil
 }
 
 func ResolveAwakeableAs[T any](ctx Context, id string, value T) error {
@@ -295,4 +298,5 @@ func ResolveAwakeableAs[T any](ctx Context, id string, value T) error {
 
 type After interface {
 	Done() error
+	futures.Selectable
 }

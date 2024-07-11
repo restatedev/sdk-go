@@ -2,13 +2,13 @@ package state
 
 import (
 	"bytes"
-	"context"
 	"encoding/json"
 	"fmt"
 	"time"
 
 	restate "github.com/restatedev/sdk-go"
 	"github.com/restatedev/sdk-go/generated/proto/protocol"
+	"github.com/restatedev/sdk-go/internal/futures"
 	"github.com/restatedev/sdk-go/internal/wire"
 )
 
@@ -60,9 +60,9 @@ type serviceCall struct {
 // Do makes a call and wait for the response
 func (c *serviceCall) Request(input any) restate.ResponseFuture {
 	if msg, err := c.machine.doDynCall(c.service, c.key, c.method, input); err != nil {
-		return &responseFuture{ctx: c.ctx, err: err}
+		return futures.NewFailedResponseFuture(c.ctx, err)
 	} else {
-		return &responseFuture{ctx: c.ctx, msg: msg}
+		return futures.NewResponseFuture(c.ctx, msg)
 	}
 }
 
@@ -78,44 +78,6 @@ type serviceSend struct {
 // Send runs a call in the background after delay duration
 func (c *serviceSend) Request(input any) error {
 	return c.machine.sendCall(c.service, c.key, c.method, input, c.delay)
-}
-
-type responseFuture struct {
-	ctx context.Context
-	err error
-	msg *wire.CallEntryMessage
-}
-
-func (r *responseFuture) Err() error {
-	return r.err
-}
-
-func (r *responseFuture) Response(output any) error {
-	if r.err != nil {
-		return r.err
-	}
-
-	if err := r.msg.Await(r.ctx); err != nil {
-		return err
-	}
-
-	var bytes []byte
-	switch result := r.msg.Result.(type) {
-	case *protocol.CallEntryMessage_Failure:
-		return ErrorFromFailure(result.Failure)
-	case *protocol.CallEntryMessage_Value:
-		bytes = result.Value
-	default:
-		return restate.TerminalError(fmt.Errorf("sync call had invalid result: %v", r.msg.Result), restate.ErrProtocolViolation)
-
-	}
-
-	if err := json.Unmarshal(bytes, output); err != nil {
-		// TODO: is this should be a terminal error or not?
-		return restate.TerminalError(fmt.Errorf("failed to decode response (%s): %w", string(bytes), err))
-	}
-
-	return nil
 }
 
 func (m *Machine) doDynCall(service, key, method string, input any) (*wire.CallEntryMessage, error) {
@@ -211,8 +173,4 @@ func (c *Machine) _sendCall(service, key, method string, params []byte, delay ti
 	}
 
 	return nil
-}
-
-func ErrorFromFailure(failure *protocol.Failure) error {
-	return restate.TerminalError(fmt.Errorf(failure.Message), restate.Code(failure.Code))
 }

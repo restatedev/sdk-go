@@ -90,7 +90,7 @@ func checkout(ctx restate.ObjectContext, _ restate.Void) (bool, error) {
 	log.Info().Str("id", response.ID).Int("price", response.Price).Msg("payment details")
 
 	for _, ticket := range tickets {
-		call := ctx.ObjectSend(ticket, TicketServiceName, 0).Method("markAsSold")
+		call := ctx.ObjectSend(TicketServiceName, ticket, 0).Method("markAsSold")
 		if err := call.Request(nil); err != nil {
 			return false, err
 		}
