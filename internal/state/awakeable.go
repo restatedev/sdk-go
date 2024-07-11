@@ -31,9 +31,7 @@ func (c *Machine) awakeable() (restate.Awakeable[[]byte], error) {
 
 func (c *Machine) _awakeable() (indexedEntry, error) {
 	msg := &wire.AwakeableEntryMessage{}
-	if err := c.Write(msg); err != nil {
-		return indexedEntry{}, err
-	}
+	c.Write(msg)
 	return indexedEntry{msg, c.entryIndex}, nil
 }
 
@@ -63,14 +61,12 @@ func (m *Machine) resolveAwakeable(id string, value []byte) error {
 }
 
 func (c *Machine) _resolveAwakeable(id string, value []byte) error {
-	if err := c.Write(&wire.CompleteAwakeableEntryMessage{
+	c.Write(&wire.CompleteAwakeableEntryMessage{
 		CompleteAwakeableEntryMessage: protocol.CompleteAwakeableEntryMessage{
 			Id:     id,
 			Result: &protocol.CompleteAwakeableEntryMessage_Value{Value: value},
 		},
-	}); err != nil {
-		return err
-	}
+	})
 	return nil
 }
 
@@ -103,7 +99,7 @@ func (m *Machine) rejectAwakeable(id string, reason error) error {
 }
 
 func (c *Machine) _rejectAwakeable(id string, reason error) error {
-	if err := c.Write(&wire.CompleteAwakeableEntryMessage{
+	c.Write(&wire.CompleteAwakeableEntryMessage{
 		CompleteAwakeableEntryMessage: protocol.CompleteAwakeableEntryMessage{
 			Id: id,
 			Result: &protocol.CompleteAwakeableEntryMessage_Failure{Failure: &protocol.Failure{
@@ -111,8 +107,6 @@ func (c *Machine) _rejectAwakeable(id string, reason error) error {
 				Message: reason.Error(),
 			}},
 		},
-	}); err != nil {
-		return err
-	}
+	})
 	return nil
 }

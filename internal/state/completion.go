@@ -26,7 +26,7 @@ func (m *Machine) ackable(entryIndex uint32) wire.AckableMessage {
 	return m.pendingAcks[entryIndex]
 }
 
-func (m *Machine) Write(message wire.Message) error {
+func (m *Machine) Write(message wire.Message) {
 	if message, ok := message.(wire.CompleteableMessage); ok && !message.Completed() {
 		m.pendingMutex.Lock()
 		m.pendingCompletions[m.entryIndex] = message
@@ -37,7 +37,20 @@ func (m *Machine) Write(message wire.Message) error {
 		m.pendingAcks[m.entryIndex] = message
 		m.pendingMutex.Unlock()
 	}
-	return m.protocol.Write(message)
+	if err := m.protocol.Write(message); err != nil {
+		panic(m.newWriteError(message, err))
+	}
+}
+
+type writeError struct {
+	entry wire.Message
+	err   error
+}
+
+func (m *Machine) newWriteError(entry wire.Message, err error) *writeError {
+	w := &writeError{entry, err}
+	m.failure = w
+	return w
 }
 
 func (m *Machine) handleCompletionsAcks() {

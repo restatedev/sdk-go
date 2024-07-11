@@ -228,24 +228,42 @@ func (m *Machine) invoke(ctx *Context, input []byte, outputSeen bool) error {
 		case *entryMismatch:
 			expected, _ := json.Marshal(typ.expectedEntry)
 			actual, _ := json.Marshal(typ.actualEntry)
-			msg := fmt.Sprintf(`Journal mismatch: Replayed journal entries did not correspond to the user code. The user code has to be deterministic!
-The journal entry at position %d was:
-- In the user code: type: %T, message: %s
-- In the replayed messages: type: %T, message %s`,
-				typ.entryIndex, typ.expectedEntry, string(expected), typ.actualEntry, string(actual))
 
-			m.log.Error().Msg(msg)
+			m.log.Error().
+				Type("expectedType", typ.expectedEntry).
+				RawJSON("expectedMessage", expected).
+				Type("actualType", typ.actualEntry).
+				RawJSON("actualMessage", actual).
+				Msg("Journal mismatch: Replayed journal entries did not correspond to the user code. The user code has to be deterministic!")
 
 			// journal entry mismatch
 			if err := m.protocol.Write(&wire.ErrorMessage{
 				ErrorMessage: protocol.ErrorMessage{
-					Code:        uint32(errors.ErrJournalMismatch),
-					Message:     msg,
+					Code: uint32(errors.ErrJournalMismatch),
+					Message: fmt.Sprintf(`Journal mismatch: Replayed journal entries did not correspond to the user code. The user code has to be deterministic!
+The journal entry at position %d was:
+- In the user code: type: %T, message: %s
+- In the replayed messages: type: %T, message %s`,
+						typ.entryIndex, typ.expectedEntry, string(expected), typ.actualEntry, string(actual)),
 					Description: string(debug.Stack()),
 				},
 			}); err != nil {
 				m.log.Error().Err(err).Msg("error sending failure message")
 			}
+
+			return
+		case *writeError:
+			m.log.Error().Err(typ.err).Msg("Failed to write entry to Restate, shutting down state machine")
+			// don't even check for failure here because most likely the http2 conn is closed anyhow
+			_ = m.protocol.Write(&wire.ErrorMessage{
+				ErrorMessage: protocol.ErrorMessage{
+					Code:        uint32(errors.ErrProtocolViolation),
+					Message:     typ.err.Error(),
+					Description: string(debug.Stack()),
+				},
+			})
+
+			return
 		default:
 			// unknown panic!
 			// send an error message (retryable)

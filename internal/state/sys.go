@@ -41,7 +41,8 @@ func (m *Machine) set(key string, value []byte) error {
 			}
 			return
 		}, func() (void restate.Void, err error) {
-			return void, m._set(key, value)
+			m._set(key, value)
+			return void, nil
 		})
 	if err != nil {
 		return err
@@ -52,8 +53,8 @@ func (m *Machine) set(key string, value []byte) error {
 	return nil
 }
 
-func (m *Machine) _set(key string, value []byte) error {
-	return m.Write(
+func (m *Machine) _set(key string, value []byte) {
+	m.Write(
 		&wire.SetStateEntryMessage{
 			SetStateEntryMessage: protocol.SetStateEntryMessage{
 				Key:   []byte(key),
@@ -76,7 +77,8 @@ func (m *Machine) clear(key string) error {
 
 			return
 		}, func() (restate.Void, error) {
-			return restate.Void{}, m._clear(key)
+			m._clear(key)
+			return restate.Void{}, nil
 		},
 	)
 
@@ -89,8 +91,8 @@ func (m *Machine) clear(key string) error {
 	return err
 }
 
-func (m *Machine) _clear(key string) error {
-	return m.Write(
+func (m *Machine) _clear(key string) {
+	m.Write(
 		&wire.ClearStateEntryMessage{
 			ClearStateEntryMessage: protocol.ClearStateEntryMessage{
 				Key: []byte(key),
@@ -105,7 +107,8 @@ func (m *Machine) clearAll() error {
 		func(entry *wire.ClearAllStateEntryMessage) (void restate.Void) {
 			return
 		}, func() (restate.Void, error) {
-			return restate.Void{}, m._clearAll()
+			m._clearAll()
+			return restate.Void{}, nil
 		},
 	)
 	if err != nil {
@@ -119,8 +122,8 @@ func (m *Machine) clearAll() error {
 }
 
 // clearAll drops all associated keys
-func (m *Machine) _clearAll() error {
-	return m.Write(
+func (m *Machine) _clearAll() {
+	m.Write(
 		&wire.ClearAllStateEntryMessage{},
 	)
 }
@@ -178,9 +181,7 @@ func (m *Machine) _get(key string) (*wire.GetStateEntryMessage, error) {
 		// value to the runtime
 		msg.Complete(&protocol.CompletionMessage{Result: &protocol.CompletionMessage_Value{Value: value}})
 
-		if err := m.Write(msg); err != nil {
-			return nil, err
-		}
+		m.Write(msg)
 
 		return msg, nil
 	}
@@ -191,18 +192,14 @@ func (m *Machine) _get(key string) (*wire.GetStateEntryMessage, error) {
 		// but also send an empty get state entry message
 		msg.Complete(&protocol.CompletionMessage{Result: &protocol.CompletionMessage_Empty{Empty: &protocol.Empty{}}})
 
-		if err := m.Write(msg); err != nil {
-			return nil, err
-		}
+		m.Write(msg)
 
 		return msg, nil
 	}
 
 	// we didn't see the value and we don't know for sure there isn't one; ask the runtime for it
 
-	if err := m.Write(msg); err != nil {
-		return nil, err
-	}
+	m.Write(msg)
 
 	return msg, nil
 }
@@ -266,17 +263,9 @@ func (m *Machine) _keys() (*wire.GetStateKeysEntryMessage, error) {
 		msg.Complete(&protocol.CompletionMessage{Result: &protocol.CompletionMessage_Value{
 			Value: value,
 		}})
-
-		if err := m.Write(msg); err != nil {
-			return nil, err
-		}
-
-		return nil, nil
 	}
 
-	if err := m.Write(msg); err != nil {
-		return nil, err
-	}
+	m.Write(msg)
 
 	return msg, nil
 }
@@ -314,9 +303,7 @@ func (m *Machine) _sleep(d time.Duration) (*wire.SleepEntryMessage, error) {
 			WakeUpTime: uint64(time.Now().Add(d).UnixMilli()),
 		},
 	}
-	if err := m.Write(msg); err != nil {
-		return nil, err
-	}
+	m.Write(msg)
 
 	return msg, nil
 }
@@ -369,9 +356,7 @@ func (m *Machine) _sideEffect(fn func() ([]byte, error)) (*wire.RunEntryMessage,
 					},
 				},
 			}
-			if err := m.Write(msg); err != nil {
-				return nil, err
-			}
+			m.Write(msg)
 
 			// don't return the original error, we will turn the entry back into an error later
 			// that way its not different replay vs non-replay
@@ -399,9 +384,7 @@ func (m *Machine) _sideEffect(fn func() ([]byte, error)) (*wire.RunEntryMessage,
 				},
 			},
 		}
-		if err := m.Write(msg); err != nil {
-			return nil, err
-		}
+		m.Write(msg)
 
 		return msg, nil
 	}

@@ -3,7 +3,6 @@ package state
 import (
 	"bytes"
 	"encoding/json"
-	"fmt"
 	"time"
 
 	restate "github.com/restatedev/sdk-go"
@@ -124,9 +123,7 @@ func (m *Machine) _doCall(service, key, method string, params []byte) (*wire.Cal
 			Key:         key,
 		},
 	}
-	if err := m.Write(msg); err != nil {
-		return nil, fmt.Errorf("failed to send request message: %w", err)
-	}
+	m.Write(msg)
 
 	return msg, nil
 }
@@ -172,7 +169,7 @@ func (c *Machine) _sendCall(service, key, method string, params []byte, delay ti
 		invokeTime = uint64(time.Now().Add(delay).UnixMilli())
 	}
 
-	err := c.Write(&wire.OneWayCallEntryMessage{
+	c.Write(&wire.OneWayCallEntryMessage{
 		OneWayCallEntryMessage: protocol.OneWayCallEntryMessage{
 			ServiceName: service,
 			HandlerName: method,
@@ -181,10 +178,6 @@ func (c *Machine) _sendCall(service, key, method string, params []byte, delay ti
 			InvokeTime:  invokeTime,
 		},
 	})
-
-	if err != nil {
-		return fmt.Errorf("failed to send request message: %w", err)
-	}
 
 	return nil
 }
