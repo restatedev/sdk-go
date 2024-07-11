@@ -14,19 +14,16 @@ type indexedEntry struct {
 	entryIndex uint32
 }
 
-func (c *Machine) awakeable() (restate.Awakeable[[]byte], error) {
-	indexedEntry, err := replayOrNew(
+func (c *Machine) awakeable() restate.Awakeable[[]byte] {
+	indexedEntry := replayOrNew(
 		c,
 		func(entry *wire.AwakeableEntryMessage) indexedEntry {
 			return indexedEntry{entry, c.entryIndex}
 		},
 		c._awakeable,
 	)
-	if err != nil {
-		return nil, err
-	}
 
-	return futures.NewAwakeable(c.ctx, c.id, indexedEntry.entryIndex, indexedEntry.entry), nil
+	return futures.NewAwakeable(c.ctx, c.id, indexedEntry.entryIndex, indexedEntry.entry)
 }
 
 func (c *Machine) _awakeable() indexedEntry {
@@ -35,8 +32,8 @@ func (c *Machine) _awakeable() indexedEntry {
 	return indexedEntry{msg, c.entryIndex}
 }
 
-func (m *Machine) resolveAwakeable(id string, value []byte) error {
-	_, err := replayOrNew(
+func (m *Machine) resolveAwakeable(id string, value []byte) {
+	_ = replayOrNew(
 		m,
 		func(entry *wire.CompleteAwakeableEntryMessage) restate.Void {
 			messageValue, ok := entry.Result.(*protocol.CompleteAwakeableEntryMessage_Value)
@@ -55,7 +52,6 @@ func (m *Machine) resolveAwakeable(id string, value []byte) error {
 			return restate.Void{}
 		},
 	)
-	return err
 }
 
 func (c *Machine) _resolveAwakeable(id string, value []byte) {
@@ -67,8 +63,8 @@ func (c *Machine) _resolveAwakeable(id string, value []byte) {
 	})
 }
 
-func (m *Machine) rejectAwakeable(id string, reason error) error {
-	_, err := replayOrNew(
+func (m *Machine) rejectAwakeable(id string, reason error) {
+	_ = replayOrNew(
 		m,
 		func(entry *wire.CompleteAwakeableEntryMessage) restate.Void {
 			messageFailure, ok := entry.Result.(*protocol.CompleteAwakeableEntryMessage_Failure)
@@ -90,10 +86,9 @@ func (m *Machine) rejectAwakeable(id string, reason error) error {
 			return restate.Void{}
 		},
 	)
-	return err
 }
 
-func (c *Machine) _rejectAwakeable(id string, reason error) error {
+func (c *Machine) _rejectAwakeable(id string, reason error) {
 	c.Write(&wire.CompleteAwakeableEntryMessage{
 		CompleteAwakeableEntryMessage: protocol.CompleteAwakeableEntryMessage{
 			Id: id,
@@ -103,5 +98,4 @@ func (c *Machine) _rejectAwakeable(id string, reason error) error {
 			}},
 		},
 	})
-	return nil
 }

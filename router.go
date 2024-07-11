@@ -76,9 +76,9 @@ type Context interface {
 	// Note: use the SideEffectAs helper function
 	SideEffect(fn func() ([]byte, error)) ([]byte, error)
 
-	Awakeable() (Awakeable[[]byte], error)
-	ResolveAwakeable(id string, value []byte) error
-	RejectAwakeable(id string, reason error) error
+	Awakeable() Awakeable[[]byte]
+	ResolveAwakeable(id string, value []byte)
+	RejectAwakeable(id string, reason error)
 }
 
 // Router interface
@@ -123,7 +123,7 @@ type KeyValueStore interface {
 	// Set sets key value to bytes array. You can
 	// Note: Use SetAs helper function to seamlessly store
 	// a value of specific type.
-	Set(key string, value []byte) error
+	Set(key string, value []byte)
 	// Get gets value (bytes array) associated with key
 	// If key does not exist, this function return a nil bytes array
 	// and a nil error
@@ -131,9 +131,9 @@ type KeyValueStore interface {
 	// as specific type.
 	Get(key string) ([]byte, error)
 	// Clear deletes a key
-	Clear(key string) error
+	Clear(key string)
 	// ClearAll drops all stored state associated with key
-	ClearAll() error
+	ClearAll()
 	// Keys returns a list of all associated key
 	Keys() ([]string, error)
 }
@@ -232,7 +232,8 @@ func SetAs[T any](ctx ObjectContext, key string, value T) error {
 		return err
 	}
 
-	return ctx.Set(key, bytes)
+	ctx.Set(key, bytes)
+	return nil
 }
 
 // SideEffectAs helper function runs a side effect function with specific concrete type as a result
@@ -279,13 +280,8 @@ func (d decodingAwakeable[T]) Result() (out T, err error) {
 	return
 }
 
-func AwakeableAs[T any](ctx Context) (Awakeable[T], error) {
-	inner, err := ctx.Awakeable()
-	if err != nil {
-		return nil, err
-	}
-
-	return decodingAwakeable[T]{Awakeable: inner}, nil
+func AwakeableAs[T any](ctx Context) Awakeable[T] {
+	return decodingAwakeable[T]{Awakeable: ctx.Awakeable()}
 }
 
 func ResolveAwakeableAs[T any](ctx Context, id string, value T) error {
@@ -293,7 +289,8 @@ func ResolveAwakeableAs[T any](ctx Context, id string, value T) error {
 	if err != nil {
 		return TerminalError(err)
 	}
-	return ctx.ResolveAwakeable(id, bytes)
+	ctx.ResolveAwakeable(id, bytes)
+	return nil
 }
 
 type After interface {

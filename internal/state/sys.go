@@ -27,8 +27,8 @@ func (m *Machine) newEntryMismatch(expectedEntry wire.Message, actualEntry wire.
 	return e
 }
 
-func (m *Machine) set(key string, value []byte) error {
-	_, err := replayOrNew(
+func (m *Machine) set(key string, value []byte) {
+	_ = replayOrNew(
 		m,
 		func(entry *wire.SetStateEntryMessage) (void restate.Void) {
 			if string(entry.Key) != key || !bytes.Equal(entry.Value, value) {
@@ -44,13 +44,8 @@ func (m *Machine) set(key string, value []byte) error {
 			m._set(key, value)
 			return void
 		})
-	if err != nil {
-		return err
-	}
 
 	m.current[key] = value
-
-	return nil
 }
 
 func (m *Machine) _set(key string, value []byte) {
@@ -63,8 +58,8 @@ func (m *Machine) _set(key string, value []byte) {
 		})
 }
 
-func (m *Machine) clear(key string) error {
-	_, err := replayOrNew(
+func (m *Machine) clear(key string) {
+	_ = replayOrNew(
 		m,
 		func(entry *wire.ClearStateEntryMessage) (void restate.Void) {
 			if string(entry.Key) != key {
@@ -82,13 +77,7 @@ func (m *Machine) clear(key string) error {
 		},
 	)
 
-	if err != nil {
-		return err
-	}
-
 	delete(m.current, key)
-
-	return err
 }
 
 func (m *Machine) _clear(key string) {
@@ -101,8 +90,8 @@ func (m *Machine) _clear(key string) {
 	)
 }
 
-func (m *Machine) clearAll() error {
-	_, err := replayOrNew(
+func (m *Machine) clearAll() {
+	_ = replayOrNew(
 		m,
 		func(entry *wire.ClearAllStateEntryMessage) (void restate.Void) {
 			return
@@ -111,14 +100,8 @@ func (m *Machine) clearAll() error {
 			return restate.Void{}
 		},
 	)
-	if err != nil {
-		return err
-	}
-
 	m.current = map[string][]byte{}
 	m.partial = false
-
-	return nil
 }
 
 // clearAll drops all associated keys
@@ -129,7 +112,7 @@ func (m *Machine) _clearAll() {
 }
 
 func (m *Machine) get(key string) ([]byte, error) {
-	entry, err := replayOrNew(
+	entry := replayOrNew(
 		m,
 		func(entry *wire.GetStateEntryMessage) *wire.GetStateEntryMessage {
 			if string(entry.Key) != key {
@@ -143,9 +126,6 @@ func (m *Machine) get(key string) ([]byte, error) {
 		}, func() *wire.GetStateEntryMessage {
 			return m._get(key)
 		})
-	if err != nil {
-		return nil, err
-	}
 
 	if err := entry.Await(m.ctx); err != nil {
 		return nil, err
@@ -205,16 +185,13 @@ func (m *Machine) _get(key string) *wire.GetStateEntryMessage {
 }
 
 func (m *Machine) keys() ([]string, error) {
-	entry, err := replayOrNew(
+	entry := replayOrNew(
 		m,
 		func(entry *wire.GetStateKeysEntryMessage) *wire.GetStateKeysEntryMessage {
 			return entry
 		},
 		m._keys,
 	)
-	if err != nil {
-		return nil, err
-	}
 
 	if err := entry.Await(m.ctx); err != nil {
 		return nil, err
@@ -271,7 +248,7 @@ func (m *Machine) _keys() *wire.GetStateKeysEntryMessage {
 }
 
 func (m *Machine) after(d time.Duration) (restate.After, error) {
-	entry, err := replayOrNew(
+	entry := replayOrNew(
 		m,
 		func(entry *wire.SleepEntryMessage) *wire.SleepEntryMessage {
 			// we shouldn't verify the time because this would be different every time
@@ -280,9 +257,6 @@ func (m *Machine) after(d time.Duration) (restate.After, error) {
 			return m._sleep(d)
 		},
 	)
-	if err != nil {
-		return nil, err
-	}
 
 	return futures.NewAfter(m.ctx, entry), nil
 }
@@ -309,7 +283,7 @@ func (m *Machine) _sleep(d time.Duration) *wire.SleepEntryMessage {
 }
 
 func (m *Machine) sideEffect(fn func() ([]byte, error)) ([]byte, error) {
-	entry, err := replayOrNew(
+	entry := replayOrNew(
 		m,
 		func(entry *wire.RunEntryMessage) *wire.RunEntryMessage {
 			return entry
@@ -318,10 +292,6 @@ func (m *Machine) sideEffect(fn func() ([]byte, error)) ([]byte, error) {
 			return m._sideEffect(fn)
 		},
 	)
-	if err != nil {
-		// either a transient error from the fn or from our sending of the result
-		return nil, err
-	}
 
 	// side effect must be acknowledged before proceeding
 	if err := entry.Await(m.ctx); err != nil {

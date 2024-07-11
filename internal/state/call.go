@@ -85,10 +85,10 @@ func (m *Machine) doDynCall(service, key, method string, input any) (*wire.CallE
 		return nil, err
 	}
 
-	return m.doCall(service, key, method, params)
+	return m.doCall(service, key, method, params), nil
 }
 
-func (m *Machine) doCall(service, key, method string, params []byte) (*wire.CallEntryMessage, error) {
+func (m *Machine) doCall(service, key, method string, params []byte) *wire.CallEntryMessage {
 	m.log.Debug().Str("service", service).Str("method", method).Str("key", key).Msg("executing sync call")
 
 	return replayOrNew(
@@ -136,7 +136,7 @@ func (m *Machine) sendCall(service, key, method string, body any, delay time.Dur
 		return err
 	}
 
-	_, err = replayOrNew(
+	_ = replayOrNew(
 		m,
 		func(entry *wire.OneWayCallEntryMessage) restate.Void {
 			if entry.ServiceName != service ||
@@ -161,10 +161,10 @@ func (m *Machine) sendCall(service, key, method string, body any, delay time.Dur
 		},
 	)
 
-	return err
+	return nil
 }
 
-func (c *Machine) _sendCall(service, key, method string, params []byte, delay time.Duration) error {
+func (c *Machine) _sendCall(service, key, method string, params []byte, delay time.Duration) {
 	var invokeTime uint64
 	if delay != 0 {
 		invokeTime = uint64(time.Now().Add(delay).UnixMilli())
@@ -179,6 +179,4 @@ func (c *Machine) _sendCall(service, key, method string, params []byte, delay ti
 			InvokeTime:  invokeTime,
 		},
 	})
-
-	return nil
 }

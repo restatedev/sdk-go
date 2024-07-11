@@ -37,7 +37,8 @@ func unreserve(ctx restate.ObjectContext, _ restate.Void) (void restate.Void, er
 	}
 
 	if status != TicketSold {
-		return void, ctx.Clear("status")
+		ctx.Clear("status")
+		return void, nil
 	}
 
 	return void, nil

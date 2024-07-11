@@ -42,18 +42,18 @@ func (c *Context) Ctx() context.Context {
 	return c.ctx
 }
 
-func (c *Context) Set(key string, value []byte) error {
-	return c.machine.set(key, value)
+func (c *Context) Set(key string, value []byte) {
+	c.machine.set(key, value)
 }
 
-func (c *Context) Clear(key string) error {
-	return c.machine.clear(key)
+func (c *Context) Clear(key string) {
+	c.machine.clear(key)
 
 }
 
 // ClearAll drops all associated keys
-func (c *Context) ClearAll() error {
-	return c.machine.clearAll()
+func (c *Context) ClearAll() {
+	c.machine.clearAll()
 
 }
 
@@ -113,16 +113,16 @@ func (c *Context) SideEffect(fn func() ([]byte, error)) ([]byte, error) {
 	return c.machine.sideEffect(fn)
 }
 
-func (c *Context) Awakeable() (restate.Awakeable[[]byte], error) {
+func (c *Context) Awakeable() restate.Awakeable[[]byte] {
 	return c.machine.awakeable()
 }
 
-func (c *Context) ResolveAwakeable(id string, value []byte) error {
-	return c.machine.resolveAwakeable(id, value)
+func (c *Context) ResolveAwakeable(id string, value []byte) {
+	c.machine.resolveAwakeable(id, value)
 }
 
-func (c *Context) RejectAwakeable(id string, reason error) error {
-	return c.machine.rejectAwakeable(id, reason)
+func (c *Context) RejectAwakeable(id string, reason error) {
+	c.machine.rejectAwakeable(id, reason)
 }
 
 func (c *Context) Key() string {
@@ -420,7 +420,7 @@ func replayOrNew[M wire.Message, O any](
 	m *Machine,
 	replay func(msg M) O,
 	new func() O,
-) (output O, err error) {
+) (output O) {
 	// lock around preparing the entry, but we would never await an ack or completion with this held.
 	m.entryMutex.Lock()
 	defer m.entryMutex.Unlock()
@@ -443,10 +443,10 @@ func replayOrNew[M wire.Message, O any](
 			var expectedEntry M
 			panic(m.newEntryMismatch(expectedEntry, entry))
 		} else {
-			return replay(entry), nil
+			return replay(entry)
 		}
 	}
 
 	// other wise call the new function
-	return new(), nil
+	return new()
 }
