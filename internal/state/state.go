@@ -245,7 +245,9 @@ The journal entry at position %d was:
 - In the user code: type: %T, message: %s
 - In the replayed messages: type: %T, message %s`,
 						typ.entryIndex, typ.expectedEntry, string(expected), typ.actualEntry, string(actual)),
-					Description: string(debug.Stack()),
+					Description:       string(debug.Stack()),
+					RelatedEntryIndex: &typ.entryIndex,
+					RelatedEntryType:  wire.MessageType(typ.actualEntry).UInt32(),
 				},
 			}); err != nil {
 				m.log.Error().Err(err).Msg("error sending failure message")
@@ -257,11 +259,29 @@ The journal entry at position %d was:
 			// don't even check for failure here because most likely the http2 conn is closed anyhow
 			_ = m.protocol.Write(&wire.ErrorMessage{
 				ErrorMessage: protocol.ErrorMessage{
-					Code:        uint32(errors.ErrProtocolViolation),
-					Message:     typ.err.Error(),
-					Description: string(debug.Stack()),
+					Code:              uint32(errors.ErrProtocolViolation),
+					Message:           typ.err.Error(),
+					Description:       string(debug.Stack()),
+					RelatedEntryIndex: &typ.entryIndex,
+					RelatedEntryType:  wire.MessageType(typ.entry).UInt32(),
 				},
 			})
+
+			return
+		case *sideEffectFailure:
+			m.log.Error().Err(typ.err).Msg("Side effect returned a failure, returning error to Restate")
+
+			if err := m.protocol.Write(&wire.ErrorMessage{
+				ErrorMessage: protocol.ErrorMessage{
+					Code:              uint32(restate.ErrorCode(typ.err)),
+					Message:           typ.err.Error(),
+					Description:       string(debug.Stack()),
+					RelatedEntryIndex: &typ.entryIndex,
+					RelatedEntryType:  wire.AwakeableEntryMessageType.UInt32(),
+				},
+			}); err != nil {
+				m.log.Error().Err(err).Msg("error sending failure message")
+			}
 
 			return
 		default:
@@ -399,7 +419,7 @@ func (c *Machine) currentEntry() (wire.Message, bool) {
 func replayOrNew[M wire.Message, O any](
 	m *Machine,
 	replay func(msg M) O,
-	new func() (O, error),
+	new func() O,
 ) (output O, err error) {
 	// lock around preparing the entry, but we would never await an ack or completion with this held.
 	m.entryMutex.Lock()
@@ -428,5 +448,5 @@ func replayOrNew[M wire.Message, O any](
 	}
 
 	// other wise call the new function
-	return new()
+	return new(), nil
 }

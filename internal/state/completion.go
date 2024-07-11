@@ -43,12 +43,13 @@ func (m *Machine) Write(message wire.Message) {
 }
 
 type writeError struct {
-	entry wire.Message
-	err   error
+	entryIndex uint32
+	entry      wire.Message
+	err        error
 }
 
 func (m *Machine) newWriteError(entry wire.Message, err error) *writeError {
-	w := &writeError{entry, err}
+	w := &writeError{m.entryIndex, entry, err}
 	m.failure = w
 	return w
 }

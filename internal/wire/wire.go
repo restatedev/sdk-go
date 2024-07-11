@@ -63,6 +63,11 @@ func (t Type) String() string {
 	return fmt.Sprintf("0x%04X", uint16(t))
 }
 
+func (t Type) UInt32() *uint32 {
+	u := uint32(t)
+	return &u
+}
+
 // Flag section of the header this can have
 // a different meaning based on message type.
 type Flag uint16
@@ -91,6 +96,46 @@ func (t *Header) Flags() Flag {
 
 type Message interface {
 	proto.Message
+}
+
+func MessageType(message Message) Type {
+	switch message.(type) {
+	case *StartMessage:
+		return StartMessageType
+	case *SuspensionMessage:
+		return SuspensionMessageType
+	case *InputEntryMessage:
+		return InputEntryMessageType
+	case *OutputEntryMessage:
+		return OutputEntryMessageType
+	case *ErrorMessage:
+		return ErrorMessageType
+	case *EndMessage:
+		return EndMessageType
+	case *GetStateEntryMessage:
+		return GetStateEntryMessageType
+	case *SetStateEntryMessage:
+		return SetStateEntryMessageType
+	case *ClearStateEntryMessage:
+		return ClearStateEntryMessageType
+	case *ClearAllStateEntryMessage:
+		return ClearAllStateEntryMessageType
+	case *GetStateKeysEntryMessage:
+		return GetStateKeysEntryMessageType
+	case *SleepEntryMessage:
+		return SleepEntryMessageType
+	case *CallEntryMessage:
+		return CallEntryMessageType
+	case *OneWayCallEntryMessage:
+		return OneWayCallEntryMessageType
+	case *AwakeableEntryMessage:
+		return AwakeableEntryMessageType
+	case *CompleteAwakeableEntryMessage:
+		return CompleteAwakeableEntryMessageType
+	case *RunEntryMessage:
+		return RunEntryMessageType
+	}
+	panic(fmt.Sprintf("unknown message type %T", message))
 }
 
 type ReaderMessage struct {
@@ -172,46 +217,7 @@ func (s *Protocol) Write(message Message) error {
 		flag |= FlagRequiresAck
 	}
 
-	// all possible types sent by the sdk
-	var typ Type
-	switch message.(type) {
-	case *StartMessage:
-		typ = StartMessageType
-	case *SuspensionMessage:
-		typ = SuspensionMessageType
-	case *InputEntryMessage:
-		typ = InputEntryMessageType
-	case *OutputEntryMessage:
-		typ = OutputEntryMessageType
-	case *ErrorMessage:
-		typ = ErrorMessageType
-	case *EndMessage:
-		typ = EndMessageType
-	case *GetStateEntryMessage:
-		typ = GetStateEntryMessageType
-	case *SetStateEntryMessage:
-		typ = SetStateEntryMessageType
-	case *ClearStateEntryMessage:
-		typ = ClearStateEntryMessageType
-	case *ClearAllStateEntryMessage:
-		typ = ClearAllStateEntryMessageType
-	case *GetStateKeysEntryMessage:
-		typ = GetStateKeysEntryMessageType
-	case *SleepEntryMessage:
-		typ = SleepEntryMessageType
-	case *CallEntryMessage:
-		typ = CallEntryMessageType
-	case *OneWayCallEntryMessage:
-		typ = OneWayCallEntryMessageType
-	case *AwakeableEntryMessage:
-		typ = AwakeableEntryMessageType
-	case *CompleteAwakeableEntryMessage:
-		typ = CompleteAwakeableEntryMessageType
-	case *RunEntryMessage:
-		typ = RunEntryMessageType
-	default:
-		return fmt.Errorf("can not send message of unknown message type")
-	}
+	typ := MessageType(message)
 
 	s.log.Trace().Stringer("type", typ).Interface("msg", message).Msg("sending message to runtime")
 

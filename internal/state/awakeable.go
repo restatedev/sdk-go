@@ -29,10 +29,10 @@ func (c *Machine) awakeable() (restate.Awakeable[[]byte], error) {
 	return futures.NewAwakeable(c.ctx, c.id, indexedEntry.entryIndex, indexedEntry.entry), nil
 }
 
-func (c *Machine) _awakeable() (indexedEntry, error) {
+func (c *Machine) _awakeable() indexedEntry {
 	msg := &wire.AwakeableEntryMessage{}
 	c.Write(msg)
-	return indexedEntry{msg, c.entryIndex}, nil
+	return indexedEntry{msg, c.entryIndex}
 }
 
 func (m *Machine) resolveAwakeable(id string, value []byte) error {
@@ -50,24 +50,21 @@ func (m *Machine) resolveAwakeable(id string, value []byte) error {
 			}
 			return restate.Void{}
 		},
-		func() (restate.Void, error) {
-			if err := m._resolveAwakeable(id, value); err != nil {
-				return restate.Void{}, err
-			}
-			return restate.Void{}, nil
+		func() restate.Void {
+			m._resolveAwakeable(id, value)
+			return restate.Void{}
 		},
 	)
 	return err
 }
 
-func (c *Machine) _resolveAwakeable(id string, value []byte) error {
+func (c *Machine) _resolveAwakeable(id string, value []byte) {
 	c.Write(&wire.CompleteAwakeableEntryMessage{
 		CompleteAwakeableEntryMessage: protocol.CompleteAwakeableEntryMessage{
 			Id:     id,
 			Result: &protocol.CompleteAwakeableEntryMessage_Value{Value: value},
 		},
 	})
-	return nil
 }
 
 func (m *Machine) rejectAwakeable(id string, reason error) error {
@@ -88,11 +85,9 @@ func (m *Machine) rejectAwakeable(id string, reason error) error {
 			}
 			return restate.Void{}
 		},
-		func() (restate.Void, error) {
-			if err := m._rejectAwakeable(id, reason); err != nil {
-				return restate.Void{}, err
-			}
-			return restate.Void{}, nil
+		func() restate.Void {
+			m._rejectAwakeable(id, reason)
+			return restate.Void{}
 		},
 	)
 	return err

@@ -109,12 +109,12 @@ func (m *Machine) doCall(service, key, method string, params []byte) (*wire.Call
 			}
 
 			return entry
-		}, func() (*wire.CallEntryMessage, error) {
+		}, func() *wire.CallEntryMessage {
 			return m._doCall(service, key, method, params)
 		})
 }
 
-func (m *Machine) _doCall(service, key, method string, params []byte) (*wire.CallEntryMessage, error) {
+func (m *Machine) _doCall(service, key, method string, params []byte) *wire.CallEntryMessage {
 	msg := &wire.CallEntryMessage{
 		CallEntryMessage: protocol.CallEntryMessage{
 			ServiceName: service,
@@ -125,7 +125,7 @@ func (m *Machine) _doCall(service, key, method string, params []byte) (*wire.Cal
 	}
 	m.Write(msg)
 
-	return msg, nil
+	return msg
 }
 
 func (m *Machine) sendCall(service, key, method string, body any, delay time.Duration) error {
@@ -155,8 +155,9 @@ func (m *Machine) sendCall(service, key, method string, body any, delay time.Dur
 
 			return restate.Void{}
 		},
-		func() (restate.Void, error) {
-			return restate.Void{}, m._sendCall(service, key, method, params, delay)
+		func() restate.Void {
+			m._sendCall(service, key, method, params, delay)
+			return restate.Void{}
 		},
 	)
 
