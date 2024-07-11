@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/restatedev/sdk-go/internal"
+	"github.com/restatedev/sdk-go/internal/futures"
 	"github.com/vmihailenco/msgpack/v5"
 )
 
@@ -14,35 +15,60 @@ var (
 	ErrKeyNotFound = fmt.Errorf("key not found")
 )
 
-type Call interface {
-	// Do makes a call and wait for the response
-	Do(input any, output any) error
-	// Send makes a call in the background (doesn't wait for response) after delay duration
-	Send(body any, delay time.Duration) error
+type CallClient interface {
+	// Request makes a call and returns a handle on a future response
+	Request(input any) ResponseFuture
 }
 
-type Service interface {
-	// Method creates a call to method with name
-	Method(method string) Call
+type SendClient interface {
+	// Send makes a call in the background (doesn't wait for response)
+	Request(input any) error
 }
 
-type Object interface {
+type ResponseFuture interface {
+	// Err returns errors that occurred when sending off the request, without having to wait for the response
+	Err() error
+	// Response waits for the response to the call and unmarshals it into output
+	Response(output any) error
+	futures.Selectable
+}
+
+type ServiceClient interface {
 	// Method creates a call to method with name
-	Method(method string) Call
+	Method(method string) CallClient
+}
+
+type ServiceSendClient interface {
+	// Method creates a call to method with name
+	Method(method string) SendClient
 }
 
 type Context interface {
 	// Context of request.
 	Ctx() context.Context
-	// Sleep sleep during the execution until time is reached
-	Sleep(until time.Time) error
+
+	// Sleep for the duration d
+	Sleep(d time.Duration) error
+	// Return a handle on a sleep duration which can be combined
+	After(d time.Duration) (After, error)
+
 	// Service gets a Service accessor by name where service
 	// must be another service known by restate runtime
-	Service(service string) Service
+	Service(service string) ServiceClient
+	// Service gets a Service send accessor by name where service
+	// must be another service known by restate runtime
+	// and delay is the duration with which to delay requests
+	ServiceSend(service string, delay time.Duration) ServiceSendClient
+
 	// Object gets a Object accessor by name where object
 	// must be another object known by restate runtime and
 	// key is any string representing the key for the object
-	Object(object, key string) Object
+	Object(object, key string) ServiceClient
+	// Object gets a Object accessor by name where object
+	// must be another object known by restate runtime,
+	// key is any string representing the key for the object,
+	// and delay is the duration with which to delay requests
+	ObjectSend(object, key string, delay time.Duration) ServiceSendClient
 
 	// SideEffects runs the function (fn) until it succeeds or permanently fails.
 	// this stores the results of the function inside restate runtime so a replay
@@ -233,36 +259,24 @@ func SideEffectAs[T any](ctx Context, fn func() (T, error)) (output T, err error
 
 type Awakeable[T any] interface {
 	Id() string
-	Chan() <-chan Result[T]
-}
-
-type Result[T any] struct {
-	Value T
-	Err   error
+	Result() (T, error)
+	futures.Selectable
 }
 
 type decodingAwakeable[T any] struct {
-	inner Awakeable[[]byte]
+	Awakeable[[]byte]
 }
 
-func (d decodingAwakeable[T]) Id() string { return d.inner.Id() }
-func (d decodingAwakeable[T]) Chan() <-chan Result[T] {
-	inner := d.inner.Chan()
-	out := make(chan Result[T], 1)
-	go func() {
-		result := <-inner
-		if result.Err != nil {
-			out <- Result[T]{Err: result.Err}
-		} else {
-			var value T
-			if err := json.Unmarshal(result.Value, &value); err != nil {
-				out <- Result[T]{Err: TerminalError(err)}
-			} else {
-				out <- Result[T]{Value: value}
-			}
-		}
-	}()
-	return out
+func (d decodingAwakeable[T]) Id() string { return d.Awakeable.Id() }
+func (d decodingAwakeable[T]) Result() (out T, err error) {
+	bytes, err := d.Awakeable.Result()
+	if err != nil {
+		return out, err
+	}
+	if err := json.Unmarshal(bytes, &out); err != nil {
+		return out, err
+	}
+	return
 }
 
 func AwakeableAs[T any](ctx Context) (Awakeable[T], error) {
@@ -271,7 +285,7 @@ func AwakeableAs[T any](ctx Context) (Awakeable[T], error) {
 		return nil, err
 	}
 
-	return decodingAwakeable[T]{inner: inner}, nil
+	return decodingAwakeable[T]{Awakeable: inner}, nil
 }
 
 func ResolveAwakeableAs[T any](ctx Context, id string, value T) error {
@@ -280,4 +294,9 @@ func ResolveAwakeableAs[T any](ctx Context, id string, value T) error {
 		return TerminalError(err)
 	}
 	return ctx.ResolveAwakeable(id, bytes)
+}
+
+type After interface {
+	Done() error
+	futures.Selectable
 }

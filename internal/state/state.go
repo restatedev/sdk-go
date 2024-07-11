@@ -14,7 +14,6 @@ import (
 
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
-	"google.golang.org/protobuf/proto"
 )
 
 const (
@@ -28,12 +27,6 @@ var (
 var (
 	_ restate.Context = (*Context)(nil)
 )
-
-// suspend is a struct we use to throw in a panic so we can rewind the stack
-// then specially handle to suspend the invocation
-type suspend struct {
-	resumeEntry uint32
-}
 
 type Context struct {
 	ctx     context.Context
@@ -70,22 +63,47 @@ func (c *Context) Keys() ([]string, error) {
 	return c.machine.keys()
 }
 
-func (c *Context) Sleep(until time.Time) error {
-	return c.machine.sleep(until)
+func (c *Context) Sleep(d time.Duration) error {
+	after, err := c.machine.after(d)
+	if err != nil {
+		return err
+	}
+	return after.Done()
 }
 
-func (c *Context) Service(service string) restate.Service {
+func (c *Context) After(d time.Duration) (restate.After, error) {
+	return c.machine.after(d)
+}
+
+func (c *Context) Service(service string) restate.ServiceClient {
 	return &serviceProxy{
 		Context: c,
 		service: service,
 	}
 }
 
-func (c *Context) Object(service, key string) restate.Object {
+func (c *Context) ServiceSend(service string, delay time.Duration) restate.ServiceSendClient {
+	return &serviceSendProxy{
+		Context: c,
+		service: service,
+		delay:   delay,
+	}
+}
+
+func (c *Context) Object(service, key string) restate.ServiceClient {
 	return &serviceProxy{
 		Context: c,
 		service: service,
 		key:     key,
+	}
+}
+
+func (c *Context) ObjectSend(service, key string, delay time.Duration) restate.ServiceSendClient {
+	return &serviceSendProxy{
+		Context: c,
+		service: service,
+		key:     key,
+		delay:   delay,
 	}
 }
 
@@ -125,9 +143,10 @@ func newContext(inner context.Context, machine *Machine) *Context {
 }
 
 type Machine struct {
+	ctx context.Context
+
 	handler  restate.Handler
 	protocol *wire.Protocol
-	mutex    sync.Mutex
 
 	// state
 	id  []byte
@@ -137,16 +156,23 @@ type Machine struct {
 	current map[string][]byte
 
 	entries    []wire.Message
-	entryIndex int
+	entryIndex uint32
+	entryMutex sync.Mutex
 
 	log zerolog.Logger
+
+	pendingCompletions map[uint32]wire.CompleteableMessage
+	pendingAcks        map[uint32]wire.AckableMessage
+	pendingMutex       sync.RWMutex
 }
 
 func NewMachine(handler restate.Handler, conn io.ReadWriter) *Machine {
 	m := &Machine{
-		handler: handler,
-		current: make(map[string][]byte),
-		log:     log.Logger,
+		handler:            handler,
+		current:            make(map[string][]byte),
+		log:                log.Logger,
+		pendingAcks:        map[uint32]wire.AckableMessage{},
+		pendingCompletions: map[uint32]wire.CompleteableMessage{},
 	}
 	m.protocol = wire.NewProtocol(&m.log, conn)
 	return m
@@ -160,17 +186,17 @@ func (m *Machine) Start(inner context.Context, trace string) error {
 		return err
 	}
 
-	if msg.Type() != wire.StartMessageType {
+	start, ok := msg.(*wire.StartMessage)
+	if !ok {
 		// invalid negotiation
 		return wire.ErrUnexpectedMessage
 	}
 
-	start := msg.(*wire.StartMessage)
+	m.ctx = inner
+	m.id = start.Id
+	m.key = start.Key
 
-	m.id = start.Payload.Id
-	m.key = start.Payload.Key
-
-	m.log = m.log.With().Str("id", start.Payload.DebugId).Str("method", trace).Logger()
+	m.log = m.log.With().Str("id", start.DebugId).Str("method", trace).Logger()
 
 	ctx := newContext(inner, m)
 
@@ -180,38 +206,7 @@ func (m *Machine) Start(inner context.Context, trace string) error {
 	return m.process(ctx, start)
 }
 
-// handle handler response and build proper response message
-func (m *Machine) output(bytes []byte, err error) proto.Message {
-	if err != nil {
-		m.log.Error().Err(err).Msg("failure")
-	}
-
-	if err != nil && restate.IsTerminalError(err) {
-		// terminal errors.
-		return &protocol.OutputEntryMessage{
-			Result: &protocol.OutputEntryMessage_Failure{
-				Failure: &protocol.Failure{
-					Code:    uint32(restate.ErrorCode(err)),
-					Message: err.Error(),
-				},
-			},
-		}
-	} else if err != nil {
-		// non terminal error!
-		return &protocol.ErrorMessage{
-			Code:    uint32(restate.ErrorCode(err)),
-			Message: err.Error(),
-		}
-	}
-
-	return &protocol.OutputEntryMessage{
-		Result: &protocol.OutputEntryMessage_Value{
-			Value: bytes,
-		},
-	}
-}
-
-func (m *Machine) invoke(ctx *Context, input []byte) error {
+func (m *Machine) invoke(ctx *Context, input []byte, outputSeen bool) error {
 	// always terminate the invocation with
 	// an end message.
 	// this will always terminate the connection
@@ -224,46 +219,74 @@ func (m *Machine) invoke(ctx *Context, input []byte) error {
 
 		switch typ := recovered.(type) {
 		case nil:
-			// nothing to do, just send end message and exit
-			break
-		case *suspend:
-			// suspend object with thrown. we need to send a suspension
-			// message. then terminate the connection
-			m.log.Debug().Msg("suspending invocation")
-			err := m.protocol.Write(&protocol.SuspensionMessage{
-				EntryIndexes: []uint32{typ.resumeEntry},
-			})
-
-			if err != nil {
-				m.log.Error().Err(err).Msg("error sending failure message")
-			}
+			// nothing to do, just exit
 			return
 		default:
 			// unknown panic!
 			// send an error message (retryable)
-			err := m.protocol.Write(&protocol.ErrorMessage{
-				Code:        500,
-				Message:     fmt.Sprint(typ),
-				Description: string(debug.Stack()),
-			})
-
-			if err != nil {
+			if err := m.protocol.Write(&wire.ErrorMessage{
+				ErrorMessage: protocol.ErrorMessage{
+					Code:        500,
+					Message:     fmt.Sprint(typ),
+					Description: string(debug.Stack()),
+				},
+			}); err != nil {
 				m.log.Error().Err(err).Msg("error sending failure message")
 			}
-		}
 
-		if err := m.protocol.Write(&protocol.EndMessage{}); err != nil {
-			m.log.Error().Err(err).Msg("error sending end message")
+			return
 		}
 	}()
 
-	output := m.output(m.handler.Call(ctx, input))
+	if outputSeen {
+		return m.protocol.Write(&wire.EndMessage{})
+	}
 
-	return m.protocol.Write(output)
+	bytes, err := m.handler.Call(ctx, input)
+	if err != nil {
+		m.log.Error().Err(err).Msg("failure")
+	}
+
+	if err != nil && restate.IsTerminalError(err) {
+		// terminal errors.
+		if err := m.protocol.Write(&wire.OutputEntryMessage{
+			OutputEntryMessage: protocol.OutputEntryMessage{
+				Result: &protocol.OutputEntryMessage_Failure{
+					Failure: &protocol.Failure{
+						Code:    uint32(restate.ErrorCode(err)),
+						Message: err.Error(),
+					},
+				},
+			},
+		}); err != nil {
+			return err
+		}
+		return m.protocol.Write(&wire.EndMessage{})
+	} else if err != nil {
+		// non terminal error - no end message
+		return m.protocol.Write(&wire.ErrorMessage{
+			ErrorMessage: protocol.ErrorMessage{
+				Code:    uint32(restate.ErrorCode(err)),
+				Message: err.Error(),
+			},
+		})
+	} else {
+		if err := m.protocol.Write(&wire.OutputEntryMessage{
+			OutputEntryMessage: protocol.OutputEntryMessage{
+				Result: &protocol.OutputEntryMessage_Value{
+					Value: bytes,
+				},
+			},
+		}); err != nil {
+			return err
+		}
+
+		return m.protocol.Write(&wire.EndMessage{})
+	}
 }
 
 func (m *Machine) process(ctx *Context, start *wire.StartMessage) error {
-	for _, entry := range start.Payload.StateMap {
+	for _, entry := range start.StateMap {
 		m.current[string(entry.Key)] = entry.Value
 	}
 
@@ -273,33 +296,41 @@ func (m *Machine) process(ctx *Context, start *wire.StartMessage) error {
 		return err
 	}
 
-	if msg.Type() != wire.InputEntryMessageType {
+	if _, ok := msg.(*wire.InputEntryMessage); !ok {
 		return wire.ErrUnexpectedMessage
 	}
 
-	m.log.Trace().Uint32("known entries", start.Payload.KnownEntries).Msg("known entires")
-	m.entries = make([]wire.Message, 0, start.Payload.KnownEntries-1)
+	m.log.Trace().Uint32("known entries", start.KnownEntries).Msg("known entires")
+	m.entries = make([]wire.Message, 0, start.KnownEntries-1)
+
+	outputSeen := false
 
 	// we don't track the poll input entry
-	for i := uint32(1); i < start.Payload.KnownEntries; i++ {
+	for i := uint32(1); i < start.KnownEntries; i++ {
 		msg, err := m.protocol.Read()
 		if err != nil {
 			return fmt.Errorf("failed to read entry: %w", err)
 		}
 
-		m.log.Trace().Uint16("type", uint16(msg.Type())).Msg("replay log entry")
+		m.log.Trace().Type("type", msg).Msg("replay log entry")
 		m.entries = append(m.entries, msg)
+
+		if _, ok := msg.(*wire.OutputEntryMessage); ok {
+			outputSeen = true
+		}
 	}
 
+	go m.handleCompletionsAcks()
+
 	inputMsg := msg.(*wire.InputEntryMessage)
-	value := inputMsg.Payload.GetValue()
-	return m.invoke(ctx, value)
+	value := inputMsg.GetValue()
+	return m.invoke(ctx, value, outputSeen)
 
 }
 
 func (c *Machine) currentEntry() (wire.Message, bool) {
-	if c.entryIndex < len(c.entries) {
-		return c.entries[c.entryIndex], true
+	if c.entryIndex <= uint32(len(c.entries)) {
+		return c.entries[c.entryIndex-1], true
 	}
 
 	return nil, false
@@ -324,17 +355,14 @@ func (c *Machine) currentEntry() (wire.Message, bool) {
 // by sending the proper runtime messages
 func replayOrNew[M wire.Message, O any](
 	m *Machine,
-	typ wire.Type,
 	replay func(msg M) (O, error),
 	new func() (O, error),
 ) (output O, err error) {
+	// lock around preparing the entry, but we would never await an ack or completion with this held.
+	m.entryMutex.Lock()
+	defer m.entryMutex.Unlock()
 
-	m.mutex.Lock()
-	defer m.mutex.Unlock()
-
-	defer func() {
-		m.entryIndex += 1
-	}()
+	m.entryIndex += 1
 
 	// check if there is an entry as this index
 	entry, ok := m.currentEntry()
@@ -342,10 +370,11 @@ func replayOrNew[M wire.Message, O any](
 	// if entry exists, we need to replay it
 	// by calling the replay function
 	if ok {
-		if entry.Type() != typ {
+		if entry, ok := entry.(M); !ok {
 			return output, errEntryMismatch
+		} else {
+			return replay(entry)
 		}
-		return replay(entry.(M))
 	}
 
 	// other wise call the new function

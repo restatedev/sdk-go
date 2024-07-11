@@ -8,25 +8,41 @@ import (
 
 	restate "github.com/restatedev/sdk-go"
 	"github.com/restatedev/sdk-go/generated/proto/protocol"
+	"github.com/restatedev/sdk-go/internal/futures"
 	"github.com/restatedev/sdk-go/internal/wire"
 )
 
 var (
-	_ restate.Service = (*serviceProxy)(nil)
-	_ restate.Object  = (*serviceProxy)(nil)
-	_ restate.Call    = (*serviceCall)(nil)
+	_ restate.ServiceClient     = (*serviceProxy)(nil)
+	_ restate.ServiceSendClient = (*serviceSendProxy)(nil)
+	_ restate.CallClient        = (*serviceCall)(nil)
+	_ restate.SendClient        = (*serviceSend)(nil)
 )
 
-// service proxy only works as an extension to context
-// to implement other services function calls
 type serviceProxy struct {
 	*Context
 	service string
 	key     string
 }
 
-func (c *serviceProxy) Method(fn string) restate.Call {
+func (c *serviceProxy) Method(fn string) restate.CallClient {
 	return &serviceCall{
+		Context: c.Context,
+		service: c.service,
+		key:     c.key,
+		method:  fn,
+	}
+}
+
+type serviceSendProxy struct {
+	*Context
+	service string
+	key     string
+	delay   time.Duration
+}
+
+func (c *serviceSendProxy) Method(fn string) restate.SendClient {
+	return &serviceSend{
 		Context: c.Context,
 		service: c.service,
 		key:     c.key,
@@ -42,94 +58,70 @@ type serviceCall struct {
 }
 
 // Do makes a call and wait for the response
-func (c *serviceCall) Do(input any, output any) error {
-	return c.machine.doDynCall(c.service, c.key, c.method, input, output)
+func (c *serviceCall) Request(input any) restate.ResponseFuture {
+	if msg, err := c.machine.doDynCall(c.service, c.key, c.method, input); err != nil {
+		return futures.NewFailedResponseFuture(c.ctx, err)
+	} else {
+		return futures.NewResponseFuture(c.ctx, msg)
+	}
+}
+
+type serviceSend struct {
+	*Context
+	service string
+	key     string
+	method  string
+
+	delay time.Duration
 }
 
 // Send runs a call in the background after delay duration
-func (c *serviceCall) Send(body any, delay time.Duration) error {
-	return c.machine.sendCall(c.service, c.key, c.method, body, delay)
+func (c *serviceSend) Request(input any) error {
+	return c.machine.sendCall(c.service, c.key, c.method, input, c.delay)
 }
 
-func (m *Machine) doDynCall(service, key, method string, input, output any) error {
+func (m *Machine) doDynCall(service, key, method string, input any) (*wire.CallEntryMessage, error) {
 	params, err := json.Marshal(input)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
-	bytes, err := m.doCall(service, key, method, params)
-	if err != nil {
-		return err
-	}
-
-	if err := json.Unmarshal(bytes, output); err != nil {
-		// TODO: is this should be a terminal error or not?
-		return restate.TerminalError(fmt.Errorf("failed to decode response (%s): %w", string(bytes), err))
-	}
-
-	return nil
+	return m.doCall(service, key, method, params)
 }
 
-func (m *Machine) doCall(service, key, method string, params []byte) ([]byte, error) {
+func (m *Machine) doCall(service, key, method string, params []byte) (*wire.CallEntryMessage, error) {
 	m.log.Debug().Str("service", service).Str("method", method).Str("key", key).Msg("executing sync call")
 
 	return replayOrNew(
 		m,
-		wire.CallEntryMessageType,
-		func(entry *wire.CallEntryMessage) ([]byte, error) {
-			if entry.Payload.ServiceName != service ||
-				entry.Payload.Key != key ||
-				entry.Payload.HandlerName != method ||
-				!bytes.Equal(entry.Payload.Parameter, params) {
+		func(entry *wire.CallEntryMessage) (*wire.CallEntryMessage, error) {
+			if entry.ServiceName != service ||
+				entry.Key != key ||
+				entry.HandlerName != method ||
+				!bytes.Equal(entry.Parameter, params) {
 				return nil, errEntryMismatch
 			}
 
-			switch result := entry.Payload.Result.(type) {
-			case *protocol.CallEntryMessage_Failure:
-				return nil, restate.WithErrorCode(fmt.Errorf(result.Failure.Message), restate.Code(result.Failure.Code))
-			case *protocol.CallEntryMessage_Value:
-				return result.Value, nil
-			}
-
-			return nil, restate.TerminalError(fmt.Errorf("sync call entry  had invalid result: %v", entry.Payload.Result), restate.ErrProtocolViolation)
-		}, func() ([]byte, error) {
+			return entry, nil
+		}, func() (*wire.CallEntryMessage, error) {
 			return m._doCall(service, key, method, params)
 		})
 }
 
-func (m *Machine) _doCall(service, key, method string, params []byte) ([]byte, error) {
-	err := m.protocol.Write(&protocol.CallEntryMessage{
-		ServiceName: service,
-		HandlerName: method,
-		Parameter:   params,
-		Key:         key,
-	})
-
-	if err != nil {
+func (m *Machine) _doCall(service, key, method string, params []byte) (*wire.CallEntryMessage, error) {
+	msg := &wire.CallEntryMessage{
+		CallEntryMessage: protocol.CallEntryMessage{
+			ServiceName: service,
+			HandlerName: method,
+			Parameter:   params,
+			Key:         key,
+		},
+	}
+	if err := m.Write(msg); err != nil {
 		return nil, fmt.Errorf("failed to send request message: %w", err)
 	}
 
-	response, err := m.protocol.Read()
-	if err != nil {
-		return nil, fmt.Errorf("failed to read response message: %w", err)
-	}
-
-	if response.Type() != wire.CompletionMessageType {
-		return nil, wire.ErrUnexpectedMessage
-	}
-
-	completion := response.(*wire.CompletionMessage)
-
-	switch result := completion.Payload.Result.(type) {
-	case *protocol.CompletionMessage_Empty:
-		return nil, nil
-	case *protocol.CompletionMessage_Failure:
-		return nil, restate.WithErrorCode(fmt.Errorf(result.Failure.Message), restate.Code(result.Failure.Code))
-	case *protocol.CompletionMessage_Value:
-		return result.Value, nil
-	}
-
-	return nil, restate.TerminalError(fmt.Errorf("sync call completion had invalid result: %v", completion.Payload.Result), restate.ErrProtocolViolation)
+	return msg, nil
 }
 
 func (c *Machine) sendCall(service, key, method string, body any, delay time.Duration) error {
@@ -142,12 +134,11 @@ func (c *Machine) sendCall(service, key, method string, body any, delay time.Dur
 
 	_, err = replayOrNew(
 		c,
-		wire.OneWayCallEntryMessageType,
 		func(entry *wire.OneWayCallEntryMessage) (restate.Void, error) {
-			if entry.Payload.ServiceName != service ||
-				entry.Payload.Key != key ||
-				entry.Payload.HandlerName != method ||
-				!bytes.Equal(entry.Payload.Parameter, params) {
+			if entry.ServiceName != service ||
+				entry.Key != key ||
+				entry.HandlerName != method ||
+				!bytes.Equal(entry.Parameter, params) {
 				return restate.Void{}, errEntryMismatch
 			}
 
@@ -167,12 +158,14 @@ func (c *Machine) _sendCall(service, key, method string, params []byte, delay ti
 		invokeTime = uint64(time.Now().Add(delay).UnixMilli())
 	}
 
-	err := c.protocol.Write(&protocol.OneWayCallEntryMessage{
-		ServiceName: service,
-		HandlerName: method,
-		Parameter:   params,
-		Key:         key,
-		InvokeTime:  invokeTime,
+	err := c.Write(&wire.OneWayCallEntryMessage{
+		OneWayCallEntryMessage: protocol.OneWayCallEntryMessage{
+			ServiceName: service,
+			HandlerName: method,
+			Parameter:   params,
+			Key:         key,
+			InvokeTime:  invokeTime,
+		},
 	})
 
 	if err != nil {

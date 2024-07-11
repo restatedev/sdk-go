@@ -2,12 +2,14 @@ package state
 
 import (
 	"bytes"
-	"errors"
 	"fmt"
+	"sort"
 	"time"
 
 	restate "github.com/restatedev/sdk-go"
 	"github.com/restatedev/sdk-go/generated/proto/protocol"
+	"github.com/restatedev/sdk-go/internal/errors"
+	"github.com/restatedev/sdk-go/internal/futures"
 	"github.com/restatedev/sdk-go/internal/wire"
 	"google.golang.org/protobuf/proto"
 )
@@ -19,9 +21,8 @@ var (
 func (m *Machine) set(key string, value []byte) error {
 	_, err := replayOrNew(
 		m,
-		wire.SetStateEntryMessageType,
 		func(entry *wire.SetStateEntryMessage) (void restate.Void, err error) {
-			if string(entry.Payload.Key) != key || !bytes.Equal(entry.Payload.Value, value) {
+			if string(entry.Key) != key || !bytes.Equal(entry.Value, value) {
 				return void, errEntryMismatch
 			}
 
@@ -29,26 +30,30 @@ func (m *Machine) set(key string, value []byte) error {
 		}, func() (void restate.Void, err error) {
 			return void, m._set(key, value)
 		})
+	if err != nil {
+		return err
+	}
 
-	return err
+	m.current[key] = value
+
+	return nil
 }
 
 func (m *Machine) _set(key string, value []byte) error {
-	m.current[key] = value
-
-	return m.protocol.Write(
-		&protocol.SetStateEntryMessage{
-			Key:   []byte(key),
-			Value: value,
+	return m.Write(
+		&wire.SetStateEntryMessage{
+			SetStateEntryMessage: protocol.SetStateEntryMessage{
+				Key:   []byte(key),
+				Value: value,
+			},
 		})
 }
 
 func (m *Machine) clear(key string) error {
 	_, err := replayOrNew(
 		m,
-		wire.ClearStateEntryMessageType,
 		func(entry *wire.ClearStateEntryMessage) (void restate.Void, err error) {
-			if string(entry.Payload.Key) != key {
+			if string(entry.Key) != key {
 				return void, errEntryMismatch
 			}
 
@@ -62,18 +67,17 @@ func (m *Machine) clear(key string) error {
 		return err
 	}
 
-	m.mutex.Lock()
-	defer m.mutex.Unlock()
-
 	delete(m.current, key)
 
 	return err
 }
 
 func (m *Machine) _clear(key string) error {
-	return m.protocol.Write(
-		&protocol.ClearStateEntryMessage{
-			Key: []byte(key),
+	return m.Write(
+		&wire.ClearStateEntryMessage{
+			ClearStateEntryMessage: protocol.ClearStateEntryMessage{
+				Key: []byte(key),
+			},
 		},
 	)
 }
@@ -81,7 +85,6 @@ func (m *Machine) _clear(key string) error {
 func (m *Machine) clearAll() error {
 	_, err := replayOrNew(
 		m,
-		wire.ClearAllStateEntryMessageType,
 		func(entry *wire.ClearAllStateEntryMessage) (void restate.Void, err error) {
 			return
 		}, func() (restate.Void, error) {
@@ -92,8 +95,6 @@ func (m *Machine) clearAll() error {
 		return err
 	}
 
-	m.mutex.Lock()
-	defer m.mutex.Unlock()
 	m.current = map[string][]byte{}
 	m.partial = false
 
@@ -102,38 +103,51 @@ func (m *Machine) clearAll() error {
 
 // clearAll drops all associated keys
 func (m *Machine) _clearAll() error {
-	return m.protocol.Write(
-		&protocol.ClearAllStateEntryMessage{},
+	return m.Write(
+		&wire.ClearAllStateEntryMessage{},
 	)
 }
 
 func (m *Machine) get(key string) ([]byte, error) {
-	return replayOrNew(
+	entry, err := replayOrNew(
 		m,
-		wire.GetStateEntryMessageType,
-		func(entry *wire.GetStateEntryMessage) ([]byte, error) {
-			if string(entry.Payload.Key) != key {
+		func(entry *wire.GetStateEntryMessage) (*wire.GetStateEntryMessage, error) {
+			if string(entry.Key) != key {
 				return nil, errEntryMismatch
 			}
-
-			switch result := entry.Payload.Result.(type) {
-			case *protocol.GetStateEntryMessage_Empty:
-				return nil, nil
-			case *protocol.GetStateEntryMessage_Failure:
-				return nil, fmt.Errorf("[%d] %s", result.Failure.Code, result.Failure.Message)
-			case *protocol.GetStateEntryMessage_Value:
-				return result.Value, nil
-			}
-
-			return nil, restate.TerminalError(fmt.Errorf("get state entry had invalid result: %v", entry.Payload.Result), restate.ErrProtocolViolation)
-		}, func() ([]byte, error) {
+			return entry, nil
+		}, func() (*wire.GetStateEntryMessage, error) {
 			return m._get(key)
 		})
+	if err != nil {
+		return nil, err
+	}
+
+	if err := entry.Await(m.ctx); err != nil {
+		return nil, err
+	}
+
+	switch value := entry.Result.(type) {
+	case *protocol.GetStateEntryMessage_Empty:
+		return nil, nil
+	case *protocol.GetStateEntryMessage_Failure:
+		// the get state entry message is not failable so this should
+		// never happen
+		// TODO terminal?
+		return nil, fmt.Errorf("[%d] %s", value.Failure.Code, value.Failure.Message)
+	case *protocol.GetStateEntryMessage_Value:
+		m.current[key] = value.Value
+		return value.Value, nil
+	}
+
+	return nil, restate.TerminalError(fmt.Errorf("get state had invalid result: %v", entry.Result), errors.ErrProtocolViolation)
 }
 
-func (m *Machine) _get(key string) ([]byte, error) {
-	msg := &protocol.GetStateEntryMessage{
-		Key: []byte(key),
+func (m *Machine) _get(key string) (*wire.GetStateEntryMessage, error) {
+	msg := &wire.GetStateEntryMessage{
+		GetStateEntryMessage: protocol.GetStateEntryMessage{
+			Key: []byte(key),
+		},
 	}
 
 	value, ok := m.current[key]
@@ -141,128 +155,61 @@ func (m *Machine) _get(key string) ([]byte, error) {
 	if ok {
 		// value in map, we still send the current
 		// value to the runtime
-		msg.Result = &protocol.GetStateEntryMessage_Value{
-			Value: value,
-		}
+		msg.Complete(&protocol.CompletionMessage{Result: &protocol.CompletionMessage_Value{Value: value}})
 
-		if err := m.protocol.Write(msg); err != nil {
+		if err := m.Write(msg); err != nil {
 			return nil, err
 		}
 
-		// read and discard response
-		_, err := m.protocol.Read()
-		if err != nil {
-			return value, err
-		}
-		return value, nil
+		return msg, nil
 	}
 
 	// key is not in map! there are 2 cases.
 	if !m.partial {
 		// current is complete. we need to return nil to the user
 		// but also send an empty get state entry message
-		msg.Result = &protocol.GetStateEntryMessage_Empty{}
+		msg.Complete(&protocol.CompletionMessage{Result: &protocol.CompletionMessage_Empty{Empty: &protocol.Empty{}}})
 
-		if err := m.protocol.Write(msg); err != nil {
+		if err := m.Write(msg); err != nil {
 			return nil, err
 		}
 
-		// read and discard response
-		_, err := m.protocol.Read()
-		if err != nil {
-			return value, err
-		}
-
-		return nil, nil
+		return msg, nil
 	}
 
-	if err := m.protocol.Write(msg); err != nil {
+	// we didn't see the value and we don't know for sure there isn't one; ask the runtime for it
+
+	if err := m.Write(msg); err != nil {
 		return nil, err
 	}
 
-	// wait for completion
-	response, err := m.protocol.Read()
-	if err != nil {
-		return nil, err
-	}
-
-	if response.Type() != wire.CompletionMessageType {
-		return nil, wire.ErrUnexpectedMessage
-	}
-
-	completion := response.(*wire.CompletionMessage)
-
-	switch value := completion.Payload.Result.(type) {
-	case *protocol.CompletionMessage_Empty:
-		return nil, nil
-	case *protocol.CompletionMessage_Failure:
-		// the get state entry message is not failable so this should
-		// never happen
-		// TODO terminal?
-		return nil, fmt.Errorf("[%d] %s", value.Failure.Code, value.Failure.Message)
-	case *protocol.CompletionMessage_Value:
-		m.current[key] = value.Value
-		return value.Value, nil
-	}
-
-	return nil, restate.TerminalError(fmt.Errorf("get state completion had invalid result: %v", completion.Payload.Result), restate.ErrProtocolViolation)
+	return msg, nil
 }
 
 func (m *Machine) keys() ([]string, error) {
-	return replayOrNew(
+	entry, err := replayOrNew(
 		m,
-		wire.GetStateKeysEntryMessageType,
-		func(entry *wire.GetStateKeysEntryMessage) ([]string, error) {
-			switch result := entry.Payload.Result.(type) {
-			case *protocol.GetStateKeysEntryMessage_Failure:
-				return nil, fmt.Errorf("[%d] %s", result.Failure.Code, result.Failure.Message)
-			case *protocol.GetStateKeysEntryMessage_Value:
-				keys := make([]string, 0, len(result.Value.Keys))
-				for _, key := range result.Value.Keys {
-					keys = append(keys, string(key))
-				}
-				return keys, nil
-			}
-
-			return nil, restate.TerminalError(fmt.Errorf("found get state keys entry with invalid completion: %v", entry.Payload.Result), 571)
+		func(entry *wire.GetStateKeysEntryMessage) (*wire.GetStateKeysEntryMessage, error) {
+			return entry, nil
 		},
 		m._keys,
 	)
-}
-
-func (m *Machine) _keys() ([]string, error) {
-	if err := m.protocol.Write(&protocol.GetStateKeysEntryMessage{}); err != nil {
-		return nil, err
-	}
-
-	msg, err := m.protocol.Read()
 	if err != nil {
 		return nil, err
 	}
 
-	if msg.Type() != wire.CompletionMessageType {
-		m.log.Error().Stringer("type", msg.Type()).Msg("receiving message of type")
-		return nil, wire.ErrUnexpectedMessage
+	if err := entry.Await(m.ctx); err != nil {
+		return nil, err
 	}
 
-	response := msg.(*wire.CompletionMessage)
-
-	switch value := response.Payload.Result.(type) {
-	case *protocol.CompletionMessage_Empty:
-		return nil, nil
-	case *protocol.CompletionMessage_Failure:
+	switch value := entry.Result.(type) {
+	case *protocol.GetStateKeysEntryMessage_Failure:
 		// the get state entry message is not failable so this should
 		// never happen
 		return nil, fmt.Errorf("[%d] %s", value.Failure.Code, value.Failure.Message)
-	case *protocol.CompletionMessage_Value:
-		var keys protocol.GetStateKeysEntryMessage_StateKeys
-
-		if err := proto.Unmarshal(value.Value, &keys); err != nil {
-			return nil, err
-		}
-
-		values := make([]string, 0, len(keys.Keys))
-		for _, key := range keys.Keys {
+	case *protocol.GetStateKeysEntryMessage_Value:
+		values := make([]string, 0, len(value.Value.Keys))
+		for _, key := range value.Value.Keys {
 			values = append(values, string(key))
 		}
 
@@ -272,114 +219,169 @@ func (m *Machine) _keys() ([]string, error) {
 	return nil, nil
 }
 
-func (m *Machine) sleep(until time.Time) error {
-	_, err := replayOrNew(
-		m,
-		wire.SleepEntryMessageType,
-		func(entry *wire.SleepEntryMessage) (void restate.Void, err error) {
-			// we shouldn't verify the time because this would be different every time
-			return
-		}, func() (restate.Void, error) {
-			return restate.Void{}, m._sleep(until)
-		},
-	)
+func (m *Machine) _keys() (*wire.GetStateKeysEntryMessage, error) {
+	msg := &wire.GetStateKeysEntryMessage{}
+	if !m.partial {
+		keys := make([]string, 0, len(m.current))
+		for k := range m.current {
+			keys = append(keys, k)
+		}
+		sort.Strings(keys)
 
-	return err
+		byteKeys := make([][]byte, len(keys))
+		for i := range keys {
+			byteKeys[i] = []byte(keys[i])
+		}
+
+		stateKeys := &protocol.GetStateKeysEntryMessage_StateKeys{Keys: byteKeys}
+		value, err := proto.Marshal(stateKeys)
+		if err != nil {
+			return nil, err
+		}
+
+		// we can return keys entirely from cache
+		// current is complete. we need to return nil to the user
+		// but also send an empty get state entry message
+		msg.Complete(&protocol.CompletionMessage{Result: &protocol.CompletionMessage_Value{
+			Value: value,
+		}})
+
+		if err := m.Write(msg); err != nil {
+			return nil, err
+		}
+
+		return nil, nil
+	}
+
+	if err := m.Write(msg); err != nil {
+		return nil, err
+	}
+
+	return msg, nil
 }
 
-// _sleep creating a new sleep entry. The implementation of this function
-// will also suspend execution if sleep duration is greater than 1 second
-// as a form of optimization
-func (m *Machine) _sleep(until time.Time) error {
-	if err := m.protocol.Write(&protocol.SleepEntryMessage{
-		WakeUpTime: uint64(until.UnixMilli()),
-	}, wire.FlagRequiresAck); err != nil {
-		return err
+func (m *Machine) after(d time.Duration) (restate.After, error) {
+	entry, err := replayOrNew(
+		m,
+		func(entry *wire.SleepEntryMessage) (*wire.SleepEntryMessage, error) {
+			// we shouldn't verify the time because this would be different every time
+			return entry, nil
+		}, func() (*wire.SleepEntryMessage, error) {
+			return m._sleep(d)
+		},
+	)
+	if err != nil {
+		return nil, err
 	}
 
-	entryIndex, err := m.protocol.ReadAck()
+	return futures.NewAfter(m.ctx, entry), nil
+}
+
+func (m *Machine) sleep(d time.Duration) error {
+	after, err := m.after(d)
 	if err != nil {
 		return err
 	}
 
-	// if duration is more than one second, just pause the execution
-	if time.Until(until) > time.Second {
-		panic(&suspend{entryIndex})
+	return after.Done()
+}
+
+// _sleep creating a new sleep entry.
+func (m *Machine) _sleep(d time.Duration) (*wire.SleepEntryMessage, error) {
+	msg := &wire.SleepEntryMessage{
+		SleepEntryMessage: protocol.SleepEntryMessage{
+			WakeUpTime: uint64(time.Now().Add(d).UnixMilli()),
+		},
+	}
+	if err := m.Write(msg); err != nil {
+		return nil, err
 	}
 
-	// we can suspend invocation now
-	response, err := m.protocol.Read()
-	if err != nil {
-		return err
-	}
-
-	if response.Type() != wire.CompletionMessageType {
-		return wire.ErrUnexpectedMessage
-	}
-
-	return nil
+	return msg, nil
 }
 
 func (m *Machine) sideEffect(fn func() ([]byte, error)) ([]byte, error) {
-	return replayOrNew(
+	entry, err := replayOrNew(
 		m,
-		wire.RunEntryMessageType,
-		func(entry *wire.RunEntryMessage) ([]byte, error) {
-			switch result := entry.Payload.Result.(type) {
-			case *protocol.RunEntryMessage_Failure:
-				return nil, restate.TerminalError(errors.New(result.Failure.Message), restate.Code(result.Failure.Code))
-			case *protocol.RunEntryMessage_Value:
-				return result.Value, nil
-			case nil:
-				// Empty result is valid
-				return nil, nil
-			}
-
-			return nil, restate.TerminalError(fmt.Errorf("side effect entry had invalid result: %v", entry.Payload.Result), restate.ErrProtocolViolation)
+		func(entry *wire.RunEntryMessage) (*wire.RunEntryMessage, error) {
+			return entry, nil
 		},
-		func() ([]byte, error) {
+		func() (*wire.RunEntryMessage, error) {
 			return m._sideEffect(fn)
 		},
 	)
+	if err != nil {
+		// either a transient error from the fn or from our sending of the result
+		return nil, err
+	}
+
+	// side effect must be acknowledged before proceeding
+	if err := entry.Await(m.ctx); err != nil {
+		return nil, err
+	}
+
+	switch result := entry.Result.(type) {
+	case *protocol.RunEntryMessage_Failure:
+		return nil, errors.ErrorFromFailure(result.Failure)
+	case *protocol.RunEntryMessage_Value:
+		return result.Value, nil
+	case nil:
+		// Empty result is valid
+		return nil, nil
+	}
+
+	return nil, restate.TerminalError(fmt.Errorf("side effect entry had invalid result: %v", entry.Result), errors.ErrProtocolViolation)
 }
 
-func (m *Machine) _sideEffect(fn func() ([]byte, error)) ([]byte, error) {
+func (m *Machine) _sideEffect(fn func() ([]byte, error)) (*wire.RunEntryMessage, error) {
 	bytes, err := fn()
 
 	if err != nil {
 		if restate.IsTerminalError(err) {
-			msg := protocol.RunEntryMessage{
-				Result: &protocol.RunEntryMessage_Failure{
-					Failure: &protocol.Failure{
-						Code:    uint32(restate.ErrorCode(err)),
-						Message: err.Error(),
+			msg := &wire.RunEntryMessage{
+				RunEntryMessage: protocol.RunEntryMessage{
+					Result: &protocol.RunEntryMessage_Failure{
+						Failure: &protocol.Failure{
+							Code:    uint32(restate.ErrorCode(err)),
+							Message: err.Error(),
+						},
 					},
+				},
+			}
+			if err := m.Write(msg); err != nil {
+				return nil, err
+			}
+
+			// don't return the original error, we will turn the entry back into an error later
+			// that way its not different replay vs non-replay
+			return msg, nil
+		} else {
+			ty := uint32(wire.RunEntryMessageType)
+			msg := wire.ErrorMessage{
+				ErrorMessage: protocol.ErrorMessage{
+					Code:             uint32(restate.ErrorCode(err)),
+					Message:          err.Error(),
+					RelatedEntryType: &ty,
 				},
 			}
 			if err := m.protocol.Write(&msg); err != nil {
 				return nil, err
 			}
-		} else {
-			ty := uint32(wire.RunEntryMessageType)
-			msg := protocol.ErrorMessage{
-				Code:             uint32(restate.ErrorCode(err)),
-				Message:          err.Error(),
-				RelatedEntryType: &ty,
-			}
-			if err := m.protocol.Write(&msg); err != nil {
-				return nil, err
-			}
-		}
-	} else {
-		msg := protocol.RunEntryMessage{
-			Result: &protocol.RunEntryMessage_Value{
-				Value: bytes,
-			},
-		}
-		if err := m.protocol.Write(&msg); err != nil {
+
 			return nil, err
 		}
-	}
+	} else {
+		msg := &wire.RunEntryMessage{
+			RunEntryMessage: protocol.RunEntryMessage{
+				Result: &protocol.RunEntryMessage_Value{
+					Value: bytes,
+				},
+			},
+		}
+		if err := m.Write(msg); err != nil {
+			return nil, err
+		}
 
-	return bytes, err
+		return msg, nil
+	}
 }

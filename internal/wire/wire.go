@@ -8,9 +8,12 @@ import (
 	"fmt"
 	"io"
 	"math"
+	"sync"
+	"sync/atomic"
 
 	protocol "github.com/restatedev/sdk-go/generated/proto/protocol"
 	"github.com/rs/zerolog"
+	"github.com/rs/zerolog/log"
 	"google.golang.org/protobuf/proto"
 )
 
@@ -87,8 +90,7 @@ func (t *Header) Flags() Flag {
 }
 
 type Message interface {
-	Type() Type
-	Flags() Flag
+	proto.Message
 }
 
 type ReaderMessage struct {
@@ -134,21 +136,6 @@ func (s *Protocol) header() (header Header, err error) {
 	return
 }
 
-func (s *Protocol) ReadAck() (uint32, error) {
-	msg, err := s.Read()
-	if err != nil {
-		return 0, err
-	}
-
-	if msg.Type() != EntryAckMessageType {
-		return 0, ErrUnexpectedMessage
-	}
-
-	ack := msg.(*EntryAckMessage)
-
-	return ack.Payload.EntryIndex, nil
-}
-
 func (s *Protocol) Read() (Message, error) {
 	header, err := s.header()
 	if err != nil {
@@ -175,52 +162,52 @@ func (s *Protocol) Read() (Message, error) {
 	return msg, nil
 }
 
-func (s *Protocol) Write(message proto.Message, flags ...Flag) error {
+func (s *Protocol) Write(message Message) error {
 	var flag Flag
-	if len(flags) > 1 {
-		// code error
-		panic("invalid flags, use | operator instead")
-	} else if len(flags) == 1 {
-		flag = flags[0]
+
+	if message, ok := message.(CompleteableMessage); ok && message.Completed() {
+		flag |= FlagCompleted
+	}
+	if message, ok := message.(AckableMessage); ok && !message.Acked() {
+		flag |= FlagRequiresAck
 	}
 
 	// all possible types sent by the sdk
 	var typ Type
 	switch message.(type) {
-	case *protocol.StartMessage:
-		// TODO: sdk should never write this message
+	case *StartMessage:
 		typ = StartMessageType
-	case *protocol.SuspensionMessage:
+	case *SuspensionMessage:
 		typ = SuspensionMessageType
-	case *protocol.InputEntryMessage:
+	case *InputEntryMessage:
 		typ = InputEntryMessageType
-	case *protocol.OutputEntryMessage:
+	case *OutputEntryMessage:
 		typ = OutputEntryMessageType
-	case *protocol.ErrorMessage:
+	case *ErrorMessage:
 		typ = ErrorMessageType
-	case *protocol.EndMessage:
+	case *EndMessage:
 		typ = EndMessageType
-	case *protocol.GetStateEntryMessage:
+	case *GetStateEntryMessage:
 		typ = GetStateEntryMessageType
-	case *protocol.SetStateEntryMessage:
+	case *SetStateEntryMessage:
 		typ = SetStateEntryMessageType
-	case *protocol.ClearStateEntryMessage:
+	case *ClearStateEntryMessage:
 		typ = ClearStateEntryMessageType
-	case *protocol.ClearAllStateEntryMessage:
+	case *ClearAllStateEntryMessage:
 		typ = ClearAllStateEntryMessageType
-	case *protocol.GetStateKeysEntryMessage:
+	case *GetStateKeysEntryMessage:
 		typ = GetStateKeysEntryMessageType
-	case *protocol.SleepEntryMessage:
+	case *SleepEntryMessage:
 		typ = SleepEntryMessageType
-	case *protocol.CallEntryMessage:
+	case *CallEntryMessage:
 		typ = CallEntryMessageType
-	case *protocol.OneWayCallEntryMessage:
+	case *OneWayCallEntryMessage:
 		typ = OneWayCallEntryMessageType
-	case *protocol.AwakeableEntryMessage:
+	case *AwakeableEntryMessage:
 		typ = AwakeableEntryMessageType
-	case *protocol.CompleteAwakeableEntryMessage:
+	case *CompleteAwakeableEntryMessage:
 		typ = CompleteAwakeableEntryMessageType
-	case *protocol.RunEntryMessage:
+	case *RunEntryMessage:
 		typ = RunEntryMessageType
 	default:
 		return fmt.Errorf("can not send message of unknown message type")
@@ -264,192 +251,388 @@ var (
 				Header: header,
 			}
 
-			return msg, proto.Unmarshal(bytes, &msg.Payload)
+			return msg, proto.Unmarshal(bytes, &msg.StartMessage)
 		},
 		EntryAckMessageType: func(header Header, bytes []byte) (Message, error) {
 			msg := &EntryAckMessage{
 				Header: header,
 			}
 
-			return msg, proto.Unmarshal(bytes, &msg.Payload)
+			return msg, proto.Unmarshal(bytes, msg)
 		},
 		InputEntryMessageType: func(header Header, bytes []byte) (Message, error) {
 			msg := &InputEntryMessage{
 				Header: header,
 			}
 
-			return msg, proto.Unmarshal(bytes, &msg.Payload)
+			return msg, proto.Unmarshal(bytes, msg)
 		},
 		OutputEntryMessageType: func(header Header, bytes []byte) (Message, error) {
 			msg := &OutputEntryMessage{
 				Header: header,
 			}
 
-			return msg, proto.Unmarshal(bytes, &msg.Payload)
+			return msg, proto.Unmarshal(bytes, msg)
 		},
 		GetStateEntryMessageType: func(header Header, bytes []byte) (Message, error) {
-			msg := &GetStateEntryMessage{
-				Header: header,
+			msg := &GetStateEntryMessage{}
+
+			if header.Flag.Completed() {
+				msg.completable.complete()
 			}
 
-			return msg, proto.Unmarshal(bytes, &msg.Payload)
+			return msg, proto.Unmarshal(bytes, msg)
 		},
 		SetStateEntryMessageType: func(header Header, bytes []byte) (Message, error) {
-			msg := &SetStateEntryMessage{
-				Header: header,
-			}
+			msg := &SetStateEntryMessage{}
 
-			return msg, proto.Unmarshal(bytes, &msg.Payload)
+			return msg, proto.Unmarshal(bytes, msg)
 		},
 		ClearStateEntryMessageType: func(header Header, bytes []byte) (Message, error) {
-			msg := &ClearStateEntryMessage{
-				Header: header,
-			}
+			msg := &ClearStateEntryMessage{}
 
-			return msg, proto.Unmarshal(bytes, &msg.Payload)
+			return msg, proto.Unmarshal(bytes, msg)
 		},
 		ClearAllStateEntryMessageType: func(header Header, bytes []byte) (Message, error) {
 			msg := &ClearAllStateEntryMessage{
 				Header: header,
 			}
 
-			return msg, proto.Unmarshal(bytes, &msg.Payload)
+			return msg, proto.Unmarshal(bytes, msg)
 		},
 		GetStateKeysEntryMessageType: func(header Header, bytes []byte) (Message, error) {
-			msg := &GetStateKeysEntryMessage{
-				Header: header,
+			msg := &GetStateKeysEntryMessage{}
+
+			if header.Flag.Completed() {
+				msg.completable.complete()
 			}
 
-			return msg, proto.Unmarshal(bytes, &msg.Payload)
+			return msg, proto.Unmarshal(bytes, msg)
 		},
 		CompletionMessageType: func(header Header, bytes []byte) (Message, error) {
 			msg := &CompletionMessage{
 				Header: header,
 			}
 
-			return msg, proto.Unmarshal(bytes, &msg.Payload)
+			return msg, proto.Unmarshal(bytes, msg)
 		},
 		SleepEntryMessageType: func(header Header, bytes []byte) (Message, error) {
-			msg := &SleepEntryMessage{
-				Header: header,
+			msg := &SleepEntryMessage{}
+
+			if header.Flag.Completed() {
+				msg.completable.complete()
 			}
 
-			return msg, proto.Unmarshal(bytes, &msg.Payload)
+			return msg, proto.Unmarshal(bytes, msg)
 		},
 		CallEntryMessageType: func(header Header, bytes []byte) (Message, error) {
-			msg := &CallEntryMessage{
-				Header: header,
+			msg := &CallEntryMessage{}
+
+			if header.Flag.Completed() {
+				msg.completable.complete()
 			}
 
-			return msg, proto.Unmarshal(bytes, &msg.Payload)
+			return msg, proto.Unmarshal(bytes, msg)
 		},
 		OneWayCallEntryMessageType: func(header Header, bytes []byte) (Message, error) {
 			msg := &OneWayCallEntryMessage{
 				Header: header,
 			}
 
-			return msg, proto.Unmarshal(bytes, &msg.Payload)
+			return msg, proto.Unmarshal(bytes, msg)
 		},
 		AwakeableEntryMessageType: func(header Header, bytes []byte) (Message, error) {
-			msg := &AwakeableEntryMessage{
-				Header: header,
+			msg := &AwakeableEntryMessage{}
+
+			if header.Flag.Completed() {
+				msg.completable.complete()
 			}
 
-			return msg, proto.Unmarshal(bytes, &msg.Payload)
+			return msg, proto.Unmarshal(bytes, msg)
 		},
 		CompleteAwakeableEntryMessageType: func(header Header, bytes []byte) (Message, error) {
 			msg := &CompleteAwakeableEntryMessage{
 				Header: header,
 			}
 
-			return msg, proto.Unmarshal(bytes, &msg.Payload)
+			return msg, proto.Unmarshal(bytes, msg)
 		},
 		RunEntryMessageType: func(header Header, bytes []byte) (Message, error) {
-			msg := &RunEntryMessage{
-				Header: header,
-			}
+			msg := &RunEntryMessage{}
 
-			return msg, proto.Unmarshal(bytes, &msg.Payload)
+			// replayed side effects are inherently acked
+			msg.Ack()
+
+			return msg, proto.Unmarshal(bytes, msg)
 		},
 	}
 )
 
 type StartMessage struct {
 	Header
-	Payload protocol.StartMessage
+	protocol.StartMessage
+}
+
+type SuspensionMessage struct {
+	Header
+	protocol.SuspensionMessage
 }
 
 type InputEntryMessage struct {
 	Header
-	Payload protocol.InputEntryMessage
+	protocol.InputEntryMessage
 }
 
 type OutputEntryMessage struct {
 	Header
-	Payload protocol.OutputEntryMessage
+	protocol.OutputEntryMessage
+}
+
+type ErrorMessage struct {
+	Header
+	protocol.ErrorMessage
+}
+
+type EndMessage struct {
+	Header
+	protocol.EndMessage
 }
 
 type GetStateEntryMessage struct {
-	Header
-	Payload protocol.GetStateEntryMessage
+	completable
+	protocol.GetStateEntryMessage
+}
+
+func (a *GetStateEntryMessage) Complete(c *protocol.CompletionMessage) {
+	switch result := c.Result.(type) {
+	case *protocol.CompletionMessage_Value:
+		a.Result = &protocol.GetStateEntryMessage_Value{Value: result.Value}
+	case *protocol.CompletionMessage_Failure:
+		a.Result = &protocol.GetStateEntryMessage_Failure{Failure: result.Failure}
+	case *protocol.CompletionMessage_Empty:
+		a.Result = &protocol.GetStateEntryMessage_Empty{Empty: result.Empty}
+	}
+
+	a.complete()
 }
 
 type SetStateEntryMessage struct {
 	Header
-	Payload protocol.SetStateEntryMessage
+	protocol.SetStateEntryMessage
 }
 
 type ClearStateEntryMessage struct {
 	Header
-	Payload protocol.ClearStateEntryMessage
+	protocol.ClearStateEntryMessage
 }
 
 type ClearAllStateEntryMessage struct {
 	Header
-	Payload protocol.ClearAllStateEntryMessage
+	protocol.ClearAllStateEntryMessage
 }
 
 type GetStateKeysEntryMessage struct {
-	Header
-	Payload protocol.GetStateKeysEntryMessage
+	completable
+	protocol.GetStateKeysEntryMessage
+}
+
+func (a *GetStateKeysEntryMessage) Complete(c *protocol.CompletionMessage) {
+	switch result := c.Result.(type) {
+	case *protocol.CompletionMessage_Value:
+		var keys protocol.GetStateKeysEntryMessage_StateKeys
+
+		if err := proto.Unmarshal(result.Value, &keys); err != nil {
+			log.Error().Err(err).Msg("received invalid value for getstatekeys")
+			return
+		}
+
+		a.Result = &protocol.GetStateKeysEntryMessage_Value{Value: &keys}
+	case *protocol.CompletionMessage_Failure:
+		a.Result = &protocol.GetStateKeysEntryMessage_Failure{Failure: result.Failure}
+	case *protocol.CompletionMessage_Empty:
+		log.Error().Msg("received empty completion for getstatekeys")
+		return
+	}
+
+	a.complete()
 }
 
 type CompletionMessage struct {
 	Header
-	Payload protocol.CompletionMessage
+	protocol.CompletionMessage
 }
 
 type SleepEntryMessage struct {
-	Header
-	Payload protocol.SleepEntryMessage
+	completable
+	protocol.SleepEntryMessage
+}
+
+func (a *SleepEntryMessage) Complete(c *protocol.CompletionMessage) {
+	switch result := c.Result.(type) {
+	case *protocol.CompletionMessage_Empty:
+		a.Result = &protocol.SleepEntryMessage_Empty{Empty: result.Empty}
+	case *protocol.CompletionMessage_Failure:
+		a.Result = &protocol.SleepEntryMessage_Failure{Failure: result.Failure}
+	case *protocol.CompletionMessage_Value:
+		log.Error().Msg("received value completion for sleep")
+		return
+	}
+
+	a.complete()
 }
 
 type CallEntryMessage struct {
-	Header
-	Payload protocol.CallEntryMessage
+	completable
+	protocol.CallEntryMessage
+}
+
+func (a *CallEntryMessage) Complete(c *protocol.CompletionMessage) {
+	switch result := c.Result.(type) {
+	case *protocol.CompletionMessage_Value:
+		a.Result = &protocol.CallEntryMessage_Value{Value: result.Value}
+	case *protocol.CompletionMessage_Failure:
+		a.Result = &protocol.CallEntryMessage_Failure{Failure: result.Failure}
+	case *protocol.CompletionMessage_Empty:
+		log.Error().Msg("received empty completion for call")
+		return
+	}
+
+	a.complete()
 }
 
 type OneWayCallEntryMessage struct {
 	Header
-	Payload protocol.OneWayCallEntryMessage
+	protocol.OneWayCallEntryMessage
 }
 
 type AwakeableEntryMessage struct {
-	Header
-	Payload protocol.AwakeableEntryMessage
+	completable
+	protocol.AwakeableEntryMessage
+}
+
+func (a *AwakeableEntryMessage) Complete(c *protocol.CompletionMessage) {
+	switch result := c.Result.(type) {
+	case *protocol.CompletionMessage_Value:
+		a.Result = &protocol.AwakeableEntryMessage_Value{Value: result.Value}
+	case *protocol.CompletionMessage_Failure:
+		a.Result = &protocol.AwakeableEntryMessage_Failure{Failure: result.Failure}
+	case *protocol.CompletionMessage_Empty:
+		log.Error().Msg("received empty completion for an awakeable")
+		return
+	}
+
+	a.complete()
 }
 
 type CompleteAwakeableEntryMessage struct {
 	Header
-	Payload protocol.CompleteAwakeableEntryMessage
+	protocol.CompleteAwakeableEntryMessage
 }
 
 type RunEntryMessage struct {
-	Header
-	Payload protocol.RunEntryMessage
+	ackable
+	protocol.RunEntryMessage
 }
 
 type EntryAckMessage struct {
 	Header
-	Payload protocol.EntryAckMessage
+	protocol.EntryAckMessage
+}
+
+type CompleteableMessage interface {
+	Message
+	Completed() bool
+	Await(ctx context.Context) error
+	Complete(*protocol.CompletionMessage)
+}
+
+type completable struct {
+	initialise sync.Once
+	completed  atomic.Bool
+	done       chan struct{}
+}
+
+func (c *completable) init() {
+	c.initialise.Do(func() {
+		c.done = make(chan struct{})
+	})
+}
+
+func (c *completable) Completed() bool {
+	c.init()
+
+	return c.completed.Load()
+}
+
+func (c *completable) Await(ctx context.Context) error {
+	c.init()
+	if c.completed.Load() {
+		// fast path
+		return nil
+	}
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-c.done:
+		return nil
+	}
+}
+
+func (c *completable) complete() {
+	c.init()
+	if !c.completed.Swap(true) {
+		// we swapped it into being true; we can safely close
+		close(c.done)
+	} else {
+		// already completed
+	}
+}
+
+type AckableMessage interface {
+	Message
+	Acked() bool
+	Await(ctx context.Context) error
+	Ack()
+}
+
+type ackable struct {
+	initialise sync.Once
+	acked      atomic.Bool
+	done       chan struct{}
+}
+
+func (c *ackable) init() {
+	c.initialise.Do(func() {
+		c.done = make(chan struct{})
+	})
+}
+
+func (c *ackable) Acked() bool {
+	c.init()
+
+	return c.acked.Load()
+}
+
+func (c *ackable) Await(ctx context.Context) error {
+	c.init()
+	if c.acked.Load() {
+		// fast path
+		return nil
+	}
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-c.done:
+		return nil
+	}
+}
+
+func (c *ackable) Ack() {
+	c.init()
+	if !c.acked.Swap(true) {
+		// we swapped it into being true; we can safely close
+		close(c.done)
+	} else {
+		// already completed
+	}
 }
