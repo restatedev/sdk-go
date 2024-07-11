@@ -3,6 +3,7 @@ package state
 import (
 	"context"
 	"encoding/json"
+	stderrors "errors"
 	"fmt"
 	"io"
 	"runtime/debug"
@@ -31,16 +32,12 @@ var (
 )
 
 type Context struct {
-	ctx     context.Context
+	context.Context
 	machine *Machine
 }
 
 var _ restate.ObjectContext = &Context{}
 var _ restate.Context = &Context{}
-
-func (c *Context) Ctx() context.Context {
-	return c.ctx
-}
 
 func (c *Context) Set(key string, value []byte) {
 	c.machine.set(key, value)
@@ -65,28 +62,24 @@ func (c *Context) Keys() ([]string, error) {
 	return c.machine.keys()
 }
 
-func (c *Context) Sleep(d time.Duration) error {
-	after, err := c.machine.after(d)
-	if err != nil {
-		return err
-	}
-	return after.Done()
+func (c *Context) Sleep(d time.Duration) {
+	c.machine.sleep(d)
 }
 
-func (c *Context) After(d time.Duration) (restate.After, error) {
+func (c *Context) After(d time.Duration) restate.After {
 	return c.machine.after(d)
 }
 
 func (c *Context) Service(service string) restate.ServiceClient {
 	return &serviceProxy{
-		Context: c,
+		machine: c.machine,
 		service: service,
 	}
 }
 
 func (c *Context) ServiceSend(service string, delay time.Duration) restate.ServiceSendClient {
 	return &serviceSendProxy{
-		Context: c,
+		machine: c.machine,
 		service: service,
 		delay:   delay,
 	}
@@ -94,7 +87,7 @@ func (c *Context) ServiceSend(service string, delay time.Duration) restate.Servi
 
 func (c *Context) Object(service, key string) restate.ServiceClient {
 	return &serviceProxy{
-		Context: c,
+		machine: c.machine,
 		service: service,
 		key:     key,
 	}
@@ -102,7 +95,7 @@ func (c *Context) Object(service, key string) restate.ServiceClient {
 
 func (c *Context) ObjectSend(service, key string, delay time.Duration) restate.ServiceSendClient {
 	return &serviceSendProxy{
-		Context: c,
+		machine: c.machine,
 		service: service,
 		key:     key,
 		delay:   delay,
@@ -130,14 +123,11 @@ func (c *Context) Key() string {
 }
 
 func newContext(inner context.Context, machine *Machine) *Context {
-
-	// state := make(map[string][]byte)
-	// for _, entry := range start.Payload.StateMap {
-	// 	state[string(entry.Key)] = entry.Value
-	// }
-
+	// will be cancelled when the http2 stream is cancelled
+	// but NOT when we just suspend - just because we can't get completions doesn't mean we can't make
+	// progress towards producing an output message
 	ctx := &Context{
-		ctx:     inner,
+		Context: inner,
 		machine: machine,
 	}
 
@@ -145,7 +135,9 @@ func newContext(inner context.Context, machine *Machine) *Context {
 }
 
 type Machine struct {
-	ctx context.Context
+	ctx           context.Context
+	suspensionCtx context.Context
+	suspend       func(error)
 
 	handler  restate.Handler
 	protocol *wire.Protocol
@@ -197,6 +189,7 @@ func (m *Machine) Start(inner context.Context, trace string) error {
 	}
 
 	m.ctx = inner
+	m.suspensionCtx, m.suspend = context.WithCancelCause(m.ctx)
 	m.id = start.Id
 	m.key = start.Key
 
@@ -281,6 +274,35 @@ The journal entry at position %d was:
 				},
 			}); err != nil {
 				m.log.Error().Err(err).Msg("error sending failure message")
+			}
+
+			return
+		case *wire.SuspensionPanic:
+			if m.ctx.Err() != nil {
+				// the http2 request has been cancelled; just return because we can't send a response
+				return
+			}
+			if stderrors.Is(typ.Err, io.EOF) {
+				m.log.Info().Uints32("entryIndexes", typ.EntryIndexes).Msg("Suspending")
+
+				if err := m.protocol.Write(&wire.SuspensionMessage{
+					SuspensionMessage: protocol.SuspensionMessage{
+						EntryIndexes: typ.EntryIndexes,
+					},
+				}); err != nil {
+					m.log.Error().Err(err).Msg("error sending suspension message")
+				}
+			} else {
+				m.log.Error().Err(typ.Err).Uints32("entryIndexes", typ.EntryIndexes).Msg("Unexpected error reading completions; shutting down state machine")
+
+				// don't check for error here, most likely we will fail to send if we are in such a bad state
+				_ = m.protocol.Write(&wire.ErrorMessage{
+					ErrorMessage: protocol.ErrorMessage{
+						Code:        uint32(restate.ErrorCode(typ.Err)),
+						Message:     fmt.Sprintf("problem reading completions: %v", typ.Err),
+						Description: string(debug.Stack()),
+					},
+				})
 			}
 
 			return
@@ -420,7 +442,7 @@ func replayOrNew[M wire.Message, O any](
 	m *Machine,
 	replay func(msg M) O,
 	new func() O,
-) (output O) {
+) (output O, entryIndex uint32) {
 	// lock around preparing the entry, but we would never await an ack or completion with this held.
 	m.entryMutex.Lock()
 	defer m.entryMutex.Unlock()
@@ -443,10 +465,10 @@ func replayOrNew[M wire.Message, O any](
 			var expectedEntry M
 			panic(m.newEntryMismatch(expectedEntry, entry))
 		} else {
-			return replay(entry)
+			return replay(entry), m.entryIndex
 		}
 	}
 
 	// other wise call the new function
-	return new()
+	return new(), m.entryIndex
 }

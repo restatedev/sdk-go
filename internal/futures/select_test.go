@@ -14,16 +14,16 @@ type fakeContext struct {
 }
 
 func (f *fakeContext) Awakeable() restate.Awakeable[[]byte] {
-	return futures.NewAwakeable(context.TODO(), nil, 0, nil)
+	return futures.NewAwakeable(context.TODO(), nil, nil, 0)
 }
 
 var _ restate.Context = (*fakeContext)(nil)
 
 func TestSelect(t *testing.T) {
-	after := futures.NewAfter(context.TODO(), nil)
-	awakeableOne := futures.NewAwakeable(context.TODO(), nil, 0, nil)
+	after := futures.NewAfter(context.TODO(), nil, 0)
+	awakeableOne := futures.NewAwakeable(context.TODO(), nil, nil, 0)
 	awakeableTwo := restate.AwakeableAs[string](&fakeContext{})
-	responseFut := futures.NewResponseFuture(context.TODO(), nil)
+	responseFut := futures.NewResponseFuture(context.TODO(), nil, 0)
 
 	// one-off (race)
 	selector := futures.Select(context.TODO(), after, awakeableOne, awakeableTwo, responseFut)

@@ -19,14 +19,14 @@ var (
 )
 
 type serviceProxy struct {
-	*Context
+	machine *Machine
 	service string
 	key     string
 }
 
 func (c *serviceProxy) Method(fn string) restate.CallClient {
 	return &serviceCall{
-		Context: c.Context,
+		machine: c.machine,
 		service: c.service,
 		key:     c.key,
 		method:  fn,
@@ -34,7 +34,7 @@ func (c *serviceProxy) Method(fn string) restate.CallClient {
 }
 
 type serviceSendProxy struct {
-	*Context
+	machine *Machine
 	service string
 	key     string
 	delay   time.Duration
@@ -42,15 +42,16 @@ type serviceSendProxy struct {
 
 func (c *serviceSendProxy) Method(fn string) restate.SendClient {
 	return &serviceSend{
-		Context: c.Context,
+		machine: c.machine,
 		service: c.service,
 		key:     c.key,
 		method:  fn,
+		delay:   c.delay,
 	}
 }
 
 type serviceCall struct {
-	*Context
+	machine *Machine
 	service string
 	key     string
 	method  string
@@ -58,15 +59,15 @@ type serviceCall struct {
 
 // Do makes a call and wait for the response
 func (c *serviceCall) Request(input any) restate.ResponseFuture {
-	if msg, err := c.machine.doDynCall(c.service, c.key, c.method, input); err != nil {
-		return futures.NewFailedResponseFuture(c.ctx, err)
+	if entry, entryIndex, err := c.machine.doDynCall(c.service, c.key, c.method, input); err != nil {
+		return futures.NewFailedResponseFuture(err)
 	} else {
-		return futures.NewResponseFuture(c.ctx, msg)
+		return futures.NewResponseFuture(c.machine.suspensionCtx, entry, entryIndex)
 	}
 }
 
 type serviceSend struct {
-	*Context
+	machine *Machine
 	service string
 	key     string
 	method  string
@@ -79,19 +80,20 @@ func (c *serviceSend) Request(input any) error {
 	return c.machine.sendCall(c.service, c.key, c.method, input, c.delay)
 }
 
-func (m *Machine) doDynCall(service, key, method string, input any) (*wire.CallEntryMessage, error) {
+func (m *Machine) doDynCall(service, key, method string, input any) (*wire.CallEntryMessage, uint32, error) {
 	params, err := json.Marshal(input)
 	if err != nil {
-		return nil, err
+		return nil, 0, err
 	}
 
-	return m.doCall(service, key, method, params), nil
+	entry, entryIndex := m.doCall(service, key, method, params)
+	return entry, entryIndex, nil
 }
 
-func (m *Machine) doCall(service, key, method string, params []byte) *wire.CallEntryMessage {
+func (m *Machine) doCall(service, key, method string, params []byte) (*wire.CallEntryMessage, uint32) {
 	m.log.Debug().Str("service", service).Str("method", method).Str("key", key).Msg("executing sync call")
 
-	return replayOrNew(
+	entry, entryIndex := replayOrNew(
 		m,
 		func(entry *wire.CallEntryMessage) *wire.CallEntryMessage {
 			if entry.ServiceName != service ||
@@ -112,6 +114,7 @@ func (m *Machine) doCall(service, key, method string, params []byte) *wire.CallE
 		}, func() *wire.CallEntryMessage {
 			return m._doCall(service, key, method, params)
 		})
+	return entry, entryIndex
 }
 
 func (m *Machine) _doCall(service, key, method string, params []byte) *wire.CallEntryMessage {
@@ -136,7 +139,7 @@ func (m *Machine) sendCall(service, key, method string, body any, delay time.Dur
 		return err
 	}
 
-	_ = replayOrNew(
+	_, _ = replayOrNew(
 		m,
 		func(entry *wire.OneWayCallEntryMessage) restate.Void {
 			if entry.ServiceName != service ||

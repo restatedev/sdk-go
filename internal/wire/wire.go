@@ -548,7 +548,7 @@ type EntryAckMessage struct {
 type CompleteableMessage interface {
 	Message
 	Completed() bool
-	Await(ctx context.Context) error
+	Await(suspensionCtx context.Context, entryIndex uint32)
 	Complete(*protocol.CompletionMessage)
 }
 
@@ -570,17 +570,17 @@ func (c *completable) Completed() bool {
 	return c.completed.Load()
 }
 
-func (c *completable) Await(ctx context.Context) error {
+func (c *completable) Await(suspensionCtx context.Context, entryIndex uint32) {
 	c.init()
 	if c.completed.Load() {
 		// fast path
-		return nil
+		return
 	}
 	select {
-	case <-ctx.Done():
-		return ctx.Err()
+	case <-suspensionCtx.Done():
+		panic(&SuspensionPanic{EntryIndexes: []uint32{entryIndex}, Err: suspensionCtx.Err()})
 	case <-c.done:
-		return nil
+		return
 	}
 }
 
@@ -619,17 +619,17 @@ func (c *ackable) Acked() bool {
 	return c.acked.Load()
 }
 
-func (c *ackable) Await(ctx context.Context) error {
+func (c *ackable) Await(suspensionCtx context.Context, entryIndex uint32) {
 	c.init()
 	if c.acked.Load() {
 		// fast path
-		return nil
+		return
 	}
 	select {
-	case <-ctx.Done():
-		return ctx.Err()
+	case <-suspensionCtx.Done():
+		panic(&SuspensionPanic{EntryIndexes: []uint32{entryIndex}, Err: suspensionCtx.Err()})
 	case <-c.done:
-		return nil
+		return
 	}
 }
 
@@ -641,4 +641,9 @@ func (c *ackable) Ack() {
 	} else {
 		// already completed
 	}
+}
+
+type SuspensionPanic struct {
+	EntryIndexes []uint32
+	Err          error
 }

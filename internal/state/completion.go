@@ -58,6 +58,7 @@ func (m *Machine) handleCompletionsAcks() {
 	for {
 		msg, err := m.protocol.Read()
 		if err != nil {
+			m.suspend(err)
 			return
 		}
 		switch msg := msg.(type) {

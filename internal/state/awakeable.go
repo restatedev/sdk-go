@@ -9,31 +9,26 @@ import (
 	"github.com/restatedev/sdk-go/internal/wire"
 )
 
-type indexedEntry struct {
-	entry      *wire.AwakeableEntryMessage
-	entryIndex uint32
-}
-
 func (c *Machine) awakeable() restate.Awakeable[[]byte] {
-	indexedEntry := replayOrNew(
+	entry, entryIndex := replayOrNew(
 		c,
-		func(entry *wire.AwakeableEntryMessage) indexedEntry {
-			return indexedEntry{entry, c.entryIndex}
+		func(entry *wire.AwakeableEntryMessage) *wire.AwakeableEntryMessage {
+			return entry
 		},
 		c._awakeable,
 	)
 
-	return futures.NewAwakeable(c.ctx, c.id, indexedEntry.entryIndex, indexedEntry.entry)
+	return futures.NewAwakeable(c.suspensionCtx, c.id, entry, entryIndex)
 }
 
-func (c *Machine) _awakeable() indexedEntry {
+func (c *Machine) _awakeable() *wire.AwakeableEntryMessage {
 	msg := &wire.AwakeableEntryMessage{}
 	c.Write(msg)
-	return indexedEntry{msg, c.entryIndex}
+	return msg
 }
 
 func (m *Machine) resolveAwakeable(id string, value []byte) {
-	_ = replayOrNew(
+	_, _ = replayOrNew(
 		m,
 		func(entry *wire.CompleteAwakeableEntryMessage) restate.Void {
 			messageValue, ok := entry.Result.(*protocol.CompleteAwakeableEntryMessage_Value)
@@ -64,7 +59,7 @@ func (c *Machine) _resolveAwakeable(id string, value []byte) {
 }
 
 func (m *Machine) rejectAwakeable(id string, reason error) {
-	_ = replayOrNew(
+	_, _ = replayOrNew(
 		m,
 		func(entry *wire.CompleteAwakeableEntryMessage) restate.Void {
 			messageFailure, ok := entry.Result.(*protocol.CompleteAwakeableEntryMessage_Failure)

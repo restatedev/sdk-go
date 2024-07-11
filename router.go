@@ -44,13 +44,12 @@ type ServiceSendClient interface {
 }
 
 type Context interface {
-	// Context of request.
-	Ctx() context.Context
+	context.Context
 
 	// Sleep for the duration d
-	Sleep(d time.Duration) error
+	Sleep(d time.Duration)
 	// Return a handle on a sleep duration which can be combined
-	After(d time.Duration) (After, error)
+	After(d time.Duration) After
 
 	// Service gets a Service accessor by name where service
 	// must be another service known by restate runtime
@@ -294,6 +293,6 @@ func ResolveAwakeableAs[T any](ctx Context, id string, value T) error {
 }
 
 type After interface {
-	Done() error
+	Done()
 	futures.Selectable
 }
