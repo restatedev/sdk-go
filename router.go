@@ -26,8 +26,6 @@ type SendClient interface {
 }
 
 type ResponseFuture interface {
-	// Err returns errors that occurred when sending off the request, without having to wait for the response
-	Err() error
 	// Response waits for the response to the call and unmarshals it into output
 	Response(output any) error
 	futures.Selectable
@@ -41,6 +39,11 @@ type ServiceClient interface {
 type ServiceSendClient interface {
 	// Method creates a call to method with name
 	Method(method string) SendClient
+}
+
+type Selector interface {
+	Remaining() bool
+	Select() futures.Selectable
 }
 
 type Context interface {
@@ -78,6 +81,8 @@ type Context interface {
 	Awakeable() Awakeable[[]byte]
 	ResolveAwakeable(id string, value []byte)
 	RejectAwakeable(id string, reason error)
+
+	Selector(futs ...futures.Selectable) (Selector, error)
 }
 
 // Router interface

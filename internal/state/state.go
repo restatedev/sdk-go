@@ -13,6 +13,7 @@ import (
 	restate "github.com/restatedev/sdk-go"
 	"github.com/restatedev/sdk-go/generated/proto/protocol"
 	"github.com/restatedev/sdk-go/internal/errors"
+	"github.com/restatedev/sdk-go/internal/futures"
 	"github.com/restatedev/sdk-go/internal/wire"
 
 	"github.com/rs/zerolog"
@@ -116,6 +117,10 @@ func (c *Context) ResolveAwakeable(id string, value []byte) {
 
 func (c *Context) RejectAwakeable(id string, reason error) {
 	c.machine.rejectAwakeable(id, reason)
+}
+
+func (c *Context) Selector(futs ...futures.Selectable) (restate.Selector, error) {
+	return c.machine.selector(futs...)
 }
 
 func (c *Context) Key() string {

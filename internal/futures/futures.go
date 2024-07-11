@@ -32,8 +32,8 @@ func (a *After) Done() {
 	a.entry.Await(a.suspensionCtx, a.entryIndex)
 }
 
-func (a *After) getEntry() (wire.CompleteableMessage, error) {
-	return a.entry, nil
+func (a *After) getEntry() (wire.CompleteableMessage, uint32, error) {
+	return a.entry, a.entryIndex, nil
 }
 
 const AWAKEABLE_IDENTIFIER_PREFIX = "prom_1"
@@ -62,7 +62,9 @@ func (c *Awakeable) Result() ([]byte, error) {
 		return nil, fmt.Errorf("unexpected result in completed awakeable entry: %v", c.entry.Result)
 	}
 }
-func (c *Awakeable) getEntry() (wire.CompleteableMessage, error) { return c.entry, nil }
+func (c *Awakeable) getEntry() (wire.CompleteableMessage, uint32, error) {
+	return c.entry, c.entryIndex, nil
+}
 
 func awakeableID(invocationID []byte, entryIndex uint32) string {
 	bytes := make([]byte, 0, len(invocationID)+4)
@@ -84,10 +86,6 @@ func NewResponseFuture(suspensionCtx context.Context, entry *wire.CallEntryMessa
 
 func NewFailedResponseFuture(err error) *ResponseFuture {
 	return &ResponseFuture{nil, err, nil, 0}
-}
-
-func (r *ResponseFuture) Err() error {
-	return r.err
 }
 
 func (r *ResponseFuture) Response(output any) error {
@@ -116,6 +114,6 @@ func (r *ResponseFuture) Response(output any) error {
 	return nil
 }
 
-func (r *ResponseFuture) getEntry() (wire.CompleteableMessage, error) {
-	return r.entry, r.err
+func (r *ResponseFuture) getEntry() (wire.CompleteableMessage, uint32, error) {
+	return r.entry, r.entryIndex, r.err
 }

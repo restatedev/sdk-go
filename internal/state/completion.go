@@ -1,6 +1,9 @@
 package state
 
 import (
+	"errors"
+	"io"
+
 	"github.com/restatedev/sdk-go/internal/wire"
 )
 
@@ -58,6 +61,9 @@ func (m *Machine) handleCompletionsAcks() {
 	for {
 		msg, err := m.protocol.Read()
 		if err != nil {
+			if errors.Is(err, io.EOF) {
+				m.log.Trace().Err(err).Msg("request body closed; next blocking operation will suspend")
+			}
 			m.suspend(err)
 			return
 		}
