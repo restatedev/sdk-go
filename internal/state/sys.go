@@ -14,18 +14,31 @@ import (
 	"google.golang.org/protobuf/proto"
 )
 
-var (
-	errEntryMismatch = restate.WithErrorCode(fmt.Errorf("log entry mismatch"), 32)
-)
+type entryMismatch struct {
+	entryIndex uint32
+	// this can be satisfied by a nil pointer in the case that there is an entry type mismatch
+	expectedEntry wire.Message
+	actualEntry   wire.Message
+}
+
+func (m *Machine) newEntryMismatch(expectedEntry wire.Message, actualEntry wire.Message) *entryMismatch {
+	e := &entryMismatch{m.entryIndex, expectedEntry, actualEntry}
+	m.failure = e
+	return e
+}
 
 func (m *Machine) set(key string, value []byte) error {
 	_, err := replayOrNew(
 		m,
-		func(entry *wire.SetStateEntryMessage) (void restate.Void, err error) {
+		func(entry *wire.SetStateEntryMessage) (void restate.Void) {
 			if string(entry.Key) != key || !bytes.Equal(entry.Value, value) {
-				return void, errEntryMismatch
+				panic(m.newEntryMismatch(&wire.SetStateEntryMessage{
+					SetStateEntryMessage: protocol.SetStateEntryMessage{
+						Key:   []byte(key),
+						Value: value,
+					},
+				}, entry))
 			}
-
 			return
 		}, func() (void restate.Void, err error) {
 			return void, m._set(key, value)
@@ -52,12 +65,16 @@ func (m *Machine) _set(key string, value []byte) error {
 func (m *Machine) clear(key string) error {
 	_, err := replayOrNew(
 		m,
-		func(entry *wire.ClearStateEntryMessage) (void restate.Void, err error) {
+		func(entry *wire.ClearStateEntryMessage) (void restate.Void) {
 			if string(entry.Key) != key {
-				return void, errEntryMismatch
+				panic(m.newEntryMismatch(&wire.ClearStateEntryMessage{
+					ClearStateEntryMessage: protocol.ClearStateEntryMessage{
+						Key: []byte(key),
+					},
+				}, entry))
 			}
 
-			return void, nil
+			return
 		}, func() (restate.Void, error) {
 			return restate.Void{}, m._clear(key)
 		},
@@ -85,7 +102,7 @@ func (m *Machine) _clear(key string) error {
 func (m *Machine) clearAll() error {
 	_, err := replayOrNew(
 		m,
-		func(entry *wire.ClearAllStateEntryMessage) (void restate.Void, err error) {
+		func(entry *wire.ClearAllStateEntryMessage) (void restate.Void) {
 			return
 		}, func() (restate.Void, error) {
 			return restate.Void{}, m._clearAll()
@@ -111,11 +128,15 @@ func (m *Machine) _clearAll() error {
 func (m *Machine) get(key string) ([]byte, error) {
 	entry, err := replayOrNew(
 		m,
-		func(entry *wire.GetStateEntryMessage) (*wire.GetStateEntryMessage, error) {
+		func(entry *wire.GetStateEntryMessage) *wire.GetStateEntryMessage {
 			if string(entry.Key) != key {
-				return nil, errEntryMismatch
+				panic(m.newEntryMismatch(&wire.GetStateEntryMessage{
+					GetStateEntryMessage: protocol.GetStateEntryMessage{
+						Key: []byte(key),
+					},
+				}, entry))
 			}
-			return entry, nil
+			return entry
 		}, func() (*wire.GetStateEntryMessage, error) {
 			return m._get(key)
 		})
@@ -189,8 +210,8 @@ func (m *Machine) _get(key string) (*wire.GetStateEntryMessage, error) {
 func (m *Machine) keys() ([]string, error) {
 	entry, err := replayOrNew(
 		m,
-		func(entry *wire.GetStateKeysEntryMessage) (*wire.GetStateKeysEntryMessage, error) {
-			return entry, nil
+		func(entry *wire.GetStateKeysEntryMessage) *wire.GetStateKeysEntryMessage {
+			return entry
 		},
 		m._keys,
 	)
@@ -263,9 +284,9 @@ func (m *Machine) _keys() (*wire.GetStateKeysEntryMessage, error) {
 func (m *Machine) after(d time.Duration) (restate.After, error) {
 	entry, err := replayOrNew(
 		m,
-		func(entry *wire.SleepEntryMessage) (*wire.SleepEntryMessage, error) {
+		func(entry *wire.SleepEntryMessage) *wire.SleepEntryMessage {
 			// we shouldn't verify the time because this would be different every time
-			return entry, nil
+			return entry
 		}, func() (*wire.SleepEntryMessage, error) {
 			return m._sleep(d)
 		},
@@ -303,8 +324,8 @@ func (m *Machine) _sleep(d time.Duration) (*wire.SleepEntryMessage, error) {
 func (m *Machine) sideEffect(fn func() ([]byte, error)) ([]byte, error) {
 	entry, err := replayOrNew(
 		m,
-		func(entry *wire.RunEntryMessage) (*wire.RunEntryMessage, error) {
-			return entry, nil
+		func(entry *wire.RunEntryMessage) *wire.RunEntryMessage {
+			return entry
 		},
 		func() (*wire.RunEntryMessage, error) {
 			return m._sideEffect(fn)

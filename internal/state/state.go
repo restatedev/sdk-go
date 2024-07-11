@@ -2,6 +2,7 @@ package state
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"runtime/debug"
@@ -10,6 +11,7 @@ import (
 
 	restate "github.com/restatedev/sdk-go"
 	"github.com/restatedev/sdk-go/generated/proto/protocol"
+	"github.com/restatedev/sdk-go/internal/errors"
 	"github.com/restatedev/sdk-go/internal/wire"
 
 	"github.com/rs/zerolog"
@@ -164,6 +166,8 @@ type Machine struct {
 	pendingCompletions map[uint32]wire.CompleteableMessage
 	pendingAcks        map[uint32]wire.AckableMessage
 	pendingMutex       sync.RWMutex
+
+	failure any
 }
 
 func NewMachine(handler restate.Handler, conn io.ReadWriter) *Machine {
@@ -221,6 +225,27 @@ func (m *Machine) invoke(ctx *Context, input []byte, outputSeen bool) error {
 		case nil:
 			// nothing to do, just exit
 			return
+		case *entryMismatch:
+			expected, _ := json.Marshal(typ.expectedEntry)
+			actual, _ := json.Marshal(typ.actualEntry)
+			msg := fmt.Sprintf(`Journal mismatch: Replayed journal entries did not correspond to the user code. The user code has to be deterministic!
+The journal entry at position %d was:
+- In the user code: type: %T, message: %s
+- In the replayed messages: type: %T, message %s`,
+				typ.entryIndex, typ.expectedEntry, string(expected), typ.actualEntry, string(actual))
+
+			m.log.Error().Msg(msg)
+
+			// journal entry mismatch
+			if err := m.protocol.Write(&wire.ErrorMessage{
+				ErrorMessage: protocol.ErrorMessage{
+					Code:        uint32(errors.ErrJournalMismatch),
+					Message:     msg,
+					Description: string(debug.Stack()),
+				},
+			}); err != nil {
+				m.log.Error().Err(err).Msg("error sending failure message")
+			}
 		default:
 			// unknown panic!
 			// send an error message (retryable)
@@ -355,12 +380,17 @@ func (c *Machine) currentEntry() (wire.Message, bool) {
 // by sending the proper runtime messages
 func replayOrNew[M wire.Message, O any](
 	m *Machine,
-	replay func(msg M) (O, error),
+	replay func(msg M) O,
 	new func() (O, error),
 ) (output O, err error) {
 	// lock around preparing the entry, but we would never await an ack or completion with this held.
 	m.entryMutex.Lock()
 	defer m.entryMutex.Unlock()
+
+	if m.failure != nil {
+		// maybe the user will try to catch our panics, but we will just keep producing them
+		panic(m.failure)
+	}
 
 	m.entryIndex += 1
 
@@ -371,9 +401,11 @@ func replayOrNew[M wire.Message, O any](
 	// by calling the replay function
 	if ok {
 		if entry, ok := entry.(M); !ok {
-			return output, errEntryMismatch
+			// will be eg *wire.CallEntryMessage(nil)
+			var expectedEntry M
+			panic(m.newEntryMismatch(expectedEntry, entry))
 		} else {
-			return replay(entry)
+			return replay(entry), nil
 		}
 	}
 
