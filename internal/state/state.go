@@ -332,7 +332,15 @@ The journal entry at position %d was:
 		return m.protocol.Write(&wire.EndMessage{})
 	}
 
-	bytes, err := m.handler.Call(ctx, input)
+	var bytes []byte
+	var err error
+	switch handler := m.handler.(type) {
+	case restate.ObjectHandler:
+		bytes, err = handler.Call(ctx, input)
+	case restate.ServiceHandler:
+		bytes, err = handler.Call(ctx, input)
+	}
+
 	if err != nil {
 		m.log.Error().Err(err).Msg("failure")
 	}

@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"math/rand"
 
 	"github.com/google/uuid"
 	restate "github.com/restatedev/sdk-go"
@@ -19,7 +20,15 @@ type PaymentResponse struct {
 	Price int    `json:"price"`
 }
 
-func payment(ctx restate.Context, request PaymentRequest) (response PaymentResponse, err error) {
+type checkout struct{}
+
+func (c *checkout) Name() string {
+	return CheckoutServiceName
+}
+
+const CheckoutServiceName = "Checkout"
+
+func (c *checkout) Payment(ctx restate.Context, request PaymentRequest) (response PaymentResponse, err error) {
 	uuid, err := restate.RunAs(ctx, func(ctx context.Context) (string, error) {
 		uuid := uuid.New()
 		return uuid.String(), nil
@@ -36,17 +45,15 @@ func payment(ctx restate.Context, request PaymentRequest) (response PaymentRespo
 	price := len(request.Tickets) * 30
 
 	response.Price = price
-	i := 0
 	_, err = restate.RunAs(ctx, func(ctx context.Context) (bool, error) {
 		log := log.With().Str("uuid", uuid).Int("price", price).Logger()
-		if i > 2 {
+		if rand.Float64() < 0.5 {
 			log.Info().Msg("payment succeeded")
 			return true, nil
+		} else {
+			log.Error().Msg("payment failed")
+			return false, fmt.Errorf("failed to pay")
 		}
-
-		log.Error().Msg("payment failed")
-		i += 1
-		return false, fmt.Errorf("failed to pay")
 	})
 
 	if err != nil {
@@ -57,8 +64,3 @@ func payment(ctx restate.Context, request PaymentRequest) (response PaymentRespo
 
 	return response, nil
 }
-
-var (
-	Checkout = restate.NewServiceRouter().
-		Handler("checkout", restate.NewServiceHandler(payment))
-)

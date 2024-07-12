@@ -244,7 +244,7 @@ func (m *Machine) _keys() *wire.GetStateKeysEntryMessage {
 	return msg
 }
 
-func (m *Machine) after(d time.Duration) restate.After {
+func (m *Machine) after(d time.Duration) *futures.After {
 	entry, entryIndex := replayOrNew(
 		m,
 		func(entry *wire.SleepEntryMessage) *wire.SleepEntryMessage {

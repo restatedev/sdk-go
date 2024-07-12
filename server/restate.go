@@ -50,14 +50,14 @@ func NewRestate() *Restate {
 	}
 }
 
-func (r *Restate) Bind(name string, router restate.Router) *Restate {
-	if _, ok := r.routers[name]; ok {
+func (r *Restate) Bind(router restate.Router) *Restate {
+	if _, ok := r.routers[router.Name()]; ok {
 		// panic because this is a programming error
 		// to register multiple router with the same name
 		panic("router with the same name exists")
 	}
 
-	r.routers[name] = router
+	r.routers[router.Name()] = router
 
 	return r
 }

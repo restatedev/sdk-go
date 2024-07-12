@@ -87,13 +87,23 @@ type Context interface {
 
 // Router interface
 type Router interface {
+	Name() string
 	Type() internal.ServiceType
 	// Set of handlers associated with this router
 	Handlers() map[string]Handler
 }
 
-type Handler interface {
+type ObjectHandler interface {
+	Call(ctx ObjectContext, request []byte) (output []byte, err error)
+	Handler
+}
+
+type ServiceHandler interface {
 	Call(ctx Context, request []byte) (output []byte, err error)
+	Handler
+}
+
+type Handler interface {
 	sealed()
 }
 
@@ -103,25 +113,6 @@ const (
 	ServiceType_VIRTUAL_OBJECT ServiceType = "VIRTUAL_OBJECT"
 	ServiceType_SERVICE        ServiceType = "SERVICE"
 )
-
-type ObjectHandlerWrapper struct {
-	h *ObjectHandler
-}
-
-func (o ObjectHandlerWrapper) Call(ctx Context, request []byte) ([]byte, error) {
-	switch ctx := ctx.(type) {
-	case ObjectContext:
-		return o.h.Call(ctx, request)
-	default:
-		panic("Object handler called with context that doesn't implement ObjectContext")
-	}
-}
-
-func (ObjectHandlerWrapper) sealed() {}
-
-type ServiceHandlerWrapper struct {
-	h ServiceHandler
-}
 
 type KeyValueStore interface {
 	// Set sets key value to bytes array. You can
@@ -156,20 +147,26 @@ type ObjectHandlerFn[I any, O any] func(ctx ObjectContext, input I) (output O, e
 
 // ServiceRouter implements Router
 type ServiceRouter struct {
+	name     string
 	handlers map[string]Handler
 }
 
 var _ Router = &ServiceRouter{}
 
 // NewServiceRouter creates a new ServiceRouter
-func NewServiceRouter() *ServiceRouter {
+func NewServiceRouter(name string) *ServiceRouter {
 	return &ServiceRouter{
+		name:     name,
 		handlers: make(map[string]Handler),
 	}
 }
 
+func (r *ServiceRouter) Name() string {
+	return r.name
+}
+
 // Handler registers a new handler by name
-func (r *ServiceRouter) Handler(name string, handler *ServiceHandler) *ServiceRouter {
+func (r *ServiceRouter) Handler(name string, handler ServiceHandler) *ServiceRouter {
 	r.handlers[name] = handler
 	return r
 }
@@ -184,19 +181,25 @@ func (r *ServiceRouter) Type() internal.ServiceType {
 
 // ObjectRouter
 type ObjectRouter struct {
+	name     string
 	handlers map[string]Handler
 }
 
 var _ Router = &ObjectRouter{}
 
-func NewObjectRouter() *ObjectRouter {
+func NewObjectRouter(name string) *ObjectRouter {
 	return &ObjectRouter{
+		name:     name,
 		handlers: make(map[string]Handler),
 	}
 }
 
-func (r *ObjectRouter) Handler(name string, handler *ObjectHandler) *ObjectRouter {
-	r.handlers[name] = ObjectHandlerWrapper{h: handler}
+func (r *ObjectRouter) Name() string {
+	return r.name
+}
+
+func (r *ObjectRouter) Handler(name string, handler ObjectHandler) *ObjectRouter {
+	r.handlers[name] = handler
 	return r
 }
 

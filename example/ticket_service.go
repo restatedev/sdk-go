@@ -15,7 +15,13 @@ const (
 	TicketSold      TicketStatus = 2
 )
 
-func reserve(ctx restate.ObjectContext, _ restate.Void) (bool, error) {
+const TicketServiceName = "TicketService"
+
+type ticketService struct{}
+
+func (t *ticketService) Name() string { return TicketServiceName }
+
+func (t *ticketService) Reserve(ctx restate.ObjectContext, _ restate.Void) (bool, error) {
 	status, err := restate.GetAs[TicketStatus](ctx, "status")
 	if err != nil && !errors.Is(err, restate.ErrKeyNotFound) {
 		return false, err
@@ -28,7 +34,7 @@ func reserve(ctx restate.ObjectContext, _ restate.Void) (bool, error) {
 	return false, nil
 }
 
-func unreserve(ctx restate.ObjectContext, _ restate.Void) (void restate.Void, err error) {
+func (t *ticketService) Unreserve(ctx restate.ObjectContext, _ restate.Void) (void restate.Void, err error) {
 	ticketId := ctx.Key()
 	log.Info().Str("ticket", ticketId).Msg("un-reserving ticket")
 	status, err := restate.GetAs[TicketStatus](ctx, "status")
@@ -44,7 +50,7 @@ func unreserve(ctx restate.ObjectContext, _ restate.Void) (void restate.Void, er
 	return void, nil
 }
 
-func markAsSold(ctx restate.ObjectContext, _ restate.Void) (void restate.Void, err error) {
+func (t *ticketService) MarkAsSold(ctx restate.ObjectContext, _ restate.Void) (void restate.Void, err error) {
 	ticketId := ctx.Key()
 	log.Info().Str("ticket", ticketId).Msg("mark ticket as sold")
 
@@ -59,10 +65,3 @@ func markAsSold(ctx restate.ObjectContext, _ restate.Void) (void restate.Void, e
 
 	return void, nil
 }
-
-var (
-	TicketService = restate.NewObjectRouter().
-		Handler("reserve", restate.NewObjectHandler(reserve)).
-		Handler("unreserve", restate.NewObjectHandler(unreserve)).
-		Handler("markAsSold", restate.NewObjectHandler(markAsSold))
-)
