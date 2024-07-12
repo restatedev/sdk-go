@@ -13,8 +13,6 @@ import (
 
 	_go "github.com/restatedev/sdk-go/generated/proto/go"
 	protocol "github.com/restatedev/sdk-go/generated/proto/protocol"
-	"github.com/rs/zerolog"
-	"github.com/rs/zerolog/log"
 	"google.golang.org/protobuf/proto"
 )
 
@@ -175,12 +173,11 @@ func (r *Reader) Next() <-chan ReaderMessage {
 // Note that Protocol is not concurrent safe and it's up to the user
 // to make sure it's used correctly
 type Protocol struct {
-	log    *zerolog.Logger
 	stream io.ReadWriter
 }
 
-func NewProtocol(log *zerolog.Logger, stream io.ReadWriter) *Protocol {
-	return &Protocol{log, stream}
+func NewProtocol(stream io.ReadWriter) *Protocol {
+	return &Protocol{stream}
 }
 
 // ReadHeader from stream
@@ -189,33 +186,32 @@ func (s *Protocol) header() (header Header, err error) {
 	return
 }
 
-func (s *Protocol) Read() (Message, error) {
+func (s *Protocol) Read() (Message, Type, error) {
 	header, err := s.header()
 	if err != nil {
-		return nil, fmt.Errorf("failed to read message header: %w", err)
+		return nil, 0, fmt.Errorf("failed to read message header: %w", err)
 	}
 
 	buf := make([]byte, header.Length)
 
 	if _, err := io.ReadFull(s.stream, buf); err != nil {
-		return nil, fmt.Errorf("failed to read message body: %w", err)
+		return nil, 0, fmt.Errorf("failed to read message body: %w", err)
 	}
 
 	builder, ok := builders[header.TypeCode]
 	if !ok {
-		return nil, fmt.Errorf("unknown message type '%d'", header.TypeCode)
+		return nil, 0, fmt.Errorf("unknown message type '%d'", header.TypeCode)
 	}
 
 	msg, err := builder(header, buf)
 	if err != nil {
-		return nil, err
+		return nil, 0, err
 	}
 
-	s.log.Trace().Stringer("type", header.TypeCode).Interface("msg", msg).Msg("received message")
-	return msg, nil
+	return msg, header.TypeCode, nil
 }
 
-func (s *Protocol) Write(message Message) error {
+func (s *Protocol) Write(typ Type, message Message) error {
 	var flag Flag
 
 	if message, ok := message.(CompleteableMessage); ok && message.Completed() {
@@ -224,10 +220,6 @@ func (s *Protocol) Write(message Message) error {
 	if message, ok := message.(AckableMessage); ok && !message.Acked() {
 		flag |= FlagRequiresAck
 	}
-
-	typ := MessageType(message)
-
-	s.log.Trace().Stringer("type", typ).Interface("msg", message).Msg("sending message to runtime")
 
 	bytes, err := proto.Marshal(message)
 	if err != nil {
@@ -432,7 +424,7 @@ type GetStateEntryMessage struct {
 
 var _ CompleteableMessage = (*GetStateEntryMessage)(nil)
 
-func (a *GetStateEntryMessage) Complete(c *protocol.CompletionMessage) {
+func (a *GetStateEntryMessage) Complete(c *protocol.CompletionMessage) error {
 	switch result := c.Result.(type) {
 	case *protocol.CompletionMessage_Value:
 		a.Result = &protocol.GetStateEntryMessage_Value{Value: result.Value}
@@ -443,6 +435,7 @@ func (a *GetStateEntryMessage) Complete(c *protocol.CompletionMessage) {
 	}
 
 	a.complete()
+	return nil
 }
 
 type SetStateEntryMessage struct {
@@ -467,25 +460,24 @@ type GetStateKeysEntryMessage struct {
 
 var _ CompleteableMessage = (*GetStateKeysEntryMessage)(nil)
 
-func (a *GetStateKeysEntryMessage) Complete(c *protocol.CompletionMessage) {
+func (a *GetStateKeysEntryMessage) Complete(c *protocol.CompletionMessage) error {
 	switch result := c.Result.(type) {
 	case *protocol.CompletionMessage_Value:
 		var keys protocol.GetStateKeysEntryMessage_StateKeys
 
 		if err := proto.Unmarshal(result.Value, &keys); err != nil {
-			log.Error().Err(err).Msg("received invalid value for getstatekeys")
-			return
+			return fmt.Errorf("received invalid value for getstatekeys: %w", err)
 		}
 
 		a.Result = &protocol.GetStateKeysEntryMessage_Value{Value: &keys}
 	case *protocol.CompletionMessage_Failure:
 		a.Result = &protocol.GetStateKeysEntryMessage_Failure{Failure: result.Failure}
 	case *protocol.CompletionMessage_Empty:
-		log.Error().Msg("received empty completion for getstatekeys")
-		return
+		return fmt.Errorf("received empty completion for getstatekeys")
 	}
 
 	a.complete()
+	return nil
 }
 
 type CompletionMessage struct {
@@ -500,18 +492,18 @@ type SleepEntryMessage struct {
 
 var _ CompleteableMessage = (*SleepEntryMessage)(nil)
 
-func (a *SleepEntryMessage) Complete(c *protocol.CompletionMessage) {
+func (a *SleepEntryMessage) Complete(c *protocol.CompletionMessage) error {
 	switch result := c.Result.(type) {
 	case *protocol.CompletionMessage_Empty:
 		a.Result = &protocol.SleepEntryMessage_Empty{Empty: result.Empty}
 	case *protocol.CompletionMessage_Failure:
 		a.Result = &protocol.SleepEntryMessage_Failure{Failure: result.Failure}
 	case *protocol.CompletionMessage_Value:
-		log.Error().Msg("received value completion for sleep")
-		return
+		return fmt.Errorf("received value completion for sleep")
 	}
 
 	a.complete()
+	return nil
 }
 
 type CallEntryMessage struct {
@@ -521,18 +513,18 @@ type CallEntryMessage struct {
 
 var _ CompleteableMessage = (*CallEntryMessage)(nil)
 
-func (a *CallEntryMessage) Complete(c *protocol.CompletionMessage) {
+func (a *CallEntryMessage) Complete(c *protocol.CompletionMessage) error {
 	switch result := c.Result.(type) {
 	case *protocol.CompletionMessage_Value:
 		a.Result = &protocol.CallEntryMessage_Value{Value: result.Value}
 	case *protocol.CompletionMessage_Failure:
 		a.Result = &protocol.CallEntryMessage_Failure{Failure: result.Failure}
 	case *protocol.CompletionMessage_Empty:
-		log.Error().Msg("received empty completion for call")
-		return
+		return fmt.Errorf("received empty completion for call")
 	}
 
 	a.complete()
+	return nil
 }
 
 type OneWayCallEntryMessage struct {
@@ -547,18 +539,18 @@ type AwakeableEntryMessage struct {
 
 var _ CompleteableMessage = (*AwakeableEntryMessage)(nil)
 
-func (a *AwakeableEntryMessage) Complete(c *protocol.CompletionMessage) {
+func (a *AwakeableEntryMessage) Complete(c *protocol.CompletionMessage) error {
 	switch result := c.Result.(type) {
 	case *protocol.CompletionMessage_Value:
 		a.Result = &protocol.AwakeableEntryMessage_Value{Value: result.Value}
 	case *protocol.CompletionMessage_Failure:
 		a.Result = &protocol.AwakeableEntryMessage_Failure{Failure: result.Failure}
 	case *protocol.CompletionMessage_Empty:
-		log.Error().Msg("received empty completion for an awakeable")
-		return
+		return fmt.Errorf("received empty completion for an awakeable")
 	}
 
 	a.complete()
+	return nil
 }
 
 type CompleteAwakeableEntryMessage struct {
@@ -586,7 +578,7 @@ type CompleteableMessage interface {
 	Done() <-chan struct{}
 	Completed() bool
 	Await(suspensionCtx context.Context, entryIndex uint32)
-	Complete(*protocol.CompletionMessage)
+	Complete(*protocol.CompletionMessage) error
 }
 
 type completable struct {

@@ -1,13 +1,11 @@
 package main
 
 import (
-	"context"
 	"fmt"
 	"math/rand"
 
 	"github.com/google/uuid"
 	restate "github.com/restatedev/sdk-go"
-	"github.com/rs/zerolog/log"
 )
 
 type PaymentRequest struct {
@@ -29,7 +27,7 @@ func (c *checkout) Name() string {
 const CheckoutServiceName = "Checkout"
 
 func (c *checkout) Payment(ctx restate.Context, request PaymentRequest) (response PaymentResponse, err error) {
-	uuid, err := restate.RunAs(ctx, func(ctx context.Context) (string, error) {
+	uuid, err := restate.RunAs(ctx, func(ctx restate.RunContext) (string, error) {
 		uuid := uuid.New()
 		return uuid.String(), nil
 	})
@@ -45,13 +43,13 @@ func (c *checkout) Payment(ctx restate.Context, request PaymentRequest) (respons
 	price := len(request.Tickets) * 30
 
 	response.Price = price
-	_, err = restate.RunAs(ctx, func(ctx context.Context) (bool, error) {
-		log := log.With().Str("uuid", uuid).Int("price", price).Logger()
+	_, err = restate.RunAs(ctx, func(ctx restate.RunContext) (bool, error) {
+		log := ctx.Log().With("uuid", uuid, "price", price)
 		if rand.Float64() < 0.5 {
-			log.Info().Msg("payment succeeded")
+			log.Info("payment succeeded")
 			return true, nil
 		} else {
-			log.Error().Msg("payment failed")
+			log.Error("payment failed")
 			return false, fmt.Errorf("failed to pay")
 		}
 	})

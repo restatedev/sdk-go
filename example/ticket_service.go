@@ -4,7 +4,6 @@ import (
 	"errors"
 
 	restate "github.com/restatedev/sdk-go"
-	"github.com/rs/zerolog/log"
 )
 
 type TicketStatus int
@@ -36,7 +35,7 @@ func (t *ticketService) Reserve(ctx restate.ObjectContext, _ restate.Void) (bool
 
 func (t *ticketService) Unreserve(ctx restate.ObjectContext, _ restate.Void) (void restate.Void, err error) {
 	ticketId := ctx.Key()
-	log.Info().Str("ticket", ticketId).Msg("un-reserving ticket")
+	ctx.Log().Info("un-reserving ticket", "ticket", ticketId)
 	status, err := restate.GetAs[TicketStatus](ctx, "status")
 	if err != nil && !errors.Is(err, restate.ErrKeyNotFound) {
 		return void, err
@@ -52,7 +51,7 @@ func (t *ticketService) Unreserve(ctx restate.ObjectContext, _ restate.Void) (vo
 
 func (t *ticketService) MarkAsSold(ctx restate.ObjectContext, _ restate.Void) (void restate.Void, err error) {
 	ticketId := ctx.Key()
-	log.Info().Str("ticket", ticketId).Msg("mark ticket as sold")
+	ctx.Log().Info("mark ticket as sold", "ticket", ticketId)
 
 	status, err := restate.GetAs[TicketStatus](ctx, "status")
 	if err != nil && !errors.Is(err, restate.ErrKeyNotFound) {

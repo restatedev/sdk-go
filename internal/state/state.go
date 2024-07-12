@@ -6,18 +6,19 @@ import (
 	stderrors "errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"runtime/debug"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	restate "github.com/restatedev/sdk-go"
 	"github.com/restatedev/sdk-go/generated/proto/protocol"
 	"github.com/restatedev/sdk-go/internal/errors"
 	"github.com/restatedev/sdk-go/internal/futures"
+	"github.com/restatedev/sdk-go/internal/log"
 	"github.com/restatedev/sdk-go/internal/wire"
-
-	"github.com/rs/zerolog"
-	"github.com/rs/zerolog/log"
+	"github.com/restatedev/sdk-go/rcontext"
 )
 
 const (
@@ -34,11 +35,16 @@ var (
 
 type Context struct {
 	context.Context
-	machine *Machine
+	userLogger *slog.Logger
+	machine    *Machine
 }
 
 var _ restate.ObjectContext = &Context{}
 var _ restate.Context = &Context{}
+
+func (c *Context) Log() *slog.Logger {
+	return c.machine.userLog
+}
 
 func (c *Context) Set(key string, value []byte) {
 	c.machine.set(key, value)
@@ -103,7 +109,7 @@ func (c *Context) ObjectSend(service, key string, delay time.Duration) restate.S
 	}
 }
 
-func (c *Context) Run(fn func(ctx context.Context) ([]byte, error)) ([]byte, error) {
+func (c *Context) Run(fn func(ctx restate.RunContext) ([]byte, error)) ([]byte, error) {
 	return c.machine.run(fn)
 }
 
@@ -158,7 +164,9 @@ type Machine struct {
 	entryIndex uint32
 	entryMutex sync.Mutex
 
-	log zerolog.Logger
+	log            *slog.Logger
+	userLog        *slog.Logger
+	userLogContext atomic.Pointer[rcontext.LogContext]
 
 	pendingCompletions map[uint32]wire.CompleteableMessage
 	pendingAcks        map[uint32]wire.AckableMessage
@@ -171,18 +179,18 @@ func NewMachine(handler restate.Handler, conn io.ReadWriter) *Machine {
 	m := &Machine{
 		handler:            handler,
 		current:            make(map[string][]byte),
-		log:                log.Logger,
 		pendingAcks:        map[uint32]wire.AckableMessage{},
 		pendingCompletions: map[uint32]wire.CompleteableMessage{},
 	}
-	m.protocol = wire.NewProtocol(&m.log, conn)
+	m.protocol = wire.NewProtocol(conn)
 	return m
 }
 
+func (m *Machine) Log() *slog.Logger { return m.log }
+
 // Start starts the state machine
-func (m *Machine) Start(inner context.Context, trace string) error {
-	// reader starts a rea
-	msg, err := m.protocol.Read()
+func (m *Machine) Start(inner context.Context, dropReplayLogs bool, logHandler slog.Handler) error {
+	msg, _, err := m.protocol.Read()
 	if err != nil {
 		return err
 	}
@@ -198,12 +206,12 @@ func (m *Machine) Start(inner context.Context, trace string) error {
 	m.id = start.Id
 	m.key = start.Key
 
-	m.log = m.log.With().Str("id", start.DebugId).Str("method", trace).Logger()
+	logHandler = logHandler.WithAttrs([]slog.Attr{slog.String("invocationID", start.DebugId)})
+
+	m.log = slog.New(log.NewRestateContextHandler(logHandler))
+	m.userLog = slog.New(log.NewUserContextHandler(&m.userLogContext, dropReplayLogs, logHandler))
 
 	ctx := newContext(inner, m)
-
-	m.log.Debug().Msg("start invocation")
-	defer m.log.Debug().Msg("invocation ended")
 
 	return m.process(ctx, start)
 }
@@ -227,15 +235,14 @@ func (m *Machine) invoke(ctx *Context, input []byte, outputSeen bool) error {
 			expected, _ := json.Marshal(typ.expectedEntry)
 			actual, _ := json.Marshal(typ.actualEntry)
 
-			m.log.Error().
-				Type("expectedType", typ.expectedEntry).
-				RawJSON("expectedMessage", expected).
-				Type("actualType", typ.actualEntry).
-				RawJSON("actualMessage", actual).
-				Msg("Journal mismatch: Replayed journal entries did not correspond to the user code. The user code has to be deterministic!")
+			m.log.LogAttrs(m.ctx, slog.LevelError, "Journal mismatch: Replayed journal entries did not correspond to the user code. The user code has to be deterministic!",
+				log.Type("expectedType", typ.expectedEntry),
+				slog.String("expectedMessage", string(expected)),
+				log.Type("actualType", typ.actualEntry),
+				slog.String("actualMessage", string(actual)))
 
 			// journal entry mismatch
-			if err := m.protocol.Write(&wire.ErrorMessage{
+			if err := m.protocol.Write(wire.ErrorMessageType, &wire.ErrorMessage{
 				ErrorMessage: protocol.ErrorMessage{
 					Code: uint32(errors.ErrJournalMismatch),
 					Message: fmt.Sprintf(`Journal mismatch: Replayed journal entries did not correspond to the user code. The user code has to be deterministic!
@@ -243,23 +250,21 @@ The journal entry at position %d was:
 - In the user code: type: %T, message: %s
 - In the replayed messages: type: %T, message %s`,
 						typ.entryIndex, typ.expectedEntry, string(expected), typ.actualEntry, string(actual)),
-					Description:       string(debug.Stack()),
 					RelatedEntryIndex: &typ.entryIndex,
 					RelatedEntryType:  wire.MessageType(typ.actualEntry).UInt32(),
 				},
 			}); err != nil {
-				m.log.Error().Err(err).Msg("error sending failure message")
+				m.log.LogAttrs(m.ctx, slog.LevelError, "Error sending failure message", log.Error(err))
 			}
 
 			return
 		case *writeError:
-			m.log.Error().Err(typ.err).Msg("Failed to write entry to Restate, shutting down state machine")
+			m.log.LogAttrs(m.ctx, slog.LevelError, "Failed to write entry to Restate, shutting down state machine", log.Error(typ.err))
 			// don't even check for failure here because most likely the http2 conn is closed anyhow
-			_ = m.protocol.Write(&wire.ErrorMessage{
+			_ = m.protocol.Write(wire.ErrorMessageType, &wire.ErrorMessage{
 				ErrorMessage: protocol.ErrorMessage{
 					Code:              uint32(errors.ErrProtocolViolation),
 					Message:           typ.err.Error(),
-					Description:       string(debug.Stack()),
 					RelatedEntryIndex: &typ.entryIndex,
 					RelatedEntryType:  wire.MessageType(typ.entry).UInt32(),
 				},
@@ -267,18 +272,17 @@ The journal entry at position %d was:
 
 			return
 		case *runFailure:
-			m.log.Error().Err(typ.err).Msg("Run returned a failure, returning error to Restate")
+			m.log.LogAttrs(m.ctx, slog.LevelError, "Run returned a failure, returning error to Restate", log.Error(typ.err))
 
-			if err := m.protocol.Write(&wire.ErrorMessage{
+			if err := m.protocol.Write(wire.ErrorMessageType, &wire.ErrorMessage{
 				ErrorMessage: protocol.ErrorMessage{
 					Code:              uint32(restate.ErrorCode(typ.err)),
 					Message:           typ.err.Error(),
-					Description:       string(debug.Stack()),
 					RelatedEntryIndex: &typ.entryIndex,
 					RelatedEntryType:  wire.AwakeableEntryMessageType.UInt32(),
 				},
 			}); err != nil {
-				m.log.Error().Err(err).Msg("error sending failure message")
+				m.log.LogAttrs(m.ctx, slog.LevelError, "Error sending failure message", log.Error(typ.err))
 			}
 
 			return
@@ -288,48 +292,53 @@ The journal entry at position %d was:
 				return
 			}
 			if stderrors.Is(typ.Err, io.EOF) {
-				m.log.Info().Uints32("entryIndexes", typ.EntryIndexes).Msg("Suspending")
+				m.log.LogAttrs(m.ctx, slog.LevelInfo, "Suspending invocation", slog.Any("entryIndexes", typ.EntryIndexes))
 
-				if err := m.protocol.Write(&wire.SuspensionMessage{
+				if err := m.protocol.Write(wire.SuspensionMessageType, &wire.SuspensionMessage{
 					SuspensionMessage: protocol.SuspensionMessage{
 						EntryIndexes: typ.EntryIndexes,
 					},
 				}); err != nil {
-					m.log.Error().Err(err).Msg("error sending suspension message")
+					m.log.LogAttrs(m.ctx, slog.LevelError, "Error sending suspension message", log.Error(err))
 				}
 			} else {
-				m.log.Error().Err(typ.Err).Uints32("entryIndexes", typ.EntryIndexes).Msg("Unexpected error reading completions; shutting down state machine")
+				m.log.LogAttrs(m.ctx, slog.LevelError, "Unexpected error reading completions; shutting down state machine", log.Error(typ.Err), slog.Any("entryIndexes", typ.EntryIndexes))
 
 				// don't check for error here, most likely we will fail to send if we are in such a bad state
-				_ = m.protocol.Write(&wire.ErrorMessage{
+				_ = m.protocol.Write(wire.ErrorMessageType, &wire.ErrorMessage{
 					ErrorMessage: protocol.ErrorMessage{
-						Code:        uint32(restate.ErrorCode(typ.Err)),
-						Message:     fmt.Sprintf("problem reading completions: %v", typ.Err),
-						Description: string(debug.Stack()),
+						Code:    uint32(restate.ErrorCode(typ.Err)),
+						Message: fmt.Sprintf("problem reading completions: %v", typ.Err),
 					},
 				})
 			}
 
 			return
 		default:
+			m.log.LogAttrs(m.ctx, slog.LevelError, "Invocation panicked, returning error to Restate", slog.Any("err", typ))
+
 			// unknown panic!
 			// send an error message (retryable)
-			if err := m.protocol.Write(&wire.ErrorMessage{
+			if err := m.protocol.Write(wire.ErrorMessageType, &wire.ErrorMessage{
 				ErrorMessage: protocol.ErrorMessage{
 					Code:        500,
 					Message:     fmt.Sprint(typ),
 					Description: string(debug.Stack()),
 				},
 			}); err != nil {
-				m.log.Error().Err(err).Msg("error sending failure message")
+				m.log.LogAttrs(m.ctx, slog.LevelError, "Error sending failure message", log.Error(err))
 			}
 
 			return
 		}
 	}()
 
+	m.log.InfoContext(m.ctx, "Handling invocation")
+
 	if outputSeen {
-		return m.protocol.Write(&wire.EndMessage{})
+		m.log.WarnContext(m.ctx, "Invocation already completed; ending immediately")
+
+		return m.protocol.Write(wire.EndMessageType, &wire.EndMessage{})
 	}
 
 	var bytes []byte
@@ -341,13 +350,11 @@ The journal entry at position %d was:
 		bytes, err = handler.Call(ctx, input)
 	}
 
-	if err != nil {
-		m.log.Error().Err(err).Msg("failure")
-	}
-
 	if err != nil && restate.IsTerminalError(err) {
+		m.log.LogAttrs(m.ctx, slog.LevelError, "Invocation returned a terminal failure", log.Error(err))
+
 		// terminal errors.
-		if err := m.protocol.Write(&wire.OutputEntryMessage{
+		if err := m.protocol.Write(wire.OutputEntryMessageType, &wire.OutputEntryMessage{
 			OutputEntryMessage: protocol.OutputEntryMessage{
 				Result: &protocol.OutputEntryMessage_Failure{
 					Failure: &protocol.Failure{
@@ -359,17 +366,21 @@ The journal entry at position %d was:
 		}); err != nil {
 			return err
 		}
-		return m.protocol.Write(&wire.EndMessage{})
+		return m.protocol.Write(wire.EndMessageType, &wire.EndMessage{})
 	} else if err != nil {
+		m.log.LogAttrs(m.ctx, slog.LevelError, "Invocation returned a non-terminal failure", log.Error(err))
+
 		// non terminal error - no end message
-		return m.protocol.Write(&wire.ErrorMessage{
+		return m.protocol.Write(wire.ErrorMessageType, &wire.ErrorMessage{
 			ErrorMessage: protocol.ErrorMessage{
 				Code:    uint32(restate.ErrorCode(err)),
 				Message: err.Error(),
 			},
 		})
 	} else {
-		if err := m.protocol.Write(&wire.OutputEntryMessage{
+		m.log.InfoContext(m.ctx, "Invocation completed successfully")
+
+		if err := m.protocol.Write(wire.OutputEntryMessageType, &wire.OutputEntryMessage{
 			OutputEntryMessage: protocol.OutputEntryMessage{
 				Result: &protocol.OutputEntryMessage_Value{
 					Value: bytes,
@@ -379,7 +390,7 @@ The journal entry at position %d was:
 			return err
 		}
 
-		return m.protocol.Write(&wire.EndMessage{})
+		return m.protocol.Write(wire.EndMessageType, &wire.EndMessage{})
 	}
 }
 
@@ -389,7 +400,7 @@ func (m *Machine) process(ctx *Context, start *wire.StartMessage) error {
 	}
 
 	// expect input message
-	msg, err := m.protocol.Read()
+	msg, _, err := m.protocol.Read()
 	if err != nil {
 		return err
 	}
@@ -398,19 +409,27 @@ func (m *Machine) process(ctx *Context, start *wire.StartMessage) error {
 		return wire.ErrUnexpectedMessage
 	}
 
-	m.log.Trace().Uint32("known entries", start.KnownEntries).Msg("known entires")
+	m.log.LogAttrs(m.ctx, log.LevelTrace, "Received input message", slog.Uint64("knownEntries", uint64(start.KnownEntries)))
 	m.entries = make([]wire.Message, 0, start.KnownEntries-1)
+	if start.KnownEntries > 1 {
+		// more than just an input message; will be at least one replay
+		m.userLogContext.Store(&rcontext.LogContext{Source: rcontext.LogSourceUser, IsReplaying: true})
+	} else {
+		// only an input message; no replayed messages
+		m.userLogContext.Store(&rcontext.LogContext{Source: rcontext.LogSourceUser, IsReplaying: false})
+	}
 
 	outputSeen := false
 
 	// we don't track the poll input entry
 	for i := uint32(1); i < start.KnownEntries; i++ {
-		msg, err := m.protocol.Read()
+		msg, typ, err := m.protocol.Read()
 		if err != nil {
 			return fmt.Errorf("failed to read entry: %w", err)
 		}
 
-		m.log.Trace().Type("type", msg).Msg("replay log entry")
+		m.log.LogAttrs(m.ctx, log.LevelTrace, "Received replay journal entry from runtime", log.Stringer("type", typ), slog.Uint64("index", uint64(i)))
+
 		m.entries = append(m.entries, msg)
 
 		if _, ok := msg.(*wire.OutputEntryMessage); ok {
@@ -466,6 +485,10 @@ func replayOrNew[M wire.Message, O any](
 	}
 
 	m.entryIndex += 1
+	if m.entryIndex == uint32(len(m.entries)) {
+		// this is a replay, but the next entry will not be a replay; log should now be allowed
+		m.userLogContext.Store(&rcontext.LogContext{Source: rcontext.LogSourceUser, IsReplaying: false})
+	}
 
 	// check if there is an entry as this index
 	entry, ok := m.currentEntry()

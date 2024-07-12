@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"log/slog"
 	"sort"
 	"time"
 
@@ -274,7 +275,7 @@ func (m *Machine) _sleep(d time.Duration) *wire.SleepEntryMessage {
 	return msg
 }
 
-func (m *Machine) run(fn func(context.Context) ([]byte, error)) ([]byte, error) {
+func (m *Machine) run(fn func(restate.RunContext) ([]byte, error)) ([]byte, error) {
 	entry, entryIndex := replayOrNew(
 		m,
 		func(entry *wire.RunEntryMessage) *wire.RunEntryMessage {
@@ -301,8 +302,15 @@ func (m *Machine) run(fn func(context.Context) ([]byte, error)) ([]byte, error) 
 	return nil, restate.TerminalError(fmt.Errorf("run entry had invalid result: %v", entry.Result), errors.ErrProtocolViolation)
 }
 
-func (m *Machine) _run(fn func(context.Context) ([]byte, error)) *wire.RunEntryMessage {
-	bytes, err := fn(m.ctx)
+type runContext struct {
+	context.Context
+	log *slog.Logger
+}
+
+func (r runContext) Log() *slog.Logger { return r.log }
+
+func (m *Machine) _run(fn func(restate.RunContext) ([]byte, error)) *wire.RunEntryMessage {
+	bytes, err := fn(runContext{m.ctx, m.userLog})
 
 	if err != nil {
 		if restate.IsTerminalError(err) {
