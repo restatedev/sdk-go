@@ -72,11 +72,11 @@ type Context interface {
 	// and delay is the duration with which to delay requests
 	ObjectSend(object, key string, delay time.Duration) ServiceSendClient
 
-	// SideEffects runs the function (fn) until it succeeds or permanently fails.
+	// Run runs the function (fn) until it succeeds or permanently fails.
 	// this stores the results of the function inside restate runtime so a replay
 	// will produce the same value (think generating a unique id for example)
-	// Note: use the SideEffectAs helper function
-	SideEffect(fn func() ([]byte, error)) ([]byte, error)
+	// Note: use the RunAs helper function
+	Run(fn func(ctx context.Context) ([]byte, error)) ([]byte, error)
 
 	Awakeable() Awakeable[[]byte]
 	ResolveAwakeable(id string, value []byte)
@@ -87,13 +87,23 @@ type Context interface {
 
 // Router interface
 type Router interface {
+	Name() string
 	Type() internal.ServiceType
 	// Set of handlers associated with this router
 	Handlers() map[string]Handler
 }
 
-type Handler interface {
+type ObjectHandler interface {
+	Call(ctx ObjectContext, request []byte) (output []byte, err error)
+	Handler
+}
+
+type ServiceHandler interface {
 	Call(ctx Context, request []byte) (output []byte, err error)
+	Handler
+}
+
+type Handler interface {
 	sealed()
 }
 
@@ -103,25 +113,6 @@ const (
 	ServiceType_VIRTUAL_OBJECT ServiceType = "VIRTUAL_OBJECT"
 	ServiceType_SERVICE        ServiceType = "SERVICE"
 )
-
-type ObjectHandlerWrapper struct {
-	h *ObjectHandler
-}
-
-func (o ObjectHandlerWrapper) Call(ctx Context, request []byte) ([]byte, error) {
-	switch ctx := ctx.(type) {
-	case ObjectContext:
-		return o.h.Call(ctx, request)
-	default:
-		panic("Object handler called with context that doesn't implement ObjectContext")
-	}
-}
-
-func (ObjectHandlerWrapper) sealed() {}
-
-type ServiceHandlerWrapper struct {
-	h ServiceHandler
-}
 
 type KeyValueStore interface {
 	// Set sets key value to bytes array. You can
@@ -156,20 +147,26 @@ type ObjectHandlerFn[I any, O any] func(ctx ObjectContext, input I) (output O, e
 
 // ServiceRouter implements Router
 type ServiceRouter struct {
+	name     string
 	handlers map[string]Handler
 }
 
 var _ Router = &ServiceRouter{}
 
 // NewServiceRouter creates a new ServiceRouter
-func NewServiceRouter() *ServiceRouter {
+func NewServiceRouter(name string) *ServiceRouter {
 	return &ServiceRouter{
+		name:     name,
 		handlers: make(map[string]Handler),
 	}
 }
 
+func (r *ServiceRouter) Name() string {
+	return r.name
+}
+
 // Handler registers a new handler by name
-func (r *ServiceRouter) Handler(name string, handler *ServiceHandler) *ServiceRouter {
+func (r *ServiceRouter) Handler(name string, handler ServiceHandler) *ServiceRouter {
 	r.handlers[name] = handler
 	return r
 }
@@ -184,19 +181,25 @@ func (r *ServiceRouter) Type() internal.ServiceType {
 
 // ObjectRouter
 type ObjectRouter struct {
+	name     string
 	handlers map[string]Handler
 }
 
 var _ Router = &ObjectRouter{}
 
-func NewObjectRouter() *ObjectRouter {
+func NewObjectRouter(name string) *ObjectRouter {
 	return &ObjectRouter{
+		name:     name,
 		handlers: make(map[string]Handler),
 	}
 }
 
-func (r *ObjectRouter) Handler(name string, handler *ObjectHandler) *ObjectRouter {
-	r.handlers[name] = ObjectHandlerWrapper{h: handler}
+func (r *ObjectRouter) Name() string {
+	return r.name
+}
+
+func (r *ObjectRouter) Handler(name string, handler ObjectHandler) *ObjectRouter {
+	r.handlers[name] = handler
 	return r
 }
 
@@ -240,11 +243,11 @@ func SetAs[T any](ctx ObjectContext, key string, value T) error {
 	return nil
 }
 
-// SideEffectAs helper function runs a side effect function with specific concrete type as a result
+// RunAs helper function runs a run function with specific concrete type as a result
 // it does encoding/decoding of bytes automatically using msgpack
-func SideEffectAs[T any](ctx Context, fn func() (T, error)) (output T, err error) {
-	bytes, err := ctx.SideEffect(func() ([]byte, error) {
-		out, err := fn()
+func RunAs[T any](ctx Context, fn func(context.Context) (T, error)) (output T, err error) {
+	bytes, err := ctx.Run(func(ctx context.Context) ([]byte, error) {
+		out, err := fn(ctx)
 		if err != nil {
 			return nil, err
 		}

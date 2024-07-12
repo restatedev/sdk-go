@@ -4,15 +4,10 @@ import (
 	"context"
 	"os"
 
+	restate "github.com/restatedev/sdk-go"
 	"github.com/restatedev/sdk-go/server"
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
-)
-
-const (
-	UserSessionServiceName = "UserSession"
-	TicketServiceName      = "TicketService"
-	CheckoutServiceName    = "Checkout"
 )
 
 func main() {
@@ -21,9 +16,9 @@ func main() {
 	zerolog.SetGlobalLevel(zerolog.InfoLevel)
 
 	server := server.NewRestate().
-		Bind(UserSessionServiceName, UserSession).
-		Bind(TicketServiceName, TicketService).
-		Bind(CheckoutServiceName, Checkout)
+		Bind(restate.Object(&userSession{})).
+		Bind(restate.Object(&ticketService{})).
+		Bind(restate.Service(&checkout{}))
 
 	if err := server.Start(context.Background(), ":9080"); err != nil {
 		log.Error().Err(err).Msg("application exited unexpectedly")

@@ -374,7 +374,7 @@ var (
 		RunEntryMessageType: func(header Header, bytes []byte) (Message, error) {
 			msg := &RunEntryMessage{}
 
-			// replayed side effects are inherently acked
+			// replayed run entries are inherently acked
 			msg.Ack()
 
 			return msg, proto.Unmarshal(bytes, msg)

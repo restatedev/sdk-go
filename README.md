@@ -5,16 +5,6 @@
 
 [Restate](https://restate.dev/) is a system for easily building resilient applications using *distributed durable async/await*. This repository contains the Restate SDK for writing services in **Golang**.
 
-This SDK is an individual effort to build a golang SDK for restate runtime. The implementation is based on the service protocol documentation found [here](https://github.com/restatedev/service-protocol/blob/main/service-invocation-protocol.md) and a lot of experimentation with the protocol.
-
-This means that it's not granted that this SDK matches exactly what `restate` has intended but it's a best effort interpretation of the docs
-
-Since **service discovery** was not documented (or at least I could not find any documentation for it), the implementation is based on reverse engineering the TypeScript SDK.
-
-This implementation of the SDK **ONLY** supports `dynrpc`. There is noway yet that you can define your service interface with `gRPC`
-
-Calling other services right now is done completely by name, hence it's not very safe since you can miss up arguments list/type for example but hopefully later on we can generate stubs or use `gRPC` interfaces to define services.
-
 ## Features implemented
 
 - [x] Log replay (resume of execution on failure)
@@ -22,9 +12,8 @@ Calling other services right now is done completely by name, hence it's not very
 - [x] Remote service call over restate runtime
 - [X] Delayed execution of remote services
 - [X] Sleep
-- [x] Side effects
-  - Implementation might differ from as intended by restate since it's not documented and based on reverse engineering of the TypeScript SDK
-- [ ] Awakeable
+- [x] Run
+- [x] Awakeable
 
 ## Basic usage
 
@@ -58,14 +47,14 @@ In yet a third terminal do the following steps
 - Add tickets to basket
 
 ```bash
-curl -v localhost:8080/UserSession/addTicket \
+curl -v localhost:8080/UserSession/azmy/AddTicket \
     -H 'content-type: application/json' \
-    -d '{"key": "azmy", "request": "ticket-1"}'
+    -d '"ticket-1"'
 
 # {"response":true}
-curl -v localhost:8080/UserSession/addTicket \
+curl -v localhost:8080/UserSession/azmy/AddTicket \
     -H 'content-type: application/json' \
-    -d '{"key": "azmy", "request": "ticket-2"}'
+    -d '"ticket-2"'
 # {"response":true}
 ```
 
@@ -74,8 +63,8 @@ Trying adding the same tickets again should return `false` since they are alread
 Finally checkout
 
 ```bash
-curl localhost:8080/UserSession/checkout \
+curl localhost:8080/UserSession/azmy/Checkout \
     -H 'content-type: application/json' \
-    -d '{"key": "azmy", "request": null}'
+    -d 'null'
 #{"response":true}
 ```
