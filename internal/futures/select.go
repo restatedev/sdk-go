@@ -2,66 +2,98 @@ package futures
 
 import (
 	"context"
+	"reflect"
+	"slices"
 
 	"github.com/restatedev/sdk-go/internal/wire"
 )
 
 type Selectable interface {
-	getEntry() (wire.CompleteableMessage, error)
+	getEntry() (wire.CompleteableMessage, uint32, error)
 }
 
-type Selector interface {
-	Select() bool
-	Err() error
-	Result() Selectable
+type Selector struct {
+	suspensionCtx context.Context
+	indexedFuts   map[uint32]Selectable
+	indexedChans  map[uint32]<-chan struct{}
+	chosen        Selectable
+	err           error
 }
 
-type selector struct {
-	ctx    context.Context
-	futs   []Selectable
-	chosen Selectable
-	err    error
-}
-
-func (s *selector) Select() bool {
+func (s *Selector) Select() (uint32, bool) {
 	if s.err != nil {
-		return false
+		return 0, false
 	}
-	if len(s.futs) == 0 {
-		return false
+	if len(s.indexedFuts) == 0 {
+		return 0, false
 	}
 
-	// todo pick what element to taike
-	i := len(s.futs) - 1
-
-	// pick future
-	s.chosen = s.futs[i]
-	// swap it to the end
-	s.futs[i], s.futs[len(s.futs)-1] = s.futs[len(s.futs)-1], s.futs[i]
-	// trim
-	s.futs = s.futs[:len(s.futs)-1]
-
-	return true
-}
-
-func (s *selector) Result() Selectable {
-	// TODO
-	return s.chosen
-}
-
-func (s *selector) Err() error {
-	// TODO
-	return s.err
-}
-
-func Select(ctx context.Context, futs ...Selectable) Selector {
-	s := &selector{ctx: ctx, futs: futs}
-	for i := range futs {
-		_, err := futs[i].getEntry()
-		if err != nil {
-			s.err = err
-			break
+	indexes := s.Indexes()
+	cases := make([]reflect.SelectCase, len(indexes)+1)
+	for i, entryIndex := range indexes {
+		cases[i] = reflect.SelectCase{
+			Dir:  reflect.SelectRecv,
+			Chan: reflect.ValueOf(s.indexedChans[entryIndex]),
 		}
+
 	}
-	return s
+	cases[len(indexes)] = reflect.SelectCase{
+		Dir:  reflect.SelectRecv,
+		Chan: reflect.ValueOf(s.suspensionCtx.Done()),
+	}
+	chosen, _, _ := reflect.Select(cases)
+	switch chosen {
+	case len(indexes):
+		// suspensionCtx won
+		panic(&wire.SuspensionPanic{EntryIndexes: indexes, Err: context.Cause(s.suspensionCtx)})
+	default:
+		return indexes[chosen], true
+	}
+}
+
+func (s *Selector) Take(winningEntryIndex uint32) Selectable {
+	selectable := s.indexedFuts[winningEntryIndex]
+	if selectable == nil {
+		return nil
+	}
+	entry, _, err := selectable.getEntry()
+	if err != nil {
+		return nil
+	}
+	if !entry.Completed() {
+		return nil
+	}
+	delete(s.indexedFuts, winningEntryIndex)
+	delete(s.indexedChans, winningEntryIndex)
+	return selectable
+}
+
+func (s *Selector) Remaining() bool {
+	return len(s.indexedFuts) > 0
+}
+
+func (s *Selector) Indexes() []uint32 {
+	indexes := make([]uint32, 0, len(s.indexedFuts))
+	for i := range s.indexedFuts {
+		indexes = append(indexes, i)
+	}
+	slices.Sort(indexes)
+	return indexes
+}
+
+func Select(suspensionCtx context.Context, futs ...Selectable) (*Selector, error) {
+	s := &Selector{
+		suspensionCtx: suspensionCtx,
+		indexedFuts:   make(map[uint32]Selectable, len(futs)),
+		indexedChans:  make(map[uint32]<-chan struct{}, len(futs)),
+	}
+	for i := range futs {
+		entry, entryIndex, err := futs[i].getEntry()
+		if err != nil {
+			return nil, err
+		}
+		s.indexedFuts[entryIndex] = futs[i]
+		s.indexedChans[entryIndex] = entry.Done()
+	}
+	return s, nil
 }

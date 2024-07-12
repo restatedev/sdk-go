@@ -19,51 +19,52 @@ var (
 )
 
 type After struct {
-	ctx   context.Context
-	entry *wire.SleepEntryMessage
+	suspensionCtx context.Context
+	entry         *wire.SleepEntryMessage
+	entryIndex    uint32
 }
 
-func NewAfter(ctx context.Context, entry *wire.SleepEntryMessage) *After {
-	return &After{ctx, entry}
+func NewAfter(suspensionCtx context.Context, entry *wire.SleepEntryMessage, entryIndex uint32) *After {
+	return &After{suspensionCtx, entry, entryIndex}
 }
 
-func (a *After) Done() error {
-	return a.entry.Await(a.ctx)
+func (a *After) Done() {
+	a.entry.Await(a.suspensionCtx, a.entryIndex)
 }
 
-func (a *After) getEntry() (wire.CompleteableMessage, error) {
-	return a.entry, nil
+func (a *After) getEntry() (wire.CompleteableMessage, uint32, error) {
+	return a.entry, a.entryIndex, nil
 }
 
 const AWAKEABLE_IDENTIFIER_PREFIX = "prom_1"
 
 type Awakeable struct {
-	ctx          context.Context
-	invocationID []byte
-	entryIndex   uint32
-	entry        *wire.AwakeableEntryMessage
+	suspensionCtx context.Context
+	invocationID  []byte
+	entry         *wire.AwakeableEntryMessage
+	entryIndex    uint32
 }
 
-func NewAwakeable(ctx context.Context, invocationID []byte, entryIndex uint32, entry *wire.AwakeableEntryMessage) *Awakeable {
-	return &Awakeable{ctx, invocationID, entryIndex, entry}
+func NewAwakeable(suspensionCtx context.Context, invocationID []byte, entry *wire.AwakeableEntryMessage, entryIndex uint32) *Awakeable {
+	return &Awakeable{suspensionCtx, invocationID, entry, entryIndex}
 }
 
 func (c *Awakeable) Id() string { return awakeableID(c.invocationID, c.entryIndex) }
 func (c *Awakeable) Result() ([]byte, error) {
-	if err := c.entry.Await(c.ctx); err != nil {
-		return nil, err
-	} else {
-		switch result := c.entry.Result.(type) {
-		case *protocol.AwakeableEntryMessage_Value:
-			return result.Value, nil
-		case *protocol.AwakeableEntryMessage_Failure:
-			return nil, errors.ErrorFromFailure(result.Failure)
-		default:
-			return nil, fmt.Errorf("unexpected result in completed awakeable entry: %v", c.entry.Result)
-		}
+	c.entry.Await(c.suspensionCtx, c.entryIndex)
+
+	switch result := c.entry.Result.(type) {
+	case *protocol.AwakeableEntryMessage_Value:
+		return result.Value, nil
+	case *protocol.AwakeableEntryMessage_Failure:
+		return nil, errors.ErrorFromFailure(result.Failure)
+	default:
+		return nil, fmt.Errorf("unexpected result in completed awakeable entry: %v", c.entry.Result)
 	}
 }
-func (c *Awakeable) getEntry() (wire.CompleteableMessage, error) { return c.entry, nil }
+func (c *Awakeable) getEntry() (wire.CompleteableMessage, uint32, error) {
+	return c.entry, c.entryIndex, nil
+}
 
 func awakeableID(invocationID []byte, entryIndex uint32) string {
 	bytes := make([]byte, 0, len(invocationID)+4)
@@ -73,21 +74,18 @@ func awakeableID(invocationID []byte, entryIndex uint32) string {
 }
 
 type ResponseFuture struct {
-	ctx   context.Context
-	err   error
-	entry *wire.CallEntryMessage
+	suspensionCtx context.Context
+	err           error
+	entry         *wire.CallEntryMessage
+	entryIndex    uint32
 }
 
-func NewResponseFuture(ctx context.Context, entry *wire.CallEntryMessage) *ResponseFuture {
-	return &ResponseFuture{ctx, nil, entry}
+func NewResponseFuture(suspensionCtx context.Context, entry *wire.CallEntryMessage, entryIndex uint32) *ResponseFuture {
+	return &ResponseFuture{suspensionCtx, nil, entry, entryIndex}
 }
 
-func NewFailedResponseFuture(ctx context.Context, err error) *ResponseFuture {
-	return &ResponseFuture{ctx, err, nil}
-}
-
-func (r *ResponseFuture) Err() error {
-	return r.err
+func NewFailedResponseFuture(err error) *ResponseFuture {
+	return &ResponseFuture{nil, err, nil, 0}
 }
 
 func (r *ResponseFuture) Response(output any) error {
@@ -95,10 +93,7 @@ func (r *ResponseFuture) Response(output any) error {
 		return r.err
 	}
 
-	if err := r.entry.Await(r.ctx); err != nil {
-		r.err = err
-		return r.err
-	}
+	r.entry.Await(r.suspensionCtx, r.entryIndex)
 
 	var bytes []byte
 	switch result := r.entry.Result.(type) {
@@ -119,6 +114,6 @@ func (r *ResponseFuture) Response(output any) error {
 	return nil
 }
 
-func (r *ResponseFuture) getEntry() (wire.CompleteableMessage, error) {
-	return r.entry, r.err
+func (r *ResponseFuture) getEntry() (wire.CompleteableMessage, uint32, error) {
+	return r.entry, r.entryIndex, r.err
 }

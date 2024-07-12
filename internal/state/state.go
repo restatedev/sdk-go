@@ -2,6 +2,8 @@ package state
 
 import (
 	"context"
+	"encoding/json"
+	stderrors "errors"
 	"fmt"
 	"io"
 	"runtime/debug"
@@ -10,6 +12,8 @@ import (
 
 	restate "github.com/restatedev/sdk-go"
 	"github.com/restatedev/sdk-go/generated/proto/protocol"
+	"github.com/restatedev/sdk-go/internal/errors"
+	"github.com/restatedev/sdk-go/internal/futures"
 	"github.com/restatedev/sdk-go/internal/wire"
 
 	"github.com/rs/zerolog"
@@ -29,29 +33,25 @@ var (
 )
 
 type Context struct {
-	ctx     context.Context
+	context.Context
 	machine *Machine
 }
 
 var _ restate.ObjectContext = &Context{}
 var _ restate.Context = &Context{}
 
-func (c *Context) Ctx() context.Context {
-	return c.ctx
+func (c *Context) Set(key string, value []byte) {
+	c.machine.set(key, value)
 }
 
-func (c *Context) Set(key string, value []byte) error {
-	return c.machine.set(key, value)
-}
-
-func (c *Context) Clear(key string) error {
-	return c.machine.clear(key)
+func (c *Context) Clear(key string) {
+	c.machine.clear(key)
 
 }
 
 // ClearAll drops all associated keys
-func (c *Context) ClearAll() error {
-	return c.machine.clearAll()
+func (c *Context) ClearAll() {
+	c.machine.clearAll()
 
 }
 
@@ -63,28 +63,24 @@ func (c *Context) Keys() ([]string, error) {
 	return c.machine.keys()
 }
 
-func (c *Context) Sleep(d time.Duration) error {
-	after, err := c.machine.after(d)
-	if err != nil {
-		return err
-	}
-	return after.Done()
+func (c *Context) Sleep(d time.Duration) {
+	c.machine.sleep(d)
 }
 
-func (c *Context) After(d time.Duration) (restate.After, error) {
+func (c *Context) After(d time.Duration) restate.After {
 	return c.machine.after(d)
 }
 
 func (c *Context) Service(service string) restate.ServiceClient {
 	return &serviceProxy{
-		Context: c,
+		machine: c.machine,
 		service: service,
 	}
 }
 
 func (c *Context) ServiceSend(service string, delay time.Duration) restate.ServiceSendClient {
 	return &serviceSendProxy{
-		Context: c,
+		machine: c.machine,
 		service: service,
 		delay:   delay,
 	}
@@ -92,7 +88,7 @@ func (c *Context) ServiceSend(service string, delay time.Duration) restate.Servi
 
 func (c *Context) Object(service, key string) restate.ServiceClient {
 	return &serviceProxy{
-		Context: c,
+		machine: c.machine,
 		service: service,
 		key:     key,
 	}
@@ -100,7 +96,7 @@ func (c *Context) Object(service, key string) restate.ServiceClient {
 
 func (c *Context) ObjectSend(service, key string, delay time.Duration) restate.ServiceSendClient {
 	return &serviceSendProxy{
-		Context: c,
+		machine: c.machine,
 		service: service,
 		key:     key,
 		delay:   delay,
@@ -111,16 +107,20 @@ func (c *Context) SideEffect(fn func() ([]byte, error)) ([]byte, error) {
 	return c.machine.sideEffect(fn)
 }
 
-func (c *Context) Awakeable() (restate.Awakeable[[]byte], error) {
+func (c *Context) Awakeable() restate.Awakeable[[]byte] {
 	return c.machine.awakeable()
 }
 
-func (c *Context) ResolveAwakeable(id string, value []byte) error {
-	return c.machine.resolveAwakeable(id, value)
+func (c *Context) ResolveAwakeable(id string, value []byte) {
+	c.machine.resolveAwakeable(id, value)
 }
 
-func (c *Context) RejectAwakeable(id string, reason error) error {
-	return c.machine.rejectAwakeable(id, reason)
+func (c *Context) RejectAwakeable(id string, reason error) {
+	c.machine.rejectAwakeable(id, reason)
+}
+
+func (c *Context) Selector(futs ...futures.Selectable) (restate.Selector, error) {
+	return c.machine.selector(futs...)
 }
 
 func (c *Context) Key() string {
@@ -128,14 +128,11 @@ func (c *Context) Key() string {
 }
 
 func newContext(inner context.Context, machine *Machine) *Context {
-
-	// state := make(map[string][]byte)
-	// for _, entry := range start.Payload.StateMap {
-	// 	state[string(entry.Key)] = entry.Value
-	// }
-
+	// will be cancelled when the http2 stream is cancelled
+	// but NOT when we just suspend - just because we can't get completions doesn't mean we can't make
+	// progress towards producing an output message
 	ctx := &Context{
-		ctx:     inner,
+		Context: inner,
 		machine: machine,
 	}
 
@@ -143,7 +140,9 @@ func newContext(inner context.Context, machine *Machine) *Context {
 }
 
 type Machine struct {
-	ctx context.Context
+	ctx           context.Context
+	suspensionCtx context.Context
+	suspend       func(error)
 
 	handler  restate.Handler
 	protocol *wire.Protocol
@@ -164,6 +163,8 @@ type Machine struct {
 	pendingCompletions map[uint32]wire.CompleteableMessage
 	pendingAcks        map[uint32]wire.AckableMessage
 	pendingMutex       sync.RWMutex
+
+	failure any
 }
 
 func NewMachine(handler restate.Handler, conn io.ReadWriter) *Machine {
@@ -193,6 +194,7 @@ func (m *Machine) Start(inner context.Context, trace string) error {
 	}
 
 	m.ctx = inner
+	m.suspensionCtx, m.suspend = context.WithCancelCause(m.ctx)
 	m.id = start.Id
 	m.key = start.Key
 
@@ -220,6 +222,94 @@ func (m *Machine) invoke(ctx *Context, input []byte, outputSeen bool) error {
 		switch typ := recovered.(type) {
 		case nil:
 			// nothing to do, just exit
+			return
+		case *entryMismatch:
+			expected, _ := json.Marshal(typ.expectedEntry)
+			actual, _ := json.Marshal(typ.actualEntry)
+
+			m.log.Error().
+				Type("expectedType", typ.expectedEntry).
+				RawJSON("expectedMessage", expected).
+				Type("actualType", typ.actualEntry).
+				RawJSON("actualMessage", actual).
+				Msg("Journal mismatch: Replayed journal entries did not correspond to the user code. The user code has to be deterministic!")
+
+			// journal entry mismatch
+			if err := m.protocol.Write(&wire.ErrorMessage{
+				ErrorMessage: protocol.ErrorMessage{
+					Code: uint32(errors.ErrJournalMismatch),
+					Message: fmt.Sprintf(`Journal mismatch: Replayed journal entries did not correspond to the user code. The user code has to be deterministic!
+The journal entry at position %d was:
+- In the user code: type: %T, message: %s
+- In the replayed messages: type: %T, message %s`,
+						typ.entryIndex, typ.expectedEntry, string(expected), typ.actualEntry, string(actual)),
+					Description:       string(debug.Stack()),
+					RelatedEntryIndex: &typ.entryIndex,
+					RelatedEntryType:  wire.MessageType(typ.actualEntry).UInt32(),
+				},
+			}); err != nil {
+				m.log.Error().Err(err).Msg("error sending failure message")
+			}
+
+			return
+		case *writeError:
+			m.log.Error().Err(typ.err).Msg("Failed to write entry to Restate, shutting down state machine")
+			// don't even check for failure here because most likely the http2 conn is closed anyhow
+			_ = m.protocol.Write(&wire.ErrorMessage{
+				ErrorMessage: protocol.ErrorMessage{
+					Code:              uint32(errors.ErrProtocolViolation),
+					Message:           typ.err.Error(),
+					Description:       string(debug.Stack()),
+					RelatedEntryIndex: &typ.entryIndex,
+					RelatedEntryType:  wire.MessageType(typ.entry).UInt32(),
+				},
+			})
+
+			return
+		case *sideEffectFailure:
+			m.log.Error().Err(typ.err).Msg("Side effect returned a failure, returning error to Restate")
+
+			if err := m.protocol.Write(&wire.ErrorMessage{
+				ErrorMessage: protocol.ErrorMessage{
+					Code:              uint32(restate.ErrorCode(typ.err)),
+					Message:           typ.err.Error(),
+					Description:       string(debug.Stack()),
+					RelatedEntryIndex: &typ.entryIndex,
+					RelatedEntryType:  wire.AwakeableEntryMessageType.UInt32(),
+				},
+			}); err != nil {
+				m.log.Error().Err(err).Msg("error sending failure message")
+			}
+
+			return
+		case *wire.SuspensionPanic:
+			if m.ctx.Err() != nil {
+				// the http2 request has been cancelled; just return because we can't send a response
+				return
+			}
+			if stderrors.Is(typ.Err, io.EOF) {
+				m.log.Info().Uints32("entryIndexes", typ.EntryIndexes).Msg("Suspending")
+
+				if err := m.protocol.Write(&wire.SuspensionMessage{
+					SuspensionMessage: protocol.SuspensionMessage{
+						EntryIndexes: typ.EntryIndexes,
+					},
+				}); err != nil {
+					m.log.Error().Err(err).Msg("error sending suspension message")
+				}
+			} else {
+				m.log.Error().Err(typ.Err).Uints32("entryIndexes", typ.EntryIndexes).Msg("Unexpected error reading completions; shutting down state machine")
+
+				// don't check for error here, most likely we will fail to send if we are in such a bad state
+				_ = m.protocol.Write(&wire.ErrorMessage{
+					ErrorMessage: protocol.ErrorMessage{
+						Code:        uint32(restate.ErrorCode(typ.Err)),
+						Message:     fmt.Sprintf("problem reading completions: %v", typ.Err),
+						Description: string(debug.Stack()),
+					},
+				})
+			}
+
 			return
 		default:
 			// unknown panic!
@@ -355,12 +445,17 @@ func (c *Machine) currentEntry() (wire.Message, bool) {
 // by sending the proper runtime messages
 func replayOrNew[M wire.Message, O any](
 	m *Machine,
-	replay func(msg M) (O, error),
-	new func() (O, error),
-) (output O, err error) {
+	replay func(msg M) O,
+	new func() O,
+) (output O, entryIndex uint32) {
 	// lock around preparing the entry, but we would never await an ack or completion with this held.
 	m.entryMutex.Lock()
 	defer m.entryMutex.Unlock()
+
+	if m.failure != nil {
+		// maybe the user will try to catch our panics, but we will just keep producing them
+		panic(m.failure)
+	}
 
 	m.entryIndex += 1
 
@@ -371,12 +466,14 @@ func replayOrNew[M wire.Message, O any](
 	// by calling the replay function
 	if ok {
 		if entry, ok := entry.(M); !ok {
-			return output, errEntryMismatch
+			// will be eg *wire.CallEntryMessage(nil)
+			var expectedEntry M
+			panic(m.newEntryMismatch(expectedEntry, entry))
 		} else {
-			return replay(entry)
+			return replay(entry), m.entryIndex
 		}
 	}
 
 	// other wise call the new function
-	return new()
+	return new(), m.entryIndex
 }

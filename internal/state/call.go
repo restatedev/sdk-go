@@ -3,7 +3,6 @@ package state
 import (
 	"bytes"
 	"encoding/json"
-	"fmt"
 	"time"
 
 	restate "github.com/restatedev/sdk-go"
@@ -20,14 +19,14 @@ var (
 )
 
 type serviceProxy struct {
-	*Context
+	machine *Machine
 	service string
 	key     string
 }
 
 func (c *serviceProxy) Method(fn string) restate.CallClient {
 	return &serviceCall{
-		Context: c.Context,
+		machine: c.machine,
 		service: c.service,
 		key:     c.key,
 		method:  fn,
@@ -35,7 +34,7 @@ func (c *serviceProxy) Method(fn string) restate.CallClient {
 }
 
 type serviceSendProxy struct {
-	*Context
+	machine *Machine
 	service string
 	key     string
 	delay   time.Duration
@@ -43,15 +42,16 @@ type serviceSendProxy struct {
 
 func (c *serviceSendProxy) Method(fn string) restate.SendClient {
 	return &serviceSend{
-		Context: c.Context,
+		machine: c.machine,
 		service: c.service,
 		key:     c.key,
 		method:  fn,
+		delay:   c.delay,
 	}
 }
 
 type serviceCall struct {
-	*Context
+	machine *Machine
 	service string
 	key     string
 	method  string
@@ -59,15 +59,15 @@ type serviceCall struct {
 
 // Do makes a call and wait for the response
 func (c *serviceCall) Request(input any) restate.ResponseFuture {
-	if msg, err := c.machine.doDynCall(c.service, c.key, c.method, input); err != nil {
-		return futures.NewFailedResponseFuture(c.ctx, err)
+	if entry, entryIndex, err := c.machine.doDynCall(c.service, c.key, c.method, input); err != nil {
+		return futures.NewFailedResponseFuture(err)
 	} else {
-		return futures.NewResponseFuture(c.ctx, msg)
+		return futures.NewResponseFuture(c.machine.suspensionCtx, entry, entryIndex)
 	}
 }
 
 type serviceSend struct {
-	*Context
+	machine *Machine
 	service string
 	key     string
 	method  string
@@ -80,35 +80,44 @@ func (c *serviceSend) Request(input any) error {
 	return c.machine.sendCall(c.service, c.key, c.method, input, c.delay)
 }
 
-func (m *Machine) doDynCall(service, key, method string, input any) (*wire.CallEntryMessage, error) {
+func (m *Machine) doDynCall(service, key, method string, input any) (*wire.CallEntryMessage, uint32, error) {
 	params, err := json.Marshal(input)
 	if err != nil {
-		return nil, err
+		return nil, 0, err
 	}
 
-	return m.doCall(service, key, method, params)
+	entry, entryIndex := m.doCall(service, key, method, params)
+	return entry, entryIndex, nil
 }
 
-func (m *Machine) doCall(service, key, method string, params []byte) (*wire.CallEntryMessage, error) {
+func (m *Machine) doCall(service, key, method string, params []byte) (*wire.CallEntryMessage, uint32) {
 	m.log.Debug().Str("service", service).Str("method", method).Str("key", key).Msg("executing sync call")
 
-	return replayOrNew(
+	entry, entryIndex := replayOrNew(
 		m,
-		func(entry *wire.CallEntryMessage) (*wire.CallEntryMessage, error) {
+		func(entry *wire.CallEntryMessage) *wire.CallEntryMessage {
 			if entry.ServiceName != service ||
 				entry.Key != key ||
 				entry.HandlerName != method ||
 				!bytes.Equal(entry.Parameter, params) {
-				return nil, errEntryMismatch
+				panic(m.newEntryMismatch(&wire.CallEntryMessage{
+					CallEntryMessage: protocol.CallEntryMessage{
+						ServiceName: service,
+						HandlerName: method,
+						Parameter:   params,
+						Key:         key,
+					},
+				}, entry))
 			}
 
-			return entry, nil
-		}, func() (*wire.CallEntryMessage, error) {
+			return entry
+		}, func() *wire.CallEntryMessage {
 			return m._doCall(service, key, method, params)
 		})
+	return entry, entryIndex
 }
 
-func (m *Machine) _doCall(service, key, method string, params []byte) (*wire.CallEntryMessage, error) {
+func (m *Machine) _doCall(service, key, method string, params []byte) *wire.CallEntryMessage {
 	msg := &wire.CallEntryMessage{
 		CallEntryMessage: protocol.CallEntryMessage{
 			ServiceName: service,
@@ -117,48 +126,54 @@ func (m *Machine) _doCall(service, key, method string, params []byte) (*wire.Cal
 			Key:         key,
 		},
 	}
-	if err := m.Write(msg); err != nil {
-		return nil, fmt.Errorf("failed to send request message: %w", err)
-	}
+	m.Write(msg)
 
-	return msg, nil
+	return msg
 }
 
-func (c *Machine) sendCall(service, key, method string, body any, delay time.Duration) error {
-	c.log.Debug().Str("service", service).Str("method", method).Str("key", key).Msg("executing async call")
+func (m *Machine) sendCall(service, key, method string, body any, delay time.Duration) error {
+	m.log.Debug().Str("service", service).Str("method", method).Str("key", key).Msg("executing async call")
 
 	params, err := json.Marshal(body)
 	if err != nil {
 		return err
 	}
 
-	_, err = replayOrNew(
-		c,
-		func(entry *wire.OneWayCallEntryMessage) (restate.Void, error) {
+	_, _ = replayOrNew(
+		m,
+		func(entry *wire.OneWayCallEntryMessage) restate.Void {
 			if entry.ServiceName != service ||
 				entry.Key != key ||
 				entry.HandlerName != method ||
 				!bytes.Equal(entry.Parameter, params) {
-				return restate.Void{}, errEntryMismatch
+				panic(m.newEntryMismatch(&wire.OneWayCallEntryMessage{
+					OneWayCallEntryMessage: protocol.OneWayCallEntryMessage{
+						ServiceName: service,
+						HandlerName: method,
+						Parameter:   params,
+						Key:         key,
+					},
+				}, entry))
 			}
 
-			return restate.Void{}, nil
+			return restate.Void{}
 		},
-		func() (restate.Void, error) {
-			return restate.Void{}, c._sendCall(service, key, method, params, delay)
+		func() restate.Void {
+			m._sendCall(service, key, method, params, delay)
+			return restate.Void{}
 		},
 	)
 
-	return err
+	return nil
 }
 
-func (c *Machine) _sendCall(service, key, method string, params []byte, delay time.Duration) error {
+func (c *Machine) _sendCall(service, key, method string, params []byte, delay time.Duration) {
 	var invokeTime uint64
 	if delay != 0 {
 		invokeTime = uint64(time.Now().Add(delay).UnixMilli())
 	}
 
-	err := c.Write(&wire.OneWayCallEntryMessage{
+	c.Write(&wire.OneWayCallEntryMessage{
 		OneWayCallEntryMessage: protocol.OneWayCallEntryMessage{
 			ServiceName: service,
 			HandlerName: method,
@@ -167,10 +182,4 @@ func (c *Machine) _sendCall(service, key, method string, params []byte, delay ti
 			InvokeTime:  invokeTime,
 		},
 	})
-
-	if err != nil {
-		return fmt.Errorf("failed to send request message: %w", err)
-	}
-
-	return nil
 }

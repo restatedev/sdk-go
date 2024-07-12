@@ -96,7 +96,8 @@ func checkout(ctx restate.ObjectContext, _ restate.Void) (bool, error) {
 		}
 	}
 
-	return true, ctx.Clear("tickets")
+	ctx.Clear("tickets")
+	return true, nil
 }
 
 var (

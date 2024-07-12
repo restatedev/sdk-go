@@ -1,6 +1,9 @@
 package state
 
 import (
+	"errors"
+	"io"
+
 	"github.com/restatedev/sdk-go/internal/wire"
 )
 
@@ -26,7 +29,7 @@ func (m *Machine) ackable(entryIndex uint32) wire.AckableMessage {
 	return m.pendingAcks[entryIndex]
 }
 
-func (m *Machine) Write(message wire.Message) error {
+func (m *Machine) Write(message wire.Message) {
 	if message, ok := message.(wire.CompleteableMessage); ok && !message.Completed() {
 		m.pendingMutex.Lock()
 		m.pendingCompletions[m.entryIndex] = message
@@ -37,13 +40,31 @@ func (m *Machine) Write(message wire.Message) error {
 		m.pendingAcks[m.entryIndex] = message
 		m.pendingMutex.Unlock()
 	}
-	return m.protocol.Write(message)
+	if err := m.protocol.Write(message); err != nil {
+		panic(m.newWriteError(message, err))
+	}
+}
+
+type writeError struct {
+	entryIndex uint32
+	entry      wire.Message
+	err        error
+}
+
+func (m *Machine) newWriteError(entry wire.Message, err error) *writeError {
+	w := &writeError{m.entryIndex, entry, err}
+	m.failure = w
+	return w
 }
 
 func (m *Machine) handleCompletionsAcks() {
 	for {
 		msg, err := m.protocol.Read()
 		if err != nil {
+			if errors.Is(err, io.EOF) {
+				m.log.Trace().Err(err).Msg("request body closed; next blocking operation will suspend")
+			}
+			m.suspend(err)
 			return
 		}
 		switch msg := msg.(type) {

@@ -11,6 +11,7 @@ import (
 	"sync"
 	"sync/atomic"
 
+	_go "github.com/restatedev/sdk-go/generated/proto/go"
 	protocol "github.com/restatedev/sdk-go/generated/proto/protocol"
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
@@ -55,12 +56,20 @@ const (
 	AwakeableEntryMessageType         Type = 0x0C00 + 3
 	CompleteAwakeableEntryMessageType Type = 0x0C00 + 4
 	RunEntryMessageType               Type = 0x0C00 + 5
+
+	// Custom
+	SelectorEntryMessageType Type = 0xFC03
 )
 
 type Type uint16
 
 func (t Type) String() string {
 	return fmt.Sprintf("0x%04X", uint16(t))
+}
+
+func (t Type) UInt32() *uint32 {
+	u := uint32(t)
+	return &u
 }
 
 // Flag section of the header this can have
@@ -91,6 +100,50 @@ func (t *Header) Flags() Flag {
 
 type Message interface {
 	proto.Message
+}
+
+func MessageType(message Message) Type {
+	switch message.(type) {
+	case *StartMessage:
+		return StartMessageType
+	case *SuspensionMessage:
+		return SuspensionMessageType
+	case *InputEntryMessage:
+		return InputEntryMessageType
+	case *OutputEntryMessage:
+		return OutputEntryMessageType
+	case *ErrorMessage:
+		return ErrorMessageType
+	case *EntryAckMessage:
+		return EntryAckMessageType
+	case *EndMessage:
+		return EndMessageType
+	case *GetStateEntryMessage:
+		return GetStateEntryMessageType
+	case *SetStateEntryMessage:
+		return SetStateEntryMessageType
+	case *ClearStateEntryMessage:
+		return ClearStateEntryMessageType
+	case *ClearAllStateEntryMessage:
+		return ClearAllStateEntryMessageType
+	case *GetStateKeysEntryMessage:
+		return GetStateKeysEntryMessageType
+	case *SleepEntryMessage:
+		return SleepEntryMessageType
+	case *CallEntryMessage:
+		return CallEntryMessageType
+	case *OneWayCallEntryMessage:
+		return OneWayCallEntryMessageType
+	case *AwakeableEntryMessage:
+		return AwakeableEntryMessageType
+	case *CompleteAwakeableEntryMessage:
+		return CompleteAwakeableEntryMessageType
+	case *RunEntryMessage:
+		return RunEntryMessageType
+	case *SelectorEntryMessage:
+		return SelectorEntryMessageType
+	}
+	panic(fmt.Sprintf("unknown message type %T", message))
 }
 
 type ReaderMessage struct {
@@ -172,46 +225,7 @@ func (s *Protocol) Write(message Message) error {
 		flag |= FlagRequiresAck
 	}
 
-	// all possible types sent by the sdk
-	var typ Type
-	switch message.(type) {
-	case *StartMessage:
-		typ = StartMessageType
-	case *SuspensionMessage:
-		typ = SuspensionMessageType
-	case *InputEntryMessage:
-		typ = InputEntryMessageType
-	case *OutputEntryMessage:
-		typ = OutputEntryMessageType
-	case *ErrorMessage:
-		typ = ErrorMessageType
-	case *EndMessage:
-		typ = EndMessageType
-	case *GetStateEntryMessage:
-		typ = GetStateEntryMessageType
-	case *SetStateEntryMessage:
-		typ = SetStateEntryMessageType
-	case *ClearStateEntryMessage:
-		typ = ClearStateEntryMessageType
-	case *ClearAllStateEntryMessage:
-		typ = ClearAllStateEntryMessageType
-	case *GetStateKeysEntryMessage:
-		typ = GetStateKeysEntryMessageType
-	case *SleepEntryMessage:
-		typ = SleepEntryMessageType
-	case *CallEntryMessage:
-		typ = CallEntryMessageType
-	case *OneWayCallEntryMessage:
-		typ = OneWayCallEntryMessageType
-	case *AwakeableEntryMessage:
-		typ = AwakeableEntryMessageType
-	case *CompleteAwakeableEntryMessage:
-		typ = CompleteAwakeableEntryMessageType
-	case *RunEntryMessage:
-		typ = RunEntryMessageType
-	default:
-		return fmt.Errorf("can not send message of unknown message type")
-	}
+	typ := MessageType(message)
 
 	s.log.Trace().Stringer("type", typ).Interface("msg", message).Msg("sending message to runtime")
 
@@ -365,6 +379,14 @@ var (
 
 			return msg, proto.Unmarshal(bytes, msg)
 		},
+		SelectorEntryMessageType: func(header Header, bytes []byte) (Message, error) {
+			msg := &SelectorEntryMessage{}
+
+			// replayed selectors are inherently acked
+			msg.Ack()
+
+			return msg, proto.Unmarshal(bytes, msg)
+		},
 	}
 )
 
@@ -398,10 +420,17 @@ type EndMessage struct {
 	protocol.EndMessage
 }
 
+type EntryAckMessage struct {
+	Header
+	protocol.EntryAckMessage
+}
+
 type GetStateEntryMessage struct {
 	completable
 	protocol.GetStateEntryMessage
 }
+
+var _ CompleteableMessage = (*GetStateEntryMessage)(nil)
 
 func (a *GetStateEntryMessage) Complete(c *protocol.CompletionMessage) {
 	switch result := c.Result.(type) {
@@ -436,6 +465,8 @@ type GetStateKeysEntryMessage struct {
 	protocol.GetStateKeysEntryMessage
 }
 
+var _ CompleteableMessage = (*GetStateKeysEntryMessage)(nil)
+
 func (a *GetStateKeysEntryMessage) Complete(c *protocol.CompletionMessage) {
 	switch result := c.Result.(type) {
 	case *protocol.CompletionMessage_Value:
@@ -467,6 +498,8 @@ type SleepEntryMessage struct {
 	protocol.SleepEntryMessage
 }
 
+var _ CompleteableMessage = (*SleepEntryMessage)(nil)
+
 func (a *SleepEntryMessage) Complete(c *protocol.CompletionMessage) {
 	switch result := c.Result.(type) {
 	case *protocol.CompletionMessage_Empty:
@@ -485,6 +518,8 @@ type CallEntryMessage struct {
 	completable
 	protocol.CallEntryMessage
 }
+
+var _ CompleteableMessage = (*CallEntryMessage)(nil)
 
 func (a *CallEntryMessage) Complete(c *protocol.CompletionMessage) {
 	switch result := c.Result.(type) {
@@ -510,6 +545,8 @@ type AwakeableEntryMessage struct {
 	protocol.AwakeableEntryMessage
 }
 
+var _ CompleteableMessage = (*AwakeableEntryMessage)(nil)
+
 func (a *AwakeableEntryMessage) Complete(c *protocol.CompletionMessage) {
 	switch result := c.Result.(type) {
 	case *protocol.CompletionMessage_Value:
@@ -534,15 +571,21 @@ type RunEntryMessage struct {
 	protocol.RunEntryMessage
 }
 
-type EntryAckMessage struct {
-	Header
-	protocol.EntryAckMessage
+var _ AckableMessage = (*RunEntryMessage)(nil)
+
+type SelectorEntryMessage struct {
+	ackable
+	_go.SelectorEntryMessage
 }
+
+var _ AckableMessage = (*SelectorEntryMessage)(nil)
 
 type CompleteableMessage interface {
 	Message
+	// only for use in selector
+	Done() <-chan struct{}
 	Completed() bool
-	Await(ctx context.Context) error
+	Await(suspensionCtx context.Context, entryIndex uint32)
 	Complete(*protocol.CompletionMessage)
 }
 
@@ -564,17 +607,23 @@ func (c *completable) Completed() bool {
 	return c.completed.Load()
 }
 
-func (c *completable) Await(ctx context.Context) error {
+func (c *completable) Done() <-chan struct{} {
+	c.init()
+
+	return c.done
+}
+
+func (c *completable) Await(suspensionCtx context.Context, entryIndex uint32) {
 	c.init()
 	if c.completed.Load() {
 		// fast path
-		return nil
+		return
 	}
 	select {
-	case <-ctx.Done():
-		return ctx.Err()
+	case <-suspensionCtx.Done():
+		panic(&SuspensionPanic{EntryIndexes: []uint32{entryIndex}, Err: context.Cause(suspensionCtx)})
 	case <-c.done:
-		return nil
+		return
 	}
 }
 
@@ -591,7 +640,7 @@ func (c *completable) complete() {
 type AckableMessage interface {
 	Message
 	Acked() bool
-	Await(ctx context.Context) error
+	Await(ctx context.Context, entryIndex uint32)
 	Ack()
 }
 
@@ -613,17 +662,17 @@ func (c *ackable) Acked() bool {
 	return c.acked.Load()
 }
 
-func (c *ackable) Await(ctx context.Context) error {
+func (c *ackable) Await(suspensionCtx context.Context, entryIndex uint32) {
 	c.init()
 	if c.acked.Load() {
 		// fast path
-		return nil
+		return
 	}
 	select {
-	case <-ctx.Done():
-		return ctx.Err()
+	case <-suspensionCtx.Done():
+		panic(&SuspensionPanic{EntryIndexes: []uint32{entryIndex}, Err: context.Cause(suspensionCtx)})
 	case <-c.done:
-		return nil
+		return
 	}
 }
 
@@ -635,4 +684,9 @@ func (c *ackable) Ack() {
 	} else {
 		// already completed
 	}
+}
+
+type SuspensionPanic struct {
+	EntryIndexes []uint32
+	Err          error
 }
