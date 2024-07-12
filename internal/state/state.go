@@ -103,8 +103,8 @@ func (c *Context) ObjectSend(service, key string, delay time.Duration) restate.S
 	}
 }
 
-func (c *Context) SideEffect(fn func() ([]byte, error)) ([]byte, error) {
-	return c.machine.sideEffect(fn)
+func (c *Context) Run(fn func(ctx context.Context) ([]byte, error)) ([]byte, error) {
+	return c.machine.run(fn)
 }
 
 func (c *Context) Awakeable() restate.Awakeable[[]byte] {
@@ -266,8 +266,8 @@ The journal entry at position %d was:
 			})
 
 			return
-		case *sideEffectFailure:
-			m.log.Error().Err(typ.err).Msg("Side effect returned a failure, returning error to Restate")
+		case *runFailure:
+			m.log.Error().Err(typ.err).Msg("Run returned a failure, returning error to Restate")
 
 			if err := m.protocol.Write(&wire.ErrorMessage{
 				ErrorMessage: protocol.ErrorMessage{

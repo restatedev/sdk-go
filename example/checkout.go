@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 
 	"github.com/google/uuid"
@@ -19,7 +20,7 @@ type PaymentResponse struct {
 }
 
 func payment(ctx restate.Context, request PaymentRequest) (response PaymentResponse, err error) {
-	uuid, err := restate.SideEffectAs(ctx, func() (string, error) {
+	uuid, err := restate.RunAs(ctx, func(ctx context.Context) (string, error) {
 		uuid := uuid.New()
 		return uuid.String(), nil
 	})
@@ -36,7 +37,7 @@ func payment(ctx restate.Context, request PaymentRequest) (response PaymentRespo
 
 	response.Price = price
 	i := 0
-	_, err = restate.SideEffectAs(ctx, func() (bool, error) {
+	_, err = restate.RunAs(ctx, func(ctx context.Context) (bool, error) {
 		log := log.With().Str("uuid", uuid).Int("price", price).Logger()
 		if i > 2 {
 			log.Info().Msg("payment succeeded")

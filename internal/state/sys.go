@@ -2,6 +2,7 @@ package state
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"sort"
 	"time"
@@ -273,18 +274,18 @@ func (m *Machine) _sleep(d time.Duration) *wire.SleepEntryMessage {
 	return msg
 }
 
-func (m *Machine) sideEffect(fn func() ([]byte, error)) ([]byte, error) {
+func (m *Machine) run(fn func(context.Context) ([]byte, error)) ([]byte, error) {
 	entry, entryIndex := replayOrNew(
 		m,
 		func(entry *wire.RunEntryMessage) *wire.RunEntryMessage {
 			return entry
 		},
 		func() *wire.RunEntryMessage {
-			return m._sideEffect(fn)
+			return m._run(fn)
 		},
 	)
 
-	// side effect must be acknowledged before proceeding
+	// run entry must be acknowledged before proceeding
 	entry.Await(m.suspensionCtx, entryIndex)
 
 	switch result := entry.Result.(type) {
@@ -297,11 +298,11 @@ func (m *Machine) sideEffect(fn func() ([]byte, error)) ([]byte, error) {
 		return nil, nil
 	}
 
-	return nil, restate.TerminalError(fmt.Errorf("side effect entry had invalid result: %v", entry.Result), errors.ErrProtocolViolation)
+	return nil, restate.TerminalError(fmt.Errorf("run entry had invalid result: %v", entry.Result), errors.ErrProtocolViolation)
 }
 
-func (m *Machine) _sideEffect(fn func() ([]byte, error)) *wire.RunEntryMessage {
-	bytes, err := fn()
+func (m *Machine) _run(fn func(context.Context) ([]byte, error)) *wire.RunEntryMessage {
+	bytes, err := fn(m.ctx)
 
 	if err != nil {
 		if restate.IsTerminalError(err) {
@@ -319,7 +320,7 @@ func (m *Machine) _sideEffect(fn func() ([]byte, error)) *wire.RunEntryMessage {
 
 			return msg
 		} else {
-			panic(m.newSideEffectFailure(err))
+			panic(m.newRunFailure(err))
 		}
 	} else {
 		msg := &wire.RunEntryMessage{
@@ -335,13 +336,13 @@ func (m *Machine) _sideEffect(fn func() ([]byte, error)) *wire.RunEntryMessage {
 	}
 }
 
-type sideEffectFailure struct {
+type runFailure struct {
 	entryIndex uint32
 	err        error
 }
 
-func (m *Machine) newSideEffectFailure(err error) *sideEffectFailure {
-	s := &sideEffectFailure{m.entryIndex, err}
+func (m *Machine) newRunFailure(err error) *runFailure {
+	s := &runFailure{m.entryIndex, err}
 	m.failure = s
 	return s
 }

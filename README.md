@@ -22,9 +22,8 @@ Calling other services right now is done completely by name, hence it's not very
 - [x] Remote service call over restate runtime
 - [X] Delayed execution of remote services
 - [X] Sleep
-- [x] Side effects
-  - Implementation might differ from as intended by restate since it's not documented and based on reverse engineering of the TypeScript SDK
-- [ ] Awakeable
+- [x] Run
+- [x] Awakeable
 
 ## Basic usage
 

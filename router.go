@@ -72,11 +72,11 @@ type Context interface {
 	// and delay is the duration with which to delay requests
 	ObjectSend(object, key string, delay time.Duration) ServiceSendClient
 
-	// SideEffects runs the function (fn) until it succeeds or permanently fails.
+	// Run runs the function (fn) until it succeeds or permanently fails.
 	// this stores the results of the function inside restate runtime so a replay
 	// will produce the same value (think generating a unique id for example)
-	// Note: use the SideEffectAs helper function
-	SideEffect(fn func() ([]byte, error)) ([]byte, error)
+	// Note: use the RunAs helper function
+	Run(fn func(ctx context.Context) ([]byte, error)) ([]byte, error)
 
 	Awakeable() Awakeable[[]byte]
 	ResolveAwakeable(id string, value []byte)
@@ -240,11 +240,11 @@ func SetAs[T any](ctx ObjectContext, key string, value T) error {
 	return nil
 }
 
-// SideEffectAs helper function runs a side effect function with specific concrete type as a result
+// RunAs helper function runs a run function with specific concrete type as a result
 // it does encoding/decoding of bytes automatically using msgpack
-func SideEffectAs[T any](ctx Context, fn func() (T, error)) (output T, err error) {
-	bytes, err := ctx.SideEffect(func() ([]byte, error) {
-		out, err := fn()
+func RunAs[T any](ctx Context, fn func(context.Context) (T, error)) (output T, err error) {
+	bytes, err := ctx.Run(func(ctx context.Context) ([]byte, error) {
+		out, err := fn(ctx)
 		if err != nil {
 			return nil, err
 		}
