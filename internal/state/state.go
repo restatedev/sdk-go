@@ -288,7 +288,7 @@ The journal entry at position %d was:
 			return
 		case *wire.SuspensionPanic:
 			if m.ctx.Err() != nil {
-				// the http2 request has been cancelled; just return because we can't send a response
+				m.log.WarnContext(m.ctx, "Cancelling invocation as the incoming request was cancelled")
 				return
 			}
 			if stderrors.Is(typ.Err, io.EOF) {
