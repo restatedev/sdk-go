@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"math/rand"
 
-	"github.com/google/uuid"
 	restate "github.com/restatedev/sdk-go"
 )
 
@@ -27,16 +26,9 @@ func (c *checkout) Name() string {
 const CheckoutServiceName = "Checkout"
 
 func (c *checkout) Payment(ctx restate.Context, request PaymentRequest) (response PaymentResponse, err error) {
-	uuid, err := restate.RunAs(ctx, func(ctx restate.RunContext) (string, error) {
-		uuid := uuid.New()
-		return uuid.String(), nil
-	})
+	uuid := ctx.Rand().UUID().String()
 
 	response.ID = uuid
-
-	if err != nil {
-		return response, err
-	}
 
 	// We are a uniform shop where everything costs 30 USD
 	// that is cheaper than the official example :P

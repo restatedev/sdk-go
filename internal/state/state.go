@@ -17,6 +17,7 @@ import (
 	"github.com/restatedev/sdk-go/internal/errors"
 	"github.com/restatedev/sdk-go/internal/futures"
 	"github.com/restatedev/sdk-go/internal/log"
+	"github.com/restatedev/sdk-go/internal/rand"
 	"github.com/restatedev/sdk-go/internal/wire"
 	"github.com/restatedev/sdk-go/rcontext"
 )
@@ -44,6 +45,10 @@ var _ restate.Context = &Context{}
 
 func (c *Context) Log() *slog.Logger {
 	return c.machine.userLog
+}
+
+func (c *Context) Rand() *rand.Rand {
+	return c.machine.rand
 }
 
 func (c *Context) Set(key string, value []byte) {
@@ -172,6 +177,8 @@ type Machine struct {
 	pendingAcks        map[uint32]wire.AckableMessage
 	pendingMutex       sync.RWMutex
 
+	rand *rand.Rand
+
 	failure any
 }
 
@@ -204,6 +211,7 @@ func (m *Machine) Start(inner context.Context, dropReplayLogs bool, logHandler s
 	m.ctx = inner
 	m.suspensionCtx, m.suspend = context.WithCancelCause(m.ctx)
 	m.id = start.Id
+	m.rand = rand.New(m.id)
 	m.key = start.Key
 
 	logHandler = logHandler.WithAttrs([]slog.Attr{slog.String("invocationID", start.DebugId)})
