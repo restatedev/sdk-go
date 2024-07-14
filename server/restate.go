@@ -15,6 +15,7 @@ import (
 	"github.com/restatedev/sdk-go/generated/proto/discovery"
 	"github.com/restatedev/sdk-go/generated/proto/protocol"
 	"github.com/restatedev/sdk-go/internal"
+	"github.com/restatedev/sdk-go/internal/identity"
 	"github.com/restatedev/sdk-go/internal/log"
 	"github.com/restatedev/sdk-go/internal/state"
 	"golang.org/x/net/http2"
@@ -45,6 +46,8 @@ type Restate struct {
 	dropReplayLogs bool
 	systemLog      *slog.Logger
 	routers        map[string]restate.Router
+	keyIDs         []string
+	keySet         identity.KeySetV1
 }
 
 // NewRestate creates a new instance of Restate server
@@ -66,6 +69,11 @@ func (r *Restate) WithLogger(h slog.Handler, dropReplayLogs bool) *Restate {
 	r.dropReplayLogs = dropReplayLogs
 	r.systemLog = slog.New(log.NewRestateContextHandler(h))
 	r.logHandler = h
+	return r
+}
+
+func (r *Restate) WithIdentityV1(keys ...string) *Restate {
+	r.keyIDs = append(r.keyIDs, keys...)
 	return r
 }
 
@@ -120,8 +128,8 @@ func (r *Restate) discoverHandler(writer http.ResponseWriter, req *http.Request)
 
 	acceptVersionsString := req.Header.Get("accept")
 	if acceptVersionsString == "" {
-		writer.Write([]byte("missing accept header"))
 		writer.WriteHeader(http.StatusUnsupportedMediaType)
+		writer.Write([]byte("missing accept header"))
 
 		return
 	}
@@ -129,29 +137,28 @@ func (r *Restate) discoverHandler(writer http.ResponseWriter, req *http.Request)
 	serviceDiscoveryProtocolVersion := selectSupportedServiceDiscoveryProtocolVersion(acceptVersionsString)
 
 	if serviceDiscoveryProtocolVersion == discovery.ServiceDiscoveryProtocolVersion_SERVICE_DISCOVERY_PROTOCOL_VERSION_UNSPECIFIED {
-		writer.Write([]byte(fmt.Sprintf("Unsupported service discovery protocol version '%s'", acceptVersionsString)))
 		writer.WriteHeader(http.StatusUnsupportedMediaType)
+		writer.Write([]byte(fmt.Sprintf("Unsupported service discovery protocol version '%s'", acceptVersionsString)))
 		return
 	}
 
 	response, err := r.discover()
 	if err != nil {
-		writer.Write([]byte(err.Error()))
 		writer.WriteHeader(http.StatusInternalServerError)
+		writer.Write([]byte(err.Error()))
 
 		return
 	}
 
 	bytes, err := json.Marshal(response)
 	if err != nil {
-		writer.Write([]byte(err.Error()))
 		writer.WriteHeader(http.StatusInternalServerError)
+		writer.Write([]byte(err.Error()))
 
 		return
 	}
 
 	writer.Header().Add("Content-Type", serviceDiscoveryProtocolVersionToHeaderValue(serviceDiscoveryProtocolVersion))
-	writer.WriteHeader(200)
 	if _, err := writer.Write(bytes); err != nil {
 		r.systemLog.LogAttrs(req.Context(), slog.LevelError, "Failed to write discovery information", log.Error(err))
 	}
@@ -252,6 +259,17 @@ func (r *Restate) callHandler(serviceProtocolVersion protocol.ServiceProtocolVer
 }
 
 func (r *Restate) handler(writer http.ResponseWriter, request *http.Request) {
+	if r.keySet != nil {
+		if err := identity.ValidateRequestIdentity(r.keySet, request.RequestURI, request.Header); err != nil {
+			r.systemLog.LogAttrs(request.Context(), slog.LevelError, "Rejecting request as its JWT did not validate", log.Error(err))
+
+			writer.WriteHeader(http.StatusUnauthorized)
+			writer.Write([]byte("Unauthorized"))
+
+			return
+		}
+	}
+
 	if request.RequestURI == "/discover" {
 		r.discoverHandler(writer, request)
 		return
@@ -261,8 +279,8 @@ func (r *Restate) handler(writer http.ResponseWriter, request *http.Request) {
 	if serviceProtocolVersionString == "" {
 		r.systemLog.ErrorContext(request.Context(), "Missing content-type header")
 
-		writer.Write([]byte("missing content-type header"))
 		writer.WriteHeader(http.StatusUnsupportedMediaType)
+		writer.Write([]byte("missing content-type header"))
 
 		return
 	}
@@ -272,8 +290,8 @@ func (r *Restate) handler(writer http.ResponseWriter, request *http.Request) {
 	if !isServiceProtocolVersionSupported(serviceProtocolVersion) {
 		r.systemLog.LogAttrs(request.Context(), slog.LevelError, "Unsupported service protocol version", slog.String("version", serviceProtocolVersionString))
 
-		writer.Write([]byte(fmt.Sprintf("Unsupported service protocol version '%s'", serviceProtocolVersionString)))
 		writer.WriteHeader(http.StatusUnsupportedMediaType)
+		writer.Write([]byte(fmt.Sprintf("Unsupported service protocol version '%s'", serviceProtocolVersionString)))
 
 		return
 	}
@@ -297,6 +315,16 @@ func (r *Restate) handler(writer http.ResponseWriter, request *http.Request) {
 }
 
 func (r *Restate) Start(ctx context.Context, address string) error {
+	if r.keyIDs == nil {
+		r.systemLog.WarnContext(ctx, "Accepting requests without validating request signatures; handler access must be restricted")
+	} else {
+		ks, err := identity.ParseKeySetV1(r.keyIDs)
+		if err != nil {
+			return fmt.Errorf("invalid request identity keys: %w", err)
+		}
+		r.keySet = ks
+		r.systemLog.LogAttrs(ctx, slog.LevelInfo, "Validating requests using signing keys", slog.Any("keys", r.keyIDs))
+	}
 
 	listener, err := net.Listen("tcp", address)
 	if err != nil {

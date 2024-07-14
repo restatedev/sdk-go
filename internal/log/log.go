@@ -31,7 +31,7 @@ func (t stringerValue[T]) LogValue() slog.Value {
 }
 
 func Stringer[T fmt.Stringer](key string, value T) slog.Attr {
-	return slog.Any(key, slog.AnyValue(stringerValue[T]{value}))
+	return slog.Any(key, stringerValue[T]{value})
 }
 
 func Error(err error) slog.Attr {
