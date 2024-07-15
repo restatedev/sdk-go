@@ -14,10 +14,10 @@ type serviceNamer interface {
 }
 
 var (
-	typeOfContext       = reflect.TypeFor[Context]()
-	typeOfObjectContext = reflect.TypeFor[ObjectContext]()
-	typeOfVoid          = reflect.TypeFor[Void]()
-	typeOfError         = reflect.TypeFor[error]()
+	typeOfContext       = reflect.TypeOf((*Context)(nil)).Elem()
+	typeOfObjectContext = reflect.TypeOf((*ObjectContext)(nil)).Elem()
+	typeOfVoid          = reflect.TypeOf((*Void)(nil))
+	typeOfError         = reflect.TypeOf((*error)(nil))
 )
 
 // Object converts a struct with methods into a Virtual Object where each correctly-typed

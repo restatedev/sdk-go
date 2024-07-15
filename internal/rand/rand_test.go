@@ -2,7 +2,6 @@ package rand
 
 import (
 	"encoding/hex"
-	"math/rand/v2"
 	"testing"
 )
 
@@ -35,7 +34,7 @@ func TestUint64(t *testing.T) {
 
 func TestFloat64(t *testing.T) {
 	source := &Source{state: [4]uint64{1, 2, 3, 4}}
-	rand := &Rand{rand.New(source)}
+	rand := &Rand{source}
 
 	expected := []float64{
 		4.656612984099695e-9, 6.519269457605503e-9, 0.39843750651926946,
@@ -53,7 +52,7 @@ func TestFloat64(t *testing.T) {
 
 func TestUUID(t *testing.T) {
 	source := &Source{state: [4]uint64{1, 2, 3, 4}}
-	rand := &Rand{rand.New(source)}
+	rand := &Rand{source}
 
 	expected := []string{
 		"01008002-0000-4000-a700-800300000000",
