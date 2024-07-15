@@ -9,6 +9,7 @@ import (
 
 	"github.com/restatedev/sdk-go/internal"
 	"github.com/restatedev/sdk-go/internal/futures"
+	"github.com/restatedev/sdk-go/internal/rand"
 	"github.com/vmihailenco/msgpack/v5"
 )
 
@@ -49,6 +50,11 @@ type Selector interface {
 
 type Context interface {
 	RunContext
+
+	// Returns a random source which will give deterministic results for a given invocation
+	// The source wraps the stdlib rand.Rand but with some extra helper methods
+	// This source is not safe for use inside .Run()
+	Rand() *rand.Rand
 
 	// Sleep for the duration d
 	Sleep(d time.Duration)
