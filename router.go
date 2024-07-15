@@ -11,7 +11,6 @@ import (
 	"github.com/restatedev/sdk-go/internal"
 	"github.com/restatedev/sdk-go/internal/futures"
 	"github.com/restatedev/sdk-go/internal/rand"
-	"github.com/vmihailenco/msgpack/v5"
 )
 
 var (
@@ -244,7 +243,7 @@ func (r *ObjectRouter) Type() internal.ServiceType {
 // GetAs helper function to get a key as specific type. Note that
 // if there is no associated value with key, an error ErrKeyNotFound is
 // returned
-// it does encoding/decoding of bytes automatically using msgpack
+// it does encoding/decoding of bytes automatically using json
 func GetAs[T any](ctx ObjectContext, key string) (output T, err error) {
 	bytes, err := ctx.Get(key)
 	if err != nil {
@@ -256,15 +255,15 @@ func GetAs[T any](ctx ObjectContext, key string) (output T, err error) {
 		return output, ErrKeyNotFound
 	}
 
-	err = msgpack.Unmarshal(bytes, &output)
+	err = json.Unmarshal(bytes, &output)
 
 	return
 }
 
 // SetAs helper function to set a key value with a generic type T.
-// it does encoding/decoding of bytes automatically using msgpack
+// it does encoding/decoding of bytes automatically using json
 func SetAs[T any](ctx ObjectContext, key string, value T) error {
-	bytes, err := msgpack.Marshal(value)
+	bytes, err := json.Marshal(value)
 	if err != nil {
 		return err
 	}
@@ -274,7 +273,7 @@ func SetAs[T any](ctx ObjectContext, key string, value T) error {
 }
 
 // RunAs helper function runs a run function with specific concrete type as a result
-// it does encoding/decoding of bytes automatically using msgpack
+// it does encoding/decoding of bytes automatically using json
 func RunAs[T any](ctx Context, fn func(RunContext) (T, error)) (output T, err error) {
 	bytes, err := ctx.Run(func(ctx RunContext) ([]byte, error) {
 		out, err := fn(ctx)
@@ -282,7 +281,7 @@ func RunAs[T any](ctx Context, fn func(RunContext) (T, error)) (output T, err er
 			return nil, err
 		}
 
-		bytes, err := msgpack.Marshal(out)
+		bytes, err := json.Marshal(out)
 		return bytes, TerminalError(err)
 	})
 
@@ -290,7 +289,7 @@ func RunAs[T any](ctx Context, fn func(RunContext) (T, error)) (output T, err er
 		return output, err
 	}
 
-	err = msgpack.Unmarshal(bytes, &output)
+	err = json.Unmarshal(bytes, &output)
 
 	return output, TerminalError(err)
 }
