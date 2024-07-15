@@ -1,5 +1,7 @@
 package internal
 
+import "github.com/restatedev/sdk-go/encoding"
+
 type ProtocolMode string
 
 const (
@@ -23,24 +25,12 @@ const (
 	ServiceHandlerType_SHARED    ServiceHandlerType = "SHARED"
 )
 
-type InputPayload struct {
-	Required    bool        `json:"required"`
-	ContentType string      `json:"contentType"`
-	JsonSchema  interface{} `json:"jsonSchema,omitempty"`
-}
-
-type OutputPayload struct {
-	ContentType           string      `json:"contentType"`
-	SetContentTypeIfEmpty bool        `json:"setContentTypeIfEmpty"`
-	JsonSchema            interface{} `json:"jsonSchema,omitempty"`
-}
-
 type Handler struct {
 	Name string `json:"name,omitempty"`
 	// If unspecified, defaults to EXCLUSIVE for Virtual Object. This should be unset for Services.
-	Ty     *ServiceHandlerType `json:"ty,omitempty"`
-	Input  *InputPayload       `json:"input,omitempty"`
-	Output *OutputPayload      `json:"output,omitempty"`
+	Ty     *ServiceHandlerType     `json:"ty,omitempty"`
+	Input  *encoding.InputPayload  `json:"input,omitempty"`
+	Output *encoding.OutputPayload `json:"output,omitempty"`
 }
 
 type Service struct {

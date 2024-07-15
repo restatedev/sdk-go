@@ -104,17 +104,11 @@ func (r *Restate) discover() (resource *internal.Endpoint, err error) {
 			Handlers: make([]internal.Handler, 0, len(router.Handlers())),
 		}
 
-		for name := range router.Handlers() {
+		for name, handler := range router.Handlers() {
 			service.Handlers = append(service.Handlers, internal.Handler{
-				Name: name,
-				Input: &internal.InputPayload{
-					Required:    false,
-					ContentType: "application/json", // TODO configurable handler encoding
-				},
-				Output: &internal.OutputPayload{
-					SetContentTypeIfEmpty: false,
-					ContentType:           "application/json",
-				},
+				Name:   name,
+				Input:  handler.InputPayload(),
+				Output: handler.OutputPayload(),
 			})
 		}
 		resource.Services = append(resource.Services, service)

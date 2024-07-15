@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"time"
 
+	"github.com/restatedev/sdk-go/encoding"
 	"github.com/restatedev/sdk-go/internal"
 	"github.com/restatedev/sdk-go/internal/futures"
 	"github.com/restatedev/sdk-go/internal/rand"
@@ -122,6 +123,8 @@ type ServiceHandler interface {
 
 type Handler interface {
 	sealed()
+	InputPayload() *encoding.InputPayload
+	OutputPayload() *encoding.OutputPayload
 }
 
 type ServiceType string
@@ -161,6 +164,16 @@ type ServiceHandlerFn[I any, O any] func(ctx Context, input I) (output O, err er
 
 // ObjectHandlerFn signature for object (keyed) handler function
 type ObjectHandlerFn[I any, O any] func(ctx ObjectContext, input I) (output O, err error)
+
+type Decoder[I any] interface {
+	InputPayload() *encoding.InputPayload
+	Decode(data []byte) (input I, err error)
+}
+
+type Encoder[O any] interface {
+	OutputPayload() *encoding.OutputPayload
+	Encode(output O) ([]byte, error)
+}
 
 // ServiceRouter implements Router
 type ServiceRouter struct {
