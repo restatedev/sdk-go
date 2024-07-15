@@ -91,8 +91,6 @@ func (m *Machine) doDynCall(service, key, method string, input any) (*wire.CallE
 }
 
 func (m *Machine) doCall(service, key, method string, params []byte) (*wire.CallEntryMessage, uint32) {
-	m.log.Debug().Str("service", service).Str("method", method).Str("key", key).Msg("executing sync call")
-
 	entry, entryIndex := replayOrNew(
 		m,
 		func(entry *wire.CallEntryMessage) *wire.CallEntryMessage {
@@ -132,8 +130,6 @@ func (m *Machine) _doCall(service, key, method string, params []byte) *wire.Call
 }
 
 func (m *Machine) sendCall(service, key, method string, body any, delay time.Duration) error {
-	m.log.Debug().Str("service", service).Str("method", method).Str("key", key).Msg("executing async call")
-
 	params, err := json.Marshal(body)
 	if err != nil {
 		return err

@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"net"
 	"net/http"
 	"runtime/debug"
@@ -14,8 +15,8 @@ import (
 	"github.com/restatedev/sdk-go/generated/proto/discovery"
 	"github.com/restatedev/sdk-go/generated/proto/protocol"
 	"github.com/restatedev/sdk-go/internal"
+	"github.com/restatedev/sdk-go/internal/log"
 	"github.com/restatedev/sdk-go/internal/state"
-	"github.com/rs/zerolog/log"
 	"golang.org/x/net/http2"
 )
 
@@ -40,14 +41,32 @@ func init() {
 }
 
 type Restate struct {
-	routers map[string]restate.Router
+	logHandler     slog.Handler
+	dropReplayLogs bool
+	systemLog      *slog.Logger
+	routers        map[string]restate.Router
 }
 
 // NewRestate creates a new instance of Restate server
 func NewRestate() *Restate {
+	handler := slog.Default().Handler()
 	return &Restate{
-		routers: make(map[string]restate.Router),
+		logHandler:     handler,
+		systemLog:      slog.New(log.NewRestateContextHandler(handler)),
+		dropReplayLogs: true,
+		routers:        make(map[string]restate.Router),
 	}
+}
+
+// WithLogger overrides the slog handler used by the SDK (which defaults to the slog Default())
+// You may specify with dropReplayLogs whether to drop logs that originated from handler code
+// while the invocation was replaying. If they are not dropped, you may still determine the replay
+// status in a slog.Handler using rcontext.LogContextFrom(ctx)
+func (r *Restate) WithLogger(h slog.Handler, dropReplayLogs bool) *Restate {
+	r.dropReplayLogs = dropReplayLogs
+	r.systemLog = slog.New(log.NewRestateContextHandler(h))
+	r.logHandler = h
+	return r
 }
 
 func (r *Restate) Bind(router restate.Router) *Restate {
@@ -97,7 +116,7 @@ func (r *Restate) discover() (resource *internal.Endpoint, err error) {
 }
 
 func (r *Restate) discoverHandler(writer http.ResponseWriter, req *http.Request) {
-	log.Trace().Msg("discover called")
+	r.systemLog.DebugContext(req.Context(), "Processing discovery request")
 
 	acceptVersionsString := req.Header.Get("accept")
 	if acceptVersionsString == "" {
@@ -134,7 +153,7 @@ func (r *Restate) discoverHandler(writer http.ResponseWriter, req *http.Request)
 	writer.Header().Add("Content-Type", serviceDiscoveryProtocolVersionToHeaderValue(serviceDiscoveryProtocolVersion))
 	writer.WriteHeader(200)
 	if _, err := writer.Write(bytes); err != nil {
-		log.Error().Err(err).Msg("failed to write discovery information")
+		r.systemLog.LogAttrs(req.Context(), slog.LevelError, "Failed to write discovery information", log.Error(err))
 	}
 }
 
@@ -191,29 +210,35 @@ func serviceProtocolVersionToHeaderValue(serviceProtocolVersion protocol.Service
 	panic(fmt.Sprintf("unexpected service protocol version %d", serviceProtocolVersion))
 }
 
+type serviceMethod struct {
+	service string
+	method  string
+}
+
 // takes care of function call
-func (r *Restate) callHandler(serviceProtocolVersion protocol.ServiceProtocolVersion, service, fn string, writer http.ResponseWriter, request *http.Request) {
-	log.Debug().Str("service", service).Str("handler", fn).Msg("new request")
+func (r *Restate) callHandler(serviceProtocolVersion protocol.ServiceProtocolVersion, service, method string, writer http.ResponseWriter, request *http.Request) {
+	logger := r.systemLog.With("method", slog.StringValue(fmt.Sprintf("%s/%s", service, method)))
 
 	writer.Header().Add("x-restate-server", X_RESTATE_SERVER)
 	writer.Header().Add("content-type", serviceProtocolVersionToHeaderValue(serviceProtocolVersion))
 
 	router, ok := r.routers[service]
 	if !ok {
+		logger.WarnContext(request.Context(), "Service not found")
 		writer.WriteHeader(http.StatusNotFound)
 		return
 	}
-	handler, ok := router.Handlers()[fn]
+	handler, ok := router.Handlers()[method]
 	if !ok {
+		logger.WarnContext(request.Context(), "Method not found on service")
 		writer.WriteHeader(http.StatusNotFound)
 	}
 
 	writer.WriteHeader(200)
 
 	conn, err := h2conn.Accept(writer, request)
-
 	if err != nil {
-		log.Error().Err(err).Msg("failed to upgrade connection")
+		logger.LogAttrs(request.Context(), slog.LevelError, "Failed to upgrade connection", log.Error(err))
 		return
 	}
 
@@ -221,14 +246,12 @@ func (r *Restate) callHandler(serviceProtocolVersion protocol.ServiceProtocolVer
 
 	machine := state.NewMachine(handler, conn)
 
-	if err := machine.Start(request.Context(), fmt.Sprintf("%s/%s", service, fn)); err != nil {
-		log.Error().Err(err).Msg("failed to handle invocation")
+	if err := machine.Start(request.Context(), r.dropReplayLogs, r.logHandler); err != nil {
+		machine.Log().LogAttrs(request.Context(), slog.LevelError, "Failed to handle invocation", log.Error(err))
 	}
 }
 
 func (r *Restate) handler(writer http.ResponseWriter, request *http.Request) {
-	log.Trace().Str("proto", request.Proto).Str("method", request.Method).Str("path", request.RequestURI).Msg("got request")
-
 	if request.RequestURI == "/discover" {
 		r.discoverHandler(writer, request)
 		return
@@ -236,6 +259,8 @@ func (r *Restate) handler(writer http.ResponseWriter, request *http.Request) {
 
 	serviceProtocolVersionString := request.Header.Get("content-type")
 	if serviceProtocolVersionString == "" {
+		r.systemLog.ErrorContext(request.Context(), "Missing content-type header")
+
 		writer.Write([]byte("missing content-type header"))
 		writer.WriteHeader(http.StatusUnsupportedMediaType)
 
@@ -245,6 +270,8 @@ func (r *Restate) handler(writer http.ResponseWriter, request *http.Request) {
 	serviceProtocolVersion := parseServiceProtocolVersion(serviceProtocolVersionString)
 
 	if !isServiceProtocolVersionSupported(serviceProtocolVersion) {
+		r.systemLog.LogAttrs(request.Context(), slog.LevelError, "Unsupported service protocol version", slog.String("version", serviceProtocolVersionString))
+
 		writer.Write([]byte(fmt.Sprintf("Unsupported service protocol version '%s'", serviceProtocolVersionString)))
 		writer.WriteHeader(http.StatusUnsupportedMediaType)
 
@@ -254,12 +281,14 @@ func (r *Restate) handler(writer http.ResponseWriter, request *http.Request) {
 	// we expecting the uri to be something like `/invoke/{service}/{method}`
 	// so
 	if !strings.HasPrefix(request.RequestURI, "/invoke/") {
+		r.systemLog.LogAttrs(request.Context(), slog.LevelError, "Invalid request path", slog.String("path", request.RequestURI))
 		writer.WriteHeader(http.StatusNotFound)
 		return
 	}
 
 	parts := strings.Split(strings.TrimPrefix(request.RequestURI, "/invoke/"), "/")
 	if len(parts) != 2 {
+		r.systemLog.LogAttrs(request.Context(), slog.LevelError, "Invalid request path", slog.String("path", request.RequestURI))
 		writer.WriteHeader(http.StatusNotFound)
 		return
 	}

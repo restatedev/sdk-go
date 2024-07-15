@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"time"
 
 	"github.com/restatedev/sdk-go/internal"
@@ -47,7 +48,7 @@ type Selector interface {
 }
 
 type Context interface {
-	context.Context
+	RunContext
 
 	// Sleep for the duration d
 	Sleep(d time.Duration)
@@ -76,13 +77,23 @@ type Context interface {
 	// this stores the results of the function inside restate runtime so a replay
 	// will produce the same value (think generating a unique id for example)
 	// Note: use the RunAs helper function
-	Run(fn func(ctx context.Context) ([]byte, error)) ([]byte, error)
+	Run(fn func(RunContext) ([]byte, error)) ([]byte, error)
 
 	Awakeable() Awakeable[[]byte]
 	ResolveAwakeable(id string, value []byte)
 	RejectAwakeable(id string, reason error)
 
 	Selector(futs ...futures.Selectable) (Selector, error)
+}
+
+// RunContext methods are the only methods safe to call from inside a .Run()
+type RunContext interface {
+	context.Context
+
+	// Log obtains a handle on a slog.Logger which already has some useful fields (invocationID and method)
+	// By default, this logger will not output messages if the invocation is currently replaying
+	// The log handler can be set with `.WithLogger()` on the server object
+	Log() *slog.Logger
 }
 
 // Router interface
@@ -245,8 +256,8 @@ func SetAs[T any](ctx ObjectContext, key string, value T) error {
 
 // RunAs helper function runs a run function with specific concrete type as a result
 // it does encoding/decoding of bytes automatically using msgpack
-func RunAs[T any](ctx Context, fn func(context.Context) (T, error)) (output T, err error) {
-	bytes, err := ctx.Run(func(ctx context.Context) ([]byte, error) {
+func RunAs[T any](ctx Context, fn func(RunContext) (T, error)) (output T, err error) {
+	bytes, err := ctx.Run(func(ctx RunContext) ([]byte, error) {
 		out, err := fn(ctx)
 		if err != nil {
 			return nil, err

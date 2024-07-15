@@ -6,7 +6,6 @@ import (
 	"time"
 
 	restate "github.com/restatedev/sdk-go"
-	"github.com/rs/zerolog/log"
 )
 
 const UserSessionServiceName = "UserSession"
@@ -81,7 +80,7 @@ func (u *userSession) Checkout(ctx restate.ObjectContext, _ restate.Void) (bool,
 		return false, err
 	}
 
-	log.Info().Strs("tickets", tickets).Msg("tickets in basket")
+	ctx.Log().Info("tickets in basket", "tickets", tickets)
 
 	if len(tickets) == 0 {
 		return false, nil
@@ -95,7 +94,7 @@ func (u *userSession) Checkout(ctx restate.ObjectContext, _ restate.Void) (bool,
 		return false, err
 	}
 
-	log.Info().Str("id", response.ID).Int("price", response.Price).Msg("payment details")
+	ctx.Log().Info("payment details", "id", response.ID, "price", response.Price)
 
 	for _, ticket := range tickets {
 		call := ctx.ObjectSend(TicketServiceName, ticket, 0).Method("MarkAsSold")
