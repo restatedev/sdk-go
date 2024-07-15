@@ -28,7 +28,9 @@ type SendClient interface {
 }
 
 type ResponseFuture interface {
-	// Response waits for the response to the call and unmarshals it into output
+	// Response blocks on the response to the call and unmarshals it into output
+	// It is *not* safe to call this in a goroutine - use Context.Selector if you
+	// want to wait on multiple results at once.
 	Response(output any) error
 	futures.Selectable
 }
@@ -51,14 +53,16 @@ type Selector interface {
 type Context interface {
 	RunContext
 
-	// Returns a random source which will give deterministic results for a given invocation
+	// Rand returns a random source which will give deterministic results for a given invocation
 	// The source wraps the stdlib rand.Rand but with some extra helper methods
 	// This source is not safe for use inside .Run()
 	Rand() *rand.Rand
 
 	// Sleep for the duration d
 	Sleep(d time.Duration)
-	// Return a handle on a sleep duration which can be combined
+	// After is an alternative to Context.Sleep which allows you to complete other tasks concurrently
+	// with the sleep. This is particularly useful when combined with Context.Selector to race between
+	// the sleep and other Selectable operations.
 	After(d time.Duration) After
 
 	// Service gets a Service accessor by name where service
@@ -79,16 +83,31 @@ type Context interface {
 	// and delay is the duration with which to delay requests
 	ObjectSend(object, key string, delay time.Duration) ServiceSendClient
 
-	// Run runs the function (fn) until it succeeds or permanently fails.
-	// this stores the results of the function inside restate runtime so a replay
-	// will produce the same value (think generating a unique id for example)
-	// Note: use the RunAs helper function
+	// Run runs the function (fn), storing final results (including terminal errors)
+	// durably in the journal, or otherwise for transient errors stopping execution
+	// so Restate can retry the invocation. Replays will produce the same value, so
+	// all non-deterministic operations (eg, generating a unique ID) *must* happen
+	// inside Run blocks.
+	// Note: use the RunAs helper function to serialise non-[]byte return values
 	Run(fn func(RunContext) ([]byte, error)) ([]byte, error)
 
+	// Awakeable returns a Restate awakeable; a 'promise' to a future
+	// value or error, that can be resolved or rejected by other services.
+	// Note: use the AwakeableAs helper function to deserialise the []byte value
 	Awakeable() Awakeable[[]byte]
+	// ResolveAwakeable allows an awakeable (not necessarily from this service) to be
+	// resolved with a particular value.
+	// Note: use the ResolveAwakeableAs helper function to provide a value to be serialised
 	ResolveAwakeable(id string, value []byte)
+	// ResolveAwakeable allows an awakeable (not necessarily from this service) to be
+	// rejected with a particular error.
 	RejectAwakeable(id string, reason error)
 
+	// Selector returns an iterator over blocking Restate operations (sleep, call, awakeable)
+	// which allows you to safely run them in parallel. The Selector will store the order
+	// that things complete in durably inside Restate, so that on replay the same order
+	// can be used. This avoids non-determinism. It is *not* safe to use goroutines or channels
+	// outside of Context.Run functions, as they do not behave deterministically.
 	Selector(futs ...futures.Selectable) (Selector, error)
 }
 
@@ -155,6 +174,8 @@ type KeyValueStore interface {
 type ObjectContext interface {
 	Context
 	KeyValueStore
+	// Key retrieves the key for this virtual object invocation. This is a no-op and is
+	// always safe to call.
 	Key() string
 }
 
@@ -294,8 +315,15 @@ func RunAs[T any](ctx Context, fn func(RunContext) (T, error)) (output T, err er
 	return output, TerminalError(err)
 }
 
+// Awakeable is the Go representation of a Restate awakeable; a 'promise' to a future
+// value or error, that can be resolved or rejected by other services.
 type Awakeable[T any] interface {
+	// Id returns the awakeable ID, which can be stored or sent to a another service
 	Id() string
+	// Result blocks on receiving the result of the awakeable, returning the value it was
+	// resolved with or the error it was rejected with.
+	// It is *not* safe to call this in a goroutine - use Context.Selector if you
+	// want to wait on multiple results at once.
 	Result() (T, error)
 	futures.Selectable
 }
@@ -316,10 +344,14 @@ func (d decodingAwakeable[T]) Result() (out T, err error) {
 	return
 }
 
+// AwakeableAs helper function to treat awakeable values as a particular type.
+// Bytes are deserialised as JSON
 func AwakeableAs[T any](ctx Context) Awakeable[T] {
 	return decodingAwakeable[T]{Awakeable: ctx.Awakeable()}
 }
 
+// ResolveAwakeableAs helper function to resolve an awakeable with a particular type
+// The type will be serialised to bytes using JSON
 func ResolveAwakeableAs[T any](ctx Context, id string, value T) error {
 	bytes, err := json.Marshal(value)
 	if err != nil {
@@ -329,7 +361,12 @@ func ResolveAwakeableAs[T any](ctx Context, id string, value T) error {
 	return nil
 }
 
+// After is a handle on a Sleep operation which allows you to do other work concurrently
+// with the sleep.
 type After interface {
+	// Done blocks waiting on the remaining duration of the sleep.
+	// It is *not* safe to call this in a goroutine - use Context.Selector if you
+	// want to wait on multiple results at once.
 	Done()
 	futures.Selectable
 }
