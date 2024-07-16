@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/base64"
 	"encoding/binary"
-	"encoding/json"
 	"fmt"
 
 	"github.com/restatedev/sdk-go/generated/proto/protocol"
@@ -32,8 +31,8 @@ func (a *After) Done() {
 	a.entry.Await(a.suspensionCtx, a.entryIndex)
 }
 
-func (a *After) getEntry() (wire.CompleteableMessage, uint32, error) {
-	return a.entry, a.entryIndex, nil
+func (a *After) getEntry() (wire.CompleteableMessage, uint32) {
+	return a.entry, a.entryIndex
 }
 
 const AWAKEABLE_IDENTIFIER_PREFIX = "prom_1"
@@ -62,8 +61,8 @@ func (c *Awakeable) Result() ([]byte, error) {
 		return nil, fmt.Errorf("unexpected result in completed awakeable entry: %v", c.entry.Result)
 	}
 }
-func (c *Awakeable) getEntry() (wire.CompleteableMessage, uint32, error) {
-	return c.entry, c.entryIndex, nil
+func (c *Awakeable) getEntry() (wire.CompleteableMessage, uint32) {
+	return c.entry, c.entryIndex
 }
 
 func awakeableID(invocationID []byte, entryIndex uint32) string {
@@ -74,46 +73,30 @@ func awakeableID(invocationID []byte, entryIndex uint32) string {
 }
 
 type ResponseFuture struct {
-	suspensionCtx context.Context
-	err           error
-	entry         *wire.CallEntryMessage
-	entryIndex    uint32
+	suspensionCtx        context.Context
+	entry                *wire.CallEntryMessage
+	entryIndex           uint32
+	newProtocolViolation func(error) any
 }
 
-func NewResponseFuture(suspensionCtx context.Context, entry *wire.CallEntryMessage, entryIndex uint32) *ResponseFuture {
-	return &ResponseFuture{suspensionCtx, nil, entry, entryIndex}
+func NewResponseFuture(suspensionCtx context.Context, entry *wire.CallEntryMessage, entryIndex uint32, newProtocolViolation func(error) any) *ResponseFuture {
+	return &ResponseFuture{suspensionCtx, entry, entryIndex, newProtocolViolation}
 }
 
-func NewFailedResponseFuture(err error) *ResponseFuture {
-	return &ResponseFuture{nil, err, nil, 0}
-}
-
-func (r *ResponseFuture) Response(output any) error {
-	if r.err != nil {
-		return r.err
-	}
-
+func (r *ResponseFuture) Response() ([]byte, error) {
 	r.entry.Await(r.suspensionCtx, r.entryIndex)
 
 	var bytes []byte
 	switch result := r.entry.Result.(type) {
 	case *protocol.CallEntryMessage_Failure:
-		return errors.ErrorFromFailure(result.Failure)
+		return nil, errors.ErrorFromFailure(result.Failure)
 	case *protocol.CallEntryMessage_Value:
-		bytes = result.Value
+		return bytes, nil
 	default:
-		return errors.NewTerminalError(fmt.Errorf("sync call had invalid result: %v", r.entry.Result), 571)
-
+		panic(r.newProtocolViolation(fmt.Errorf("call entry had invalid result: %v", r.entry.Result)))
 	}
-
-	if err := json.Unmarshal(bytes, output); err != nil {
-		// TODO: is this should be a terminal error or not?
-		return errors.NewTerminalError(fmt.Errorf("failed to decode response (%s): %w", string(bytes), err))
-	}
-
-	return nil
 }
 
-func (r *ResponseFuture) getEntry() (wire.CompleteableMessage, uint32, error) {
-	return r.entry, r.entryIndex, r.err
+func (r *ResponseFuture) getEntry() (wire.CompleteableMessage, uint32) {
+	return r.entry, r.entryIndex
 }

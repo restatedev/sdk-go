@@ -2,7 +2,6 @@ package state
 
 import (
 	"bytes"
-	"encoding/json"
 	"time"
 
 	restate "github.com/restatedev/sdk-go"
@@ -11,45 +10,6 @@ import (
 	"github.com/restatedev/sdk-go/internal/wire"
 )
 
-var (
-	_ restate.ServiceClient     = (*serviceProxy)(nil)
-	_ restate.ServiceSendClient = (*serviceSendProxy)(nil)
-	_ restate.CallClient        = (*serviceCall)(nil)
-	_ restate.SendClient        = (*serviceSend)(nil)
-)
-
-type serviceProxy struct {
-	machine *Machine
-	service string
-	key     string
-}
-
-func (c *serviceProxy) Method(fn string) restate.CallClient {
-	return &serviceCall{
-		machine: c.machine,
-		service: c.service,
-		key:     c.key,
-		method:  fn,
-	}
-}
-
-type serviceSendProxy struct {
-	machine *Machine
-	service string
-	key     string
-	delay   time.Duration
-}
-
-func (c *serviceSendProxy) Method(fn string) restate.SendClient {
-	return &serviceSend{
-		machine: c.machine,
-		service: c.service,
-		key:     c.key,
-		method:  fn,
-		delay:   c.delay,
-	}
-}
-
 type serviceCall struct {
 	machine *Machine
 	service string
@@ -57,37 +17,26 @@ type serviceCall struct {
 	method  string
 }
 
-// Do makes a call and wait for the response
-func (c *serviceCall) Request(input any) restate.ResponseFuture {
-	if entry, entryIndex, err := c.machine.doDynCall(c.service, c.key, c.method, input); err != nil {
-		return futures.NewFailedResponseFuture(err)
-	} else {
-		return futures.NewResponseFuture(c.machine.suspensionCtx, entry, entryIndex)
-	}
+// RequestFuture makes a call and returns a handle on the response
+func (c *serviceCall) RequestFuture(input []byte) (restate.ResponseFuture[[]byte], error) {
+	entry, entryIndex := c.machine.doCall(c.service, c.key, c.method, input)
+
+	return futures.NewResponseFuture(c.machine.suspensionCtx, entry, entryIndex, func(err error) any { return c.machine.newProtocolViolation(entry, err) }), nil
 }
 
-type serviceSend struct {
-	machine *Machine
-	service string
-	key     string
-	method  string
-
-	delay time.Duration
+// Request makes a call and blocks on the response
+func (c *serviceCall) Request(input []byte) ([]byte, error) {
+	fut, err := c.RequestFuture(input)
+	if err != nil {
+		return nil, err
+	}
+	return fut.Response()
 }
 
 // Send runs a call in the background after delay duration
-func (c *serviceSend) Request(input any) error {
-	return c.machine.sendCall(c.service, c.key, c.method, input, c.delay)
-}
-
-func (m *Machine) doDynCall(service, key, method string, input any) (*wire.CallEntryMessage, uint32, error) {
-	params, err := json.Marshal(input)
-	if err != nil {
-		return nil, 0, err
-	}
-
-	entry, entryIndex := m.doCall(service, key, method, params)
-	return entry, entryIndex, nil
+func (c *serviceCall) Send(input []byte, delay time.Duration) error {
+	c.machine.sendCall(c.service, c.key, c.method, input, delay)
+	return nil
 }
 
 func (m *Machine) doCall(service, key, method string, params []byte) (*wire.CallEntryMessage, uint32) {
@@ -129,24 +78,19 @@ func (m *Machine) _doCall(service, key, method string, params []byte) *wire.Call
 	return msg
 }
 
-func (m *Machine) sendCall(service, key, method string, body any, delay time.Duration) error {
-	params, err := json.Marshal(body)
-	if err != nil {
-		return err
-	}
-
+func (m *Machine) sendCall(service, key, method string, body []byte, delay time.Duration) {
 	_, _ = replayOrNew(
 		m,
 		func(entry *wire.OneWayCallEntryMessage) restate.Void {
 			if entry.ServiceName != service ||
 				entry.Key != key ||
 				entry.HandlerName != method ||
-				!bytes.Equal(entry.Parameter, params) {
+				!bytes.Equal(entry.Parameter, body) {
 				panic(m.newEntryMismatch(&wire.OneWayCallEntryMessage{
 					OneWayCallEntryMessage: protocol.OneWayCallEntryMessage{
 						ServiceName: service,
 						HandlerName: method,
-						Parameter:   params,
+						Parameter:   body,
 						Key:         key,
 					},
 				}, entry))
@@ -155,12 +99,10 @@ func (m *Machine) sendCall(service, key, method string, body any, delay time.Dur
 			return restate.Void{}
 		},
 		func() restate.Void {
-			m._sendCall(service, key, method, params, delay)
+			m._sendCall(service, key, method, body, delay)
 			return restate.Void{}
 		},
 	)
-
-	return nil
 }
 
 func (c *Machine) _sendCall(service, key, method string, params []byte, delay time.Duration) {

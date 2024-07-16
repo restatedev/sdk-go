@@ -12,15 +12,15 @@ const UserSessionServiceName = "UserSession"
 
 type userSession struct{}
 
-func (u *userSession) Name() string {
+func (u *userSession) ServiceName() string {
 	return UserSessionServiceName
 }
 
 func (u *userSession) AddTicket(ctx restate.ObjectContext, ticketId string) (bool, error) {
 	userId := ctx.Key()
 
-	var success bool
-	if err := ctx.Object(TicketServiceName, ticketId).Method("Reserve").Request(userId).Response(&success); err != nil {
+	success, err := restate.CallAs[bool](ctx.Object(TicketServiceName, ticketId, "Reserve")).Request(userId)
+	if err != nil {
 		return false, err
 	}
 
@@ -41,7 +41,7 @@ func (u *userSession) AddTicket(ctx restate.ObjectContext, ticketId string) (boo
 		return false, err
 	}
 
-	if err := ctx.ObjectSend(UserSessionServiceName, ticketId, 15*time.Minute).Method("ExpireTicket").Request(ticketId); err != nil {
+	if err := restate.SendAs(ctx.Object(UserSessionServiceName, ticketId, "ExpireTicket")).Send(ticketId, 15*time.Minute); err != nil {
 		return false, err
 	}
 
@@ -70,7 +70,7 @@ func (u *userSession) ExpireTicket(ctx restate.ObjectContext, ticketId string) (
 		return void, err
 	}
 
-	return void, ctx.ObjectSend(TicketServiceName, ticketId, 0).Method("Unreserve").Request(nil)
+	return void, ctx.Object(TicketServiceName, ticketId, "Unreserve").Send(nil, 0)
 }
 
 func (u *userSession) Checkout(ctx restate.ObjectContext, _ restate.Void) (bool, error) {
@@ -86,19 +86,34 @@ func (u *userSession) Checkout(ctx restate.ObjectContext, _ restate.Void) (bool,
 		return false, nil
 	}
 
-	var response PaymentResponse
-	if err := ctx.Object(CheckoutServiceName, "").
-		Method("Payment").
-		Request(PaymentRequest{UserID: userId, Tickets: tickets}).
-		Response(&response); err != nil {
+	timeout := ctx.After(time.Minute)
+
+	request, err := restate.CallAs[PaymentResponse](ctx.Object(CheckoutServiceName, "Payment", "")).
+		RequestFuture(PaymentRequest{UserID: userId, Tickets: tickets})
+	if err != nil {
+		return false, err
+	}
+
+	// race between the request and the timeout
+	switch ctx.Select(timeout, request).Select() {
+	case request:
+		// happy path
+	case timeout:
+		// we could choose to fail here with terminal error, but we'd also have to refund the payment!
+		ctx.Log().Warn("slow payment")
+	}
+
+	// block on the eventual response
+	response, err := request.Response()
+	if err != nil {
 		return false, err
 	}
 
 	ctx.Log().Info("payment details", "id", response.ID, "price", response.Price)
 
 	for _, ticket := range tickets {
-		call := ctx.ObjectSend(TicketServiceName, ticket, 0).Method("MarkAsSold")
-		if err := call.Request(nil); err != nil {
+		call := ctx.Object(TicketServiceName, ticket, "MarkAsSold")
+		if err := call.Send(nil, 0); err != nil {
 			return false, err
 		}
 	}

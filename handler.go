@@ -1,78 +1,75 @@
 package restate
 
 import (
-	"encoding/json"
 	"fmt"
+	"net/http"
 
 	"github.com/restatedev/sdk-go/encoding"
 )
 
-// Void is a placeholder used usually for functions that their signature require that
-// you accept an input or return an output but the function implementation does not
-// require them
-type Void struct{}
+// Void is a placeholder to signify 'no value' where a type is otherwise needed. It can be used in several contexts:
+// 1. Input types for handlers - the request payload codec will default to a encoding.VoidCodec which will reject input at the ingress
+// 2. Output types for handlers - the response payload codec will default to a encoding.VoidCodec which will send no bytes and set no content-type
+type Void = encoding.Void
 
-type VoidDecoder struct{}
-
-func (v VoidDecoder) InputPayload() *encoding.InputPayload {
-	return &encoding.InputPayload{}
+type ObjectHandler interface {
+	Call(ctx ObjectContext, request []byte) (output []byte, err error)
+	getOptions() *objectHandlerOptions
+	Handler
 }
 
-func (v VoidDecoder) Decode(data []byte) (input Void, err error) {
-	if len(data) > 0 {
-		err = fmt.Errorf("restate.Void decoder expects no request data")
-	}
-	return
+type ServiceHandler interface {
+	Call(ctx Context, request []byte) (output []byte, err error)
+	getOptions() *serviceHandlerOptions
+	Handler
 }
 
-type VoidEncoder struct{}
-
-func (v VoidEncoder) OutputPayload() *encoding.OutputPayload {
-	return &encoding.OutputPayload{}
+type Handler interface {
+	sealed()
+	InputPayload() *encoding.InputPayload
+	OutputPayload() *encoding.OutputPayload
 }
 
-func (v VoidEncoder) Encode(output Void) ([]byte, error) {
-	return nil, nil
+// ServiceHandlerFn signature of service (unkeyed) handler function
+type ServiceHandlerFn[I any, O any] func(ctx Context, input I) (output O, err error)
+
+// ObjectHandlerFn signature for object (keyed) handler function
+type ObjectHandlerFn[I any, O any] func(ctx ObjectContext, input I) (output O, err error)
+
+type serviceHandlerOptions struct {
+	codec encoding.PayloadCodec
 }
 
 type serviceHandler[I any, O any] struct {
 	fn      ServiceHandlerFn[I, O]
-	decoder Decoder[I]
-	encoder Encoder[O]
+	options serviceHandlerOptions
 }
 
-// NewJSONServiceHandler create a new handler for a service using JSON encoding
-func NewJSONServiceHandler[I any, O any](fn ServiceHandlerFn[I, O]) *serviceHandler[I, O] {
+var _ ServiceHandler = (*serviceHandler[struct{}, struct{}])(nil)
+
+type ServiceHandlerOption interface {
+	beforeServiceHandler(*serviceHandlerOptions)
+}
+
+// NewServiceHandler create a new handler for a service, defaulting to JSON encoding
+func NewServiceHandler[I any, O any](fn ServiceHandlerFn[I, O], options ...ServiceHandlerOption) *serviceHandler[I, O] {
+	opts := serviceHandlerOptions{}
+	for _, opt := range options {
+		opt.beforeServiceHandler(&opts)
+	}
+	if opts.codec == nil {
+		opts.codec = encoding.PartialVoidCodec[I, O]()
+	}
 	return &serviceHandler[I, O]{
 		fn:      fn,
-		decoder: encoding.JSONDecoder[I]{},
-		encoder: encoding.JSONEncoder[O]{},
-	}
-}
-
-// NewProtoServiceHandler create a new handler for a service using protobuf encoding
-// Input and output type must both be pointers that satisfy proto.Message
-func NewProtoServiceHandler[I any, O any, IP encoding.MessagePointer[I], OP encoding.MessagePointer[O]](fn ServiceHandlerFn[IP, OP]) *serviceHandler[IP, OP] {
-	return &serviceHandler[IP, OP]{
-		fn:      fn,
-		decoder: encoding.ProtoDecoder[I, IP]{},
-		encoder: encoding.ProtoEncoder[OP]{},
-	}
-}
-
-// NewServiceHandlerWithEncoders create a new handler for a service using a custom encoder/decoder implementation
-func NewServiceHandlerWithEncoders[I any, O any](fn ServiceHandlerFn[I, O], decoder Decoder[I], encoder Encoder[O]) *serviceHandler[I, O] {
-	return &serviceHandler[I, O]{
-		fn:      fn,
-		decoder: decoder,
-		encoder: encoder,
+		options: opts,
 	}
 }
 
 func (h *serviceHandler[I, O]) Call(ctx Context, bytes []byte) ([]byte, error) {
-	input, err := h.decoder.Decode(bytes)
-	if err != nil {
-		return nil, TerminalError(fmt.Errorf("request could not be decoded into handler input type: %w", err))
+	var input I
+	if err := h.options.codec.Unmarshal(bytes, &input); err != nil {
+		return nil, TerminalError(fmt.Errorf("request could not be decoded into handler input type: %w", err), http.StatusBadRequest)
 	}
 
 	output, err := h.fn(
@@ -83,7 +80,7 @@ func (h *serviceHandler[I, O]) Call(ctx Context, bytes []byte) ([]byte, error) {
 		return nil, err
 	}
 
-	bytes, err = h.encoder.Encode(output)
+	bytes, err = h.options.codec.Marshal(output)
 	if err != nil {
 		return nil, TerminalError(fmt.Errorf("failed to serialize output: %w", err))
 	}
@@ -92,49 +89,79 @@ func (h *serviceHandler[I, O]) Call(ctx Context, bytes []byte) ([]byte, error) {
 }
 
 func (h *serviceHandler[I, O]) InputPayload() *encoding.InputPayload {
-	return h.decoder.InputPayload()
+	return h.options.codec.InputPayload()
 }
 
 func (h *serviceHandler[I, O]) OutputPayload() *encoding.OutputPayload {
-	return h.encoder.OutputPayload()
+	return h.options.codec.OutputPayload()
+}
+
+func (h *serviceHandler[I, O]) getOptions() *serviceHandlerOptions {
+	return &h.options
 }
 
 func (h *serviceHandler[I, O]) sealed() {}
 
-type objectHandler[I any, O any] struct {
-	fn ObjectHandlerFn[I, O]
+type objectHandlerOptions struct {
+	codec encoding.PayloadCodec
 }
 
-func NewObjectHandler[I any, O any](fn ObjectHandlerFn[I, O]) *objectHandler[I, O] {
+type objectHandler[I any, O any] struct {
+	fn      ObjectHandlerFn[I, O]
+	options objectHandlerOptions
+}
+
+var _ ObjectHandler = (*objectHandler[struct{}, struct{}])(nil)
+
+type ObjectHandlerOption interface {
+	beforeObjectHandler(*objectHandlerOptions)
+}
+
+func NewObjectHandler[I any, O any](fn ObjectHandlerFn[I, O], options ...ObjectHandlerOption) *objectHandler[I, O] {
+	opts := objectHandlerOptions{}
+	for _, opt := range options {
+		opt.beforeObjectHandler(&opts)
+	}
+	if opts.codec == nil {
+		opts.codec = encoding.PartialVoidCodec[I, O]()
+	}
 	return &objectHandler[I, O]{
 		fn: fn,
 	}
 }
 
 func (h *objectHandler[I, O]) Call(ctx ObjectContext, bytes []byte) ([]byte, error) {
-	input := new(I)
-
-	if len(bytes) > 0 {
-		// use the zero value if there is no input data at all
-		if err := json.Unmarshal(bytes, input); err != nil {
-			return nil, TerminalError(fmt.Errorf("request doesn't match handler signature: %w", err))
-		}
+	var input I
+	if err := h.options.codec.Unmarshal(bytes, &input); err != nil {
+		return nil, TerminalError(fmt.Errorf("request could not be decoded into handler input type: %w", err), http.StatusBadRequest)
 	}
 
 	output, err := h.fn(
 		ctx,
-		*input,
+		input,
 	)
 	if err != nil {
 		return nil, err
 	}
 
-	bytes, err = json.Marshal(output)
+	bytes, err = h.options.codec.Marshal(output)
 	if err != nil {
 		return nil, TerminalError(fmt.Errorf("failed to serialize output: %w", err))
 	}
 
 	return bytes, nil
+}
+
+func (h *objectHandler[I, O]) InputPayload() *encoding.InputPayload {
+	return h.options.codec.InputPayload()
+}
+
+func (h *objectHandler[I, O]) OutputPayload() *encoding.OutputPayload {
+	return h.options.codec.OutputPayload()
+}
+
+func (h *objectHandler[I, O]) getOptions() *objectHandlerOptions {
+	return &h.options
 }
 
 func (h *objectHandler[I, O]) sealed() {}

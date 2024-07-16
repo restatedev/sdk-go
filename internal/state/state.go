@@ -66,11 +66,11 @@ func (c *Context) ClearAll() {
 
 }
 
-func (c *Context) Get(key string) ([]byte, error) {
+func (c *Context) Get(key string) []byte {
 	return c.machine.get(key)
 }
 
-func (c *Context) Keys() ([]string, error) {
+func (c *Context) Keys() []string {
 	return c.machine.keys()
 }
 
@@ -82,37 +82,41 @@ func (c *Context) After(d time.Duration) restate.After {
 	return c.machine.after(d)
 }
 
-func (c *Context) Service(service string) restate.ServiceClient {
-	return &serviceProxy{
+func (c *Context) Service(service, method string) restate.CallClient[[]byte, []byte] {
+	return &serviceCall{
 		machine: c.machine,
 		service: service,
+		method:  method,
 	}
 }
 
-func (c *Context) ServiceSend(service string, delay time.Duration) restate.ServiceSendClient {
-	return &serviceSendProxy{
-		machine: c.machine,
-		service: service,
-		delay:   delay,
-	}
-}
+// func (c *Context) ServiceSend(service, method string, delay time.Duration) restate.SendClient[[]byte] {
+// 	return &serviceSend{
+// 		machine: c.machine,
+// 		service: service,
+// 		method:  method,
+// 		delay:   delay,
+// 	}
+// }
 
-func (c *Context) Object(service, key string) restate.ServiceClient {
-	return &serviceProxy{
+func (c *Context) Object(service, key, method string) restate.CallClient[[]byte, []byte] {
+	return &serviceCall{
 		machine: c.machine,
 		service: service,
 		key:     key,
+		method:  method,
 	}
 }
 
-func (c *Context) ObjectSend(service, key string, delay time.Duration) restate.ServiceSendClient {
-	return &serviceSendProxy{
-		machine: c.machine,
-		service: service,
-		key:     key,
-		delay:   delay,
-	}
-}
+// func (c *Context) ObjectSend(service, key, method string, delay time.Duration) restate.SendClient[[]byte] {
+// 	return &serviceSend{
+// 		machine: c.machine,
+// 		service: service,
+// 		method:  method,
+// 		key:     key,
+// 		delay:   delay,
+// 	}
+// }
 
 func (c *Context) Run(fn func(ctx restate.RunContext) ([]byte, error)) ([]byte, error) {
 	return c.machine.run(fn)
@@ -130,7 +134,7 @@ func (c *Context) RejectAwakeable(id string, reason error) {
 	c.machine.rejectAwakeable(id, reason)
 }
 
-func (c *Context) Selector(futs ...futures.Selectable) (restate.Selector, error) {
+func (c *Context) Select(futs ...futures.Selectable) restate.Selector {
 	return c.machine.selector(futs...)
 }
 
@@ -239,6 +243,19 @@ func (m *Machine) invoke(ctx *Context, input []byte, outputSeen bool) error {
 		case nil:
 			// nothing to do, just exit
 			return
+		case *protocolViolation:
+			m.log.LogAttrs(m.ctx, slog.LevelError, "Protocol violation", log.Error(typ.err))
+
+			if err := m.protocol.Write(wire.ErrorMessageType, &wire.ErrorMessage{
+				ErrorMessage: protocol.ErrorMessage{
+					Code:              uint32(errors.ErrProtocolViolation),
+					Message:           fmt.Sprintf("Protocol violation: %v", typ.err),
+					RelatedEntryIndex: &typ.entryIndex,
+					RelatedEntryType:  wire.MessageType(typ.entry).UInt32(),
+				},
+			}); err != nil {
+				m.log.LogAttrs(m.ctx, slog.LevelError, "Error sending failure message", log.Error(err))
+			}
 		case *entryMismatch:
 			expected, _ := json.Marshal(typ.expectedEntry)
 			actual, _ := json.Marshal(typ.actualEntry)

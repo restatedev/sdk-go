@@ -18,7 +18,7 @@ const TicketServiceName = "TicketService"
 
 type ticketService struct{}
 
-func (t *ticketService) Name() string { return TicketServiceName }
+func (t *ticketService) ServiceName() string { return TicketServiceName }
 
 func (t *ticketService) Reserve(ctx restate.ObjectContext, _ restate.Void) (bool, error) {
 	status, err := restate.GetAs[TicketStatus](ctx, "status")

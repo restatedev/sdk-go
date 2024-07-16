@@ -13,12 +13,9 @@ type selector struct {
 	inner   *futures.Selector
 }
 
-func (m *Machine) selector(futs ...futures.Selectable) (*selector, error) {
-	inner, err := futures.Select(m.suspensionCtx, futs...)
-	if err != nil {
-		return nil, err
-	}
-	return &selector{m, inner}, nil
+func (m *Machine) selector(futs ...futures.Selectable) *selector {
+	inner := futures.Select(m.suspensionCtx, futs...)
+	return &selector{m, inner}
 }
 
 func (s *selector) Select() futures.Selectable {
