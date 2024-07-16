@@ -52,7 +52,9 @@ func (r *ServiceRouter) Name() string {
 
 // Handler registers a new handler by name
 func (r *ServiceRouter) Handler(name string, handler ServiceHandler) *ServiceRouter {
-	handler.getOptions().codec = encoding.MergeCodec(handler.getOptions().codec, r.options.defaultCodec)
+	if handler.getOptions().codec == nil {
+		handler.getOptions().codec = r.options.defaultCodec
+	}
 	r.handlers[name] = handler
 	return r
 }
@@ -102,7 +104,9 @@ func (r *ObjectRouter) Name() string {
 }
 
 func (r *ObjectRouter) Handler(name string, handler ObjectHandler) *ObjectRouter {
-	handler.getOptions().codec = encoding.MergeCodec(handler.getOptions().codec, r.options.defaultCodec)
+	if handler.getOptions().codec == nil {
+		handler.getOptions().codec = r.options.defaultCodec
+	}
 	r.handlers[name] = handler
 	return r
 }

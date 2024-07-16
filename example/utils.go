@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"math/big"
 
@@ -24,7 +25,7 @@ var bigCounter = restate.
 			}
 
 			bytes, err := restate.GetAs[[]byte](ctx, "counter", restate.WithBinary)
-			if err != nil && err != restate.ErrKeyNotFound {
+			if err != nil && !errors.Is(err, restate.ErrKeyNotFound) {
 				return "", err
 			}
 			newCount := big.NewInt(0).Add(big.NewInt(0).SetBytes(bytes), delta)

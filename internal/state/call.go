@@ -6,6 +6,7 @@ import (
 	"time"
 
 	restate "github.com/restatedev/sdk-go"
+	"github.com/restatedev/sdk-go/encoding"
 	"github.com/restatedev/sdk-go/generated/proto/protocol"
 	"github.com/restatedev/sdk-go/internal/errors"
 	"github.com/restatedev/sdk-go/internal/futures"
@@ -23,10 +24,15 @@ type serviceCall struct {
 
 // RequestFuture makes a call and returns a handle on the response
 func (c *serviceCall) RequestFuture(input any) (restate.ResponseFuture, error) {
-	bytes, err := c.options.Codec.Marshal(input)
-	if err != nil {
-		return nil, errors.NewTerminalError(fmt.Errorf("failed to marshal RequestFuture input: %w", err))
+	var bytes []byte
+	if (input != restate.Void{}) {
+		var err error
+		bytes, err = encoding.Marshal(c.options.Codec, input)
+		if err != nil {
+			return nil, errors.NewTerminalError(fmt.Errorf("failed to marshal RequestFuture input: %w", err))
+		}
 	}
+
 	entry, entryIndex := c.machine.doCall(c.service, c.key, c.method, bytes)
 
 	return decodingResponseFuture{
@@ -46,8 +52,8 @@ func (d decodingResponseFuture) Response(output any) (err error) {
 		return err
 	}
 
-	if err := d.options.Codec.Unmarshal(bytes, output); err != nil {
-		return errors.NewTerminalError(fmt.Errorf("failed to unmarshal Call response into O: %w", err))
+	if err := encoding.Unmarshal(d.options.Codec, bytes, output); err != nil {
+		return errors.NewTerminalError(fmt.Errorf("failed to unmarshal Call response into output: %w", err))
 	}
 
 	return nil
@@ -64,7 +70,7 @@ func (c *serviceCall) Request(input any, output any) error {
 
 // Send runs a call in the background after delay duration
 func (c *serviceCall) Send(input any, delay time.Duration) error {
-	bytes, err := c.options.Codec.Marshal(input)
+	bytes, err := encoding.Marshal(c.options.Codec, input)
 	if err != nil {
 		return errors.NewTerminalError(fmt.Errorf("failed to marshal Send input: %w", err))
 	}

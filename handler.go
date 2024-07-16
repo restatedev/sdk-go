@@ -11,6 +11,8 @@ import (
 // Void is a placeholder to signify 'no value' where a type is otherwise needed. It can be used in several contexts:
 // 1. Input types for handlers - the request payload codec will default to a encoding.VoidCodec which will reject input at the ingress
 // 2. Output types for handlers - the response payload codec will default to a encoding.VoidCodec which will send no bytes and set no content-type
+// 3. Input for a outgoing Request or Send - no bytes will be sent
+// 4. The output type for an outgoing Request - the response body will be ignored. A pointer is also accepted.
 type Void = encoding.Void
 
 type ObjectHandler interface {
@@ -62,9 +64,6 @@ func NewServiceHandler[I any, O any](fn ServiceHandlerFn[I, O], options ...Servi
 	for _, opt := range options {
 		opt.beforeServiceHandler(&opts)
 	}
-	if opts.codec == nil {
-		opts.codec = encoding.PartialVoidCodec[I, O]()
-	}
 	return &serviceHandler[I, O]{
 		fn:      fn,
 		options: opts,
@@ -73,7 +72,7 @@ func NewServiceHandler[I any, O any](fn ServiceHandlerFn[I, O], options ...Servi
 
 func (h *serviceHandler[I, O]) Call(ctx Context, bytes []byte) ([]byte, error) {
 	var input I
-	if err := h.options.codec.Unmarshal(bytes, &input); err != nil {
+	if err := encoding.Unmarshal(h.options.codec, bytes, &input); err != nil {
 		return nil, TerminalError(fmt.Errorf("request could not be decoded into handler input type: %w", err), http.StatusBadRequest)
 	}
 
@@ -85,7 +84,7 @@ func (h *serviceHandler[I, O]) Call(ctx Context, bytes []byte) ([]byte, error) {
 		return nil, err
 	}
 
-	bytes, err = h.options.codec.Marshal(output)
+	bytes, err = encoding.Marshal(h.options.codec, output)
 	if err != nil {
 		return nil, TerminalError(fmt.Errorf("failed to serialize output: %w", err))
 	}
@@ -94,11 +93,13 @@ func (h *serviceHandler[I, O]) Call(ctx Context, bytes []byte) ([]byte, error) {
 }
 
 func (h *serviceHandler[I, O]) InputPayload() *encoding.InputPayload {
-	return h.options.codec.InputPayload()
+	var i I
+	return encoding.InputPayloadFor(h.options.codec, i)
 }
 
 func (h *serviceHandler[I, O]) OutputPayload() *encoding.OutputPayload {
-	return h.options.codec.OutputPayload()
+	var o O
+	return encoding.OutputPayloadFor(h.options.codec, o)
 }
 
 func (h *serviceHandler[I, O]) HandlerType() *internal.ServiceHandlerType {
@@ -134,9 +135,6 @@ func NewObjectHandler[I any, O any](fn ObjectHandlerFn[I, O], options ...ObjectH
 	for _, opt := range options {
 		opt.beforeObjectHandler(&opts)
 	}
-	if opts.codec == nil {
-		opts.codec = encoding.PartialVoidCodec[I, O]()
-	}
 	return &objectHandler[I, O]{
 		exclusiveFn: fn,
 		options:     opts,
@@ -149,9 +147,6 @@ func NewObjectSharedHandler[I any, O any](fn ObjectSharedHandlerFn[I, O], option
 	for _, opt := range options {
 		opt.beforeObjectHandler(&opts)
 	}
-	if opts.codec == nil {
-		opts.codec = encoding.PartialVoidCodec[I, O]()
-	}
 	return &objectHandler[I, O]{
 		sharedFn:    fn,
 		options:     opts,
@@ -161,7 +156,7 @@ func NewObjectSharedHandler[I any, O any](fn ObjectSharedHandlerFn[I, O], option
 
 func (h *objectHandler[I, O]) Call(ctx ObjectContext, bytes []byte) ([]byte, error) {
 	var input I
-	if err := h.options.codec.Unmarshal(bytes, &input); err != nil {
+	if err := encoding.Unmarshal(h.options.codec, bytes, &input); err != nil {
 		return nil, TerminalError(fmt.Errorf("request could not be decoded into handler input type: %w", err), http.StatusBadRequest)
 	}
 
@@ -183,7 +178,7 @@ func (h *objectHandler[I, O]) Call(ctx ObjectContext, bytes []byte) ([]byte, err
 		return nil, err
 	}
 
-	bytes, err = h.options.codec.Marshal(output)
+	bytes, err = encoding.Marshal(h.options.codec, output)
 	if err != nil {
 		return nil, TerminalError(fmt.Errorf("failed to serialize output: %w", err))
 	}
@@ -192,11 +187,13 @@ func (h *objectHandler[I, O]) Call(ctx ObjectContext, bytes []byte) ([]byte, err
 }
 
 func (h *objectHandler[I, O]) InputPayload() *encoding.InputPayload {
-	return h.options.codec.InputPayload()
+	var i I
+	return encoding.InputPayloadFor(h.options.codec, i)
 }
 
 func (h *objectHandler[I, O]) OutputPayload() *encoding.OutputPayload {
-	return h.options.codec.OutputPayload()
+	var o O
+	return encoding.OutputPayloadFor(h.options.codec, o)
 }
 
 func (h *objectHandler[I, O]) getOptions() *objectHandlerOptions {

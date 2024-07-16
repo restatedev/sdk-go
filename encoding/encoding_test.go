@@ -34,40 +34,67 @@ func checkMessage(t *testing.T, msg *protocol.AwakeableEntryMessage) {
 func TestProto(t *testing.T) {
 	p := ProtoCodec
 
-	_, err := p.Marshal(protocol.AwakeableEntryMessage{Name: "foobar"})
+	_, err := Marshal(p, protocol.AwakeableEntryMessage{Name: "foobar"})
 	if err == nil {
 		t.Fatalf("expected error when marshaling non-pointer proto Message")
 	}
 
-	bytes, err := p.Marshal(&protocol.AwakeableEntryMessage{Name: "foobar"})
+	bytes, err := Marshal(p, &protocol.AwakeableEntryMessage{Name: "foobar"})
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	{
 		msg := &protocol.AwakeableEntryMessage{}
-		willSucceed(t, p.Unmarshal(bytes, msg))
+		willSucceed(t, Unmarshal(p, bytes, msg))
 		checkMessage(t, msg)
 	}
 
 	{
 		inner := &protocol.AwakeableEntryMessage{}
 		msg := &inner
-		willSucceed(t, p.Unmarshal(bytes, msg))
+		willSucceed(t, Unmarshal(p, bytes, msg))
 		checkMessage(t, *msg)
 	}
 
 	{
 		msg := new(*protocol.AwakeableEntryMessage)
-		willSucceed(t, p.Unmarshal(bytes, msg))
+		willSucceed(t, Unmarshal(p, bytes, msg))
 		checkMessage(t, *msg)
 	}
 
 	{
 		var msg *protocol.AwakeableEntryMessage
 		willPanic(t, func() {
-			p.Unmarshal(bytes, msg)
+			Unmarshal(p, bytes, msg)
 		})
 	}
+}
 
+func TestVoid(t *testing.T) {
+	codecs := map[string]Codec{
+		"json":   JSONCodec,
+		"proto":  ProtoCodec,
+		"binary": BinaryCodec,
+	}
+	for name, codec := range codecs {
+		t.Run(name, func(t *testing.T) {
+			bytes, err := Marshal(codec, Void{})
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			if bytes != nil {
+				t.Fatalf("expected bytes to be nil, found %v", bytes)
+			}
+
+			if err := Unmarshal(codec, []byte{1, 2, 3}, &Void{}); err != nil {
+				t.Fatal(err)
+			}
+
+			if err := Unmarshal(codec, []byte{1, 2, 3}, Void{}); err != nil {
+				t.Fatal(err)
+			}
+		})
+	}
 }
