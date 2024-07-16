@@ -9,7 +9,7 @@ import (
 )
 
 type Selectable interface {
-	getEntry() (wire.CompleteableMessage, uint32, error)
+	getEntry() (wire.CompleteableMessage, uint32)
 }
 
 type Selector struct {
@@ -56,10 +56,7 @@ func (s *Selector) Take(winningEntryIndex uint32) Selectable {
 	if selectable == nil {
 		return nil
 	}
-	entry, _, err := selectable.getEntry()
-	if err != nil {
-		return nil
-	}
+	entry, _ := selectable.getEntry()
 	if !entry.Completed() {
 		return nil
 	}
@@ -81,19 +78,16 @@ func (s *Selector) Indexes() []uint32 {
 	return indexes
 }
 
-func Select(suspensionCtx context.Context, futs ...Selectable) (*Selector, error) {
+func Select(suspensionCtx context.Context, futs ...Selectable) *Selector {
 	s := &Selector{
 		suspensionCtx: suspensionCtx,
 		indexedFuts:   make(map[uint32]Selectable, len(futs)),
 		indexedChans:  make(map[uint32]<-chan struct{}, len(futs)),
 	}
 	for i := range futs {
-		entry, entryIndex, err := futs[i].getEntry()
-		if err != nil {
-			return nil, err
-		}
+		entry, entryIndex := futs[i].getEntry()
 		s.indexedFuts[entryIndex] = futs[i]
 		s.indexedChans[entryIndex] = entry.Done()
 	}
-	return s, nil
+	return s
 }

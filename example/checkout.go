@@ -19,7 +19,7 @@ type PaymentResponse struct {
 
 type checkout struct{}
 
-func (c *checkout) Name() string {
+func (c *checkout) ServiceName() string {
 	return CheckoutServiceName
 }
 

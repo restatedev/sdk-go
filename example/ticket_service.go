@@ -18,7 +18,7 @@ const TicketServiceName = "TicketService"
 
 type ticketService struct{}
 
-func (t *ticketService) Name() string { return TicketServiceName }
+func (t *ticketService) ServiceName() string { return TicketServiceName }
 
 func (t *ticketService) Reserve(ctx restate.ObjectContext, _ restate.Void) (bool, error) {
 	status, err := restate.GetAs[TicketStatus](ctx, "status")
@@ -27,7 +27,7 @@ func (t *ticketService) Reserve(ctx restate.ObjectContext, _ restate.Void) (bool
 	}
 
 	if status == TicketAvailable {
-		return true, restate.SetAs(ctx, "status", TicketReserved)
+		return true, ctx.Set("status", TicketReserved)
 	}
 
 	return false, nil
@@ -59,8 +59,20 @@ func (t *ticketService) MarkAsSold(ctx restate.ObjectContext, _ restate.Void) (v
 	}
 
 	if status == TicketReserved {
-		return void, restate.SetAs(ctx, "status", TicketSold)
+		return void, ctx.Set("status", TicketSold)
 	}
 
 	return void, nil
+}
+
+func (t *ticketService) Status(ctx restate.ObjectSharedContext, _ restate.Void) (TicketStatus, error) {
+	ticketId := ctx.Key()
+	ctx.Log().Info("mark ticket as sold", "ticket", ticketId)
+
+	status, err := restate.GetAs[TicketStatus](ctx, "status")
+	if err != nil && !errors.Is(err, restate.ErrKeyNotFound) {
+		return status, err
+	}
+
+	return status, nil
 }

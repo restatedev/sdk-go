@@ -6,6 +6,10 @@ import (
 	"github.com/restatedev/sdk-go/internal/errors"
 )
 
+var (
+	ErrKeyNotFound = errors.ErrKeyNotFound
+)
+
 // WithErrorCode returns an error with specific
 func WithErrorCode(err error, code errors.Code) error {
 	if err == nil {

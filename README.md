@@ -14,6 +14,8 @@
 - [X] Sleep
 - [x] Run
 - [x] Awakeable
+- [x] Shared object handlers
+- [ ] Workflows
 
 ## Basic usage
 
@@ -63,8 +65,6 @@ Trying adding the same tickets again should return `false` since they are alread
 Finally checkout
 
 ```bash
-curl localhost:8080/UserSession/azmy/Checkout \
-    -H 'content-type: application/json' \
-    -d 'null'
+curl localhost:8080/UserSession/azmy/Checkout
 #{"response":true}
 ```

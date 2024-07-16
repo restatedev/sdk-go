@@ -29,6 +29,18 @@ func (m *Machine) newEntryMismatch(expectedEntry wire.Message, actualEntry wire.
 	return e
 }
 
+type protocolViolation struct {
+	entryIndex uint32
+	entry      wire.Message
+	err        error
+}
+
+func (m *Machine) newProtocolViolation(entry wire.Message, err error) *protocolViolation {
+	e := &protocolViolation{m.entryIndex, entry, err}
+	m.failure = e
+	return e
+}
+
 func (m *Machine) set(key string, value []byte) {
 	_, _ = replayOrNew(
 		m,
@@ -113,7 +125,7 @@ func (m *Machine) _clearAll() {
 	)
 }
 
-func (m *Machine) get(key string) ([]byte, error) {
+func (m *Machine) get(key string) []byte {
 	entry, entryIndex := replayOrNew(
 		m,
 		func(entry *wire.GetStateEntryMessage) *wire.GetStateEntryMessage {
@@ -133,18 +145,13 @@ func (m *Machine) get(key string) ([]byte, error) {
 
 	switch value := entry.Result.(type) {
 	case *protocol.GetStateEntryMessage_Empty:
-		return nil, nil
-	case *protocol.GetStateEntryMessage_Failure:
-		// the get state entry message is not failable so this should
-		// never happen
-		// TODO terminal?
-		return nil, fmt.Errorf("[%d] %s", value.Failure.Code, value.Failure.Message)
+		return nil
 	case *protocol.GetStateEntryMessage_Value:
 		m.current[key] = value.Value
-		return value.Value, nil
+		return value.Value
+	default:
+		panic(m.newProtocolViolation(entry, fmt.Errorf("get state entry had invalid result: %v", entry.Result)))
 	}
-
-	return nil, restate.TerminalError(fmt.Errorf("get state had invalid result: %v", entry.Result), errors.ErrProtocolViolation)
 }
 
 func (m *Machine) _get(key string) *wire.GetStateEntryMessage {
@@ -184,7 +191,7 @@ func (m *Machine) _get(key string) *wire.GetStateEntryMessage {
 	return msg
 }
 
-func (m *Machine) keys() ([]string, error) {
+func (m *Machine) keys() []string {
 	entry, entryIndex := replayOrNew(
 		m,
 		func(entry *wire.GetStateKeysEntryMessage) *wire.GetStateKeysEntryMessage {
@@ -196,20 +203,16 @@ func (m *Machine) keys() ([]string, error) {
 	entry.Await(m.suspensionCtx, entryIndex)
 
 	switch value := entry.Result.(type) {
-	case *protocol.GetStateKeysEntryMessage_Failure:
-		// the get state entry message is not failable so this should
-		// never happen
-		return nil, fmt.Errorf("[%d] %s", value.Failure.Code, value.Failure.Message)
 	case *protocol.GetStateKeysEntryMessage_Value:
 		values := make([]string, 0, len(value.Value.Keys))
 		for _, key := range value.Value.Keys {
 			values = append(values, string(key))
 		}
 
-		return values, nil
+		return values
+	default:
+		panic(m.newProtocolViolation(entry, fmt.Errorf("get state keys entry had invalid result: %v", entry.Result)))
 	}
-
-	return nil, nil
 }
 
 func (m *Machine) _keys() *wire.GetStateKeysEntryMessage {
@@ -297,9 +300,9 @@ func (m *Machine) run(fn func(restate.RunContext) ([]byte, error)) ([]byte, erro
 	case nil:
 		// Empty result is valid
 		return nil, nil
+	default:
+		panic(m.newProtocolViolation(entry, fmt.Errorf("run entry had invalid result: %v", entry.Result)))
 	}
-
-	return nil, restate.TerminalError(fmt.Errorf("run entry had invalid result: %v", entry.Result), errors.ErrProtocolViolation)
 }
 
 type runContext struct {

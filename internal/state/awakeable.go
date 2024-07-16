@@ -9,7 +9,7 @@ import (
 	"github.com/restatedev/sdk-go/internal/wire"
 )
 
-func (c *Machine) awakeable() restate.Awakeable[[]byte] {
+func (c *Machine) awakeable() *futures.Awakeable {
 	entry, entryIndex := replayOrNew(
 		c,
 		func(entry *wire.AwakeableEntryMessage) *wire.AwakeableEntryMessage {
