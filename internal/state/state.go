@@ -60,7 +60,7 @@ func (c *Context) Set(key string, value any, opts ...options.SetOption) error {
 		o.Codec = encoding.JSONCodec
 	}
 
-	bytes, err := o.Codec.Marshal(value)
+	bytes, err := encoding.Marshal(o.Codec, value)
 	if err != nil {
 		return errors.NewTerminalError(fmt.Errorf("failed to marshal Set value: %w", err))
 	}
@@ -94,7 +94,7 @@ func (c *Context) Get(key string, output any, opts ...options.GetOption) error {
 		return errors.ErrKeyNotFound
 	}
 
-	if err := o.Codec.Unmarshal(bytes, output); err != nil {
+	if err := encoding.Unmarshal(o.Codec, bytes, output); err != nil {
 		return errors.NewTerminalError(fmt.Errorf("failed to unmarshal Get state into output: %w", err))
 	}
 
@@ -163,7 +163,7 @@ func (c *Context) Run(fn func(ctx restate.RunContext) (any, error), output any, 
 			return nil, err
 		}
 
-		bytes, err := o.Codec.Marshal(output)
+		bytes, err := encoding.Marshal(o.Codec, output)
 		if err != nil {
 			return nil, errors.NewTerminalError(fmt.Errorf("failed to marshal Run output: %w", err))
 		}
@@ -174,7 +174,7 @@ func (c *Context) Run(fn func(ctx restate.RunContext) (any, error), output any, 
 		return err
 	}
 
-	if err := o.Codec.Unmarshal(bytes, output); err != nil {
+	if err := encoding.Unmarshal(o.Codec, bytes, output); err != nil {
 		return errors.NewTerminalError(fmt.Errorf("failed to unmarshal Run output: %w", err))
 	}
 
@@ -211,7 +211,7 @@ func (d decodingAwakeable) Result(output any) (err error) {
 	if err != nil {
 		return err
 	}
-	if err := d.codec.Unmarshal(bytes, output); err != nil {
+	if err := encoding.Unmarshal(d.codec, bytes, output); err != nil {
 		return errors.NewTerminalError(fmt.Errorf("failed to unmarshal Awakeable result into output: %w", err))
 	}
 	return
@@ -225,7 +225,7 @@ func (c *Context) ResolveAwakeable(id string, value any, opts ...options.Resolve
 	if o.Codec == nil {
 		o.Codec = encoding.JSONCodec
 	}
-	bytes, err := o.Codec.Marshal(value)
+	bytes, err := encoding.Marshal(o.Codec, value)
 	if err != nil {
 		return errors.NewTerminalError(fmt.Errorf("failed to marshal ResolveAwakeable value: %w", err))
 	}

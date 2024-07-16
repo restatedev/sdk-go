@@ -78,20 +78,8 @@ func Object(object any, options ...ObjectRouterOption) *ObjectRouter {
 		input := mtype.In(2)
 		output := mtype.Out(0)
 
-		var codec encoding.PayloadCodec
-		switch {
-		case input == typeOfVoid && output == typeOfVoid:
-			codec = encoding.VoidCodec
-		case input == typeOfVoid:
-			codec = encoding.PairCodec{Input: encoding.VoidCodec, Output: nil}
-		case output == typeOfVoid:
-			codec = encoding.PairCodec{Input: nil, Output: encoding.VoidCodec}
-		default:
-			codec = nil
-		}
-
 		router.Handler(mname, &objectReflectHandler{
-			objectHandlerOptions{codec},
+			objectHandlerOptions{},
 			handlerType,
 			reflectHandler{
 				fn:       method.Func,
@@ -156,20 +144,8 @@ func Service(service any, options ...ServiceRouterOption) *ServiceRouter {
 		input := mtype.In(2)
 		output := mtype.Out(0)
 
-		var codec encoding.PayloadCodec
-		switch {
-		case input == typeOfVoid && output == typeOfVoid:
-			codec = encoding.VoidCodec
-		case input == typeOfVoid:
-			codec = encoding.PairCodec{Input: encoding.VoidCodec, Output: nil}
-		case output == typeOfVoid:
-			codec = encoding.PairCodec{Input: nil, Output: encoding.VoidCodec}
-		default:
-			codec = nil
-		}
-
 		router.Handler(mname, &serviceReflectHandler{
-			serviceHandlerOptions{codec: codec},
+			serviceHandlerOptions{},
 			reflectHandler{
 				fn:       method.Func,
 				receiver: val,
@@ -202,7 +178,7 @@ var _ ObjectHandler = (*objectReflectHandler)(nil)
 func (h *objectReflectHandler) Call(ctx ObjectContext, bytes []byte) ([]byte, error) {
 	input := reflect.New(h.input)
 
-	if err := h.options.codec.Unmarshal(bytes, input.Interface()); err != nil {
+	if err := encoding.Unmarshal(h.options.codec, bytes, input.Interface()); err != nil {
 		return nil, TerminalError(fmt.Errorf("request could not be decoded into handler input type: %w", err), http.StatusBadRequest)
 	}
 
@@ -219,7 +195,7 @@ func (h *objectReflectHandler) Call(ctx ObjectContext, bytes []byte) ([]byte, er
 		return nil, errI.(error)
 	}
 
-	bytes, err := h.options.codec.Marshal(outI)
+	bytes, err := encoding.Marshal(h.options.codec, outI)
 	if err != nil {
 		return nil, TerminalError(fmt.Errorf("failed to serialize output: %w", err))
 	}
@@ -232,11 +208,11 @@ func (h *objectReflectHandler) getOptions() *objectHandlerOptions {
 }
 
 func (h *objectReflectHandler) InputPayload() *encoding.InputPayload {
-	return h.options.codec.InputPayload()
+	return encoding.InputPayloadFor(h.options.codec, reflect.Zero(h.input).Interface())
 }
 
 func (h *objectReflectHandler) OutputPayload() *encoding.OutputPayload {
-	return h.options.codec.OutputPayload()
+	return encoding.OutputPayloadFor(h.options.codec, reflect.Zero(h.output).Interface())
 }
 
 func (h *objectReflectHandler) HandlerType() *internal.ServiceHandlerType {
@@ -253,7 +229,7 @@ var _ ServiceHandler = (*serviceReflectHandler)(nil)
 func (h *serviceReflectHandler) Call(ctx Context, bytes []byte) ([]byte, error) {
 	input := reflect.New(h.input)
 
-	if err := h.options.codec.Unmarshal(bytes, input.Interface()); err != nil {
+	if err := encoding.Unmarshal(h.options.codec, bytes, input.Interface()); err != nil {
 		return nil, TerminalError(fmt.Errorf("request could not be decoded into handler input type: %w", err), http.StatusBadRequest)
 	}
 
@@ -270,7 +246,7 @@ func (h *serviceReflectHandler) Call(ctx Context, bytes []byte) ([]byte, error) 
 		return nil, errI.(error)
 	}
 
-	bytes, err := h.options.codec.Marshal(outI)
+	bytes, err := encoding.Marshal(h.options.codec, outI)
 	if err != nil {
 		return nil, TerminalError(fmt.Errorf("failed to serialize output: %w", err))
 	}
