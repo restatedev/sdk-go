@@ -171,11 +171,23 @@ func (j jsonCodec) OutputPayload() *OutputPayload {
 }
 
 func (j jsonCodec) Unmarshal(data []byte, input any) (err error) {
-	return json.Unmarshal(data, &input)
+	switch input.(type) {
+	case *Void:
+		// special case; don't try and unmarshal into Void
+		return nil
+	default:
+		return json.Unmarshal(data, input)
+	}
 }
 
 func (j jsonCodec) Marshal(output any) ([]byte, error) {
-	return json.Marshal(output)
+	switch output.(type) {
+	case Void:
+		// special case; send no data
+		return nil, nil
+	default:
+		return json.Marshal(output)
+	}
 }
 
 type protoCodec struct{}

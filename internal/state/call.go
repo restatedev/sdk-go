@@ -47,7 +47,7 @@ func (d decodingResponseFuture) Response(output any) (err error) {
 	}
 
 	if err := d.options.Codec.Unmarshal(bytes, output); err != nil {
-		return errors.NewTerminalError(fmt.Errorf("failed to unmarshal Call response into O: %w", err))
+		return errors.NewTerminalError(fmt.Errorf("failed to unmarshal Call response into output: %w", err))
 	}
 
 	return nil
