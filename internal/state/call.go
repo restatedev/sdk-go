@@ -24,13 +24,9 @@ type serviceCall struct {
 
 // RequestFuture makes a call and returns a handle on the response
 func (c *serviceCall) RequestFuture(input any) (restate.ResponseFuture, error) {
-	var bytes []byte
-	if (input != restate.Void{}) {
-		var err error
-		bytes, err = encoding.Marshal(c.options.Codec, input)
-		if err != nil {
-			return nil, errors.NewTerminalError(fmt.Errorf("failed to marshal RequestFuture input: %w", err))
-		}
+	bytes, err := encoding.Marshal(c.options.Codec, input)
+	if err != nil {
+		return nil, errors.NewTerminalError(fmt.Errorf("failed to marshal RequestFuture input: %w", err))
 	}
 
 	entry, entryIndex := c.machine.doCall(c.service, c.key, c.method, bytes)
