@@ -13,10 +13,12 @@ import (
 	"time"
 
 	restate "github.com/restatedev/sdk-go"
+	"github.com/restatedev/sdk-go/encoding"
 	"github.com/restatedev/sdk-go/generated/proto/protocol"
 	"github.com/restatedev/sdk-go/internal/errors"
 	"github.com/restatedev/sdk-go/internal/futures"
 	"github.com/restatedev/sdk-go/internal/log"
+	"github.com/restatedev/sdk-go/internal/options"
 	"github.com/restatedev/sdk-go/internal/rand"
 	"github.com/restatedev/sdk-go/internal/wire"
 	"github.com/restatedev/sdk-go/rcontext"
@@ -30,10 +32,6 @@ var (
 	ErrInvalidVersion = fmt.Errorf("invalid version number")
 )
 
-var (
-	_ restate.Context = (*Context)(nil)
-)
-
 type Context struct {
 	context.Context
 	userLogger *slog.Logger
@@ -41,7 +39,9 @@ type Context struct {
 }
 
 var _ restate.ObjectContext = &Context{}
+var _ restate.ObjectSharedContext = &Context{}
 var _ restate.Context = &Context{}
+var _ restate.RunContext = &Context{}
 
 func (c *Context) Log() *slog.Logger {
 	return c.machine.userLog
@@ -51,8 +51,22 @@ func (c *Context) Rand() *rand.Rand {
 	return c.machine.rand
 }
 
-func (c *Context) Set(key string, value []byte) {
-	c.machine.set(key, value)
+func (c *Context) Set(key string, value any, opts ...options.SetOption) error {
+	o := options.SetOptions{}
+	for _, opt := range opts {
+		opt.BeforeSet(&o)
+	}
+	if o.Codec == nil {
+		o.Codec = encoding.JSONCodec
+	}
+
+	bytes, err := o.Codec.Marshal(value)
+	if err != nil {
+		return errors.NewTerminalError(fmt.Errorf("failed to marshal Set value: %w", err))
+	}
+
+	c.machine.set(key, bytes)
+	return nil
 }
 
 func (c *Context) Clear(key string) {
@@ -66,8 +80,25 @@ func (c *Context) ClearAll() {
 
 }
 
-func (c *Context) Get(key string) []byte {
-	return c.machine.get(key)
+func (c *Context) Get(key string, output any, opts ...options.GetOption) error {
+	o := options.GetOptions{}
+	for _, opt := range opts {
+		opt.BeforeGet(&o)
+	}
+	if o.Codec == nil {
+		o.Codec = encoding.JSONCodec
+	}
+
+	bytes := c.machine.get(key)
+	if len(bytes) == 0 {
+		return errors.ErrKeyNotFound
+	}
+
+	if err := o.Codec.Unmarshal(bytes, output); err != nil {
+		return errors.NewTerminalError(fmt.Errorf("failed to unmarshal Get state into output: %w", err))
+	}
+
+	return nil
 }
 
 func (c *Context) Keys() []string {
@@ -82,16 +113,34 @@ func (c *Context) After(d time.Duration) restate.After {
 	return c.machine.after(d)
 }
 
-func (c *Context) Service(service, method string) restate.CallClient[[]byte, []byte] {
+func (c *Context) Service(service, method string, opts ...options.CallOption) restate.CallClient {
+	o := options.CallOptions{}
+	for _, opt := range opts {
+		opt.BeforeCall(&o)
+	}
+	if o.Codec == nil {
+		o.Codec = encoding.JSONCodec
+	}
+
 	return &serviceCall{
+		options: o,
 		machine: c.machine,
 		service: service,
 		method:  method,
 	}
 }
 
-func (c *Context) Object(service, key, method string) restate.CallClient[[]byte, []byte] {
+func (c *Context) Object(service, key, method string, opts ...options.CallOption) restate.CallClient {
+	o := options.CallOptions{}
+	for _, opt := range opts {
+		opt.BeforeCall(&o)
+	}
+	if o.Codec == nil {
+		o.Codec = encoding.JSONCodec
+	}
+
 	return &serviceCall{
+		options: o,
 		machine: c.machine,
 		service: service,
 		key:     key,
@@ -99,16 +148,89 @@ func (c *Context) Object(service, key, method string) restate.CallClient[[]byte,
 	}
 }
 
-func (c *Context) Run(fn func(ctx restate.RunContext) ([]byte, error)) ([]byte, error) {
-	return c.machine.run(fn)
+func (c *Context) Run(fn func(ctx restate.RunContext) (any, error), output any, opts ...options.RunOption) error {
+	o := options.RunOptions{}
+	for _, opt := range opts {
+		opt.BeforeRun(&o)
+	}
+	if o.Codec == nil {
+		o.Codec = encoding.JSONCodec
+	}
+
+	bytes, err := c.machine.run(func(ctx restate.RunContext) ([]byte, error) {
+		output, err := fn(ctx)
+		if err != nil {
+			return nil, err
+		}
+
+		bytes, err := o.Codec.Marshal(output)
+		if err != nil {
+			return nil, errors.NewTerminalError(fmt.Errorf("failed to marshal Run output: %w", err))
+		}
+
+		return bytes, nil
+	})
+	if err != nil {
+		return err
+	}
+
+	if err := o.Codec.Unmarshal(bytes, output); err != nil {
+		return errors.NewTerminalError(fmt.Errorf("failed to unmarshal Run output: %w", err))
+	}
+
+	return nil
 }
 
-func (c *Context) Awakeable() restate.Awakeable[[]byte] {
-	return c.machine.awakeable()
+type awakeableOptions struct {
+	codec encoding.Codec
 }
 
-func (c *Context) ResolveAwakeable(id string, value []byte) {
-	c.machine.resolveAwakeable(id, value)
+type AwakeableOption interface {
+	beforeAwakeable(*awakeableOptions)
+}
+
+func (c *Context) Awakeable(opts ...options.AwakeableOption) restate.Awakeable {
+	o := options.AwakeableOptions{}
+	for _, opt := range opts {
+		opt.BeforeAwakeable(&o)
+	}
+	if o.Codec == nil {
+		o.Codec = encoding.JSONCodec
+	}
+	return decodingAwakeable{c.machine.awakeable(), o.Codec}
+}
+
+type decodingAwakeable struct {
+	*futures.Awakeable
+	codec encoding.Codec
+}
+
+func (d decodingAwakeable) Id() string { return d.Awakeable.Id() }
+func (d decodingAwakeable) Result(output any) (err error) {
+	bytes, err := d.Awakeable.Result()
+	if err != nil {
+		return err
+	}
+	if err := d.codec.Unmarshal(bytes, output); err != nil {
+		return errors.NewTerminalError(fmt.Errorf("failed to unmarshal Awakeable result into output: %w", err))
+	}
+	return
+}
+
+func (c *Context) ResolveAwakeable(id string, value any, opts ...options.ResolveAwakeableOption) error {
+	o := options.ResolveAwakeableOptions{}
+	for _, opt := range opts {
+		opt.BeforeResolveAwakeable(&o)
+	}
+	if o.Codec == nil {
+		o.Codec = encoding.JSONCodec
+	}
+	bytes, err := o.Codec.Marshal(value)
+	if err != nil {
+		return errors.NewTerminalError(fmt.Errorf("failed to marshal ResolveAwakeable value: %w", err))
+	}
+	c.machine.resolveAwakeable(id, bytes)
+	return nil
 }
 
 func (c *Context) RejectAwakeable(id string, reason error) {

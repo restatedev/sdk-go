@@ -81,11 +81,11 @@ func Object(object any, options ...ObjectRouterOption) *ObjectRouter {
 		var codec encoding.PayloadCodec
 		switch {
 		case input == typeOfVoid && output == typeOfVoid:
-			codec = encoding.VoidCodec{}
+			codec = encoding.VoidCodec
 		case input == typeOfVoid:
-			codec = encoding.PairCodec{Input: encoding.VoidCodec{}, Output: nil}
+			codec = encoding.PairCodec{Input: encoding.VoidCodec, Output: nil}
 		case output == typeOfVoid:
-			codec = encoding.PairCodec{Input: nil, Output: encoding.VoidCodec{}}
+			codec = encoding.PairCodec{Input: nil, Output: encoding.VoidCodec}
 		default:
 			codec = nil
 		}
@@ -159,11 +159,11 @@ func Service(service any, options ...ServiceRouterOption) *ServiceRouter {
 		var codec encoding.PayloadCodec
 		switch {
 		case input == typeOfVoid && output == typeOfVoid:
-			codec = encoding.VoidCodec{}
+			codec = encoding.VoidCodec
 		case input == typeOfVoid:
-			codec = encoding.PairCodec{Input: encoding.VoidCodec{}, Output: nil}
+			codec = encoding.PairCodec{Input: encoding.VoidCodec, Output: nil}
 		case output == typeOfVoid:
-			codec = encoding.PairCodec{Input: nil, Output: encoding.VoidCodec{}}
+			codec = encoding.PairCodec{Input: nil, Output: encoding.VoidCodec}
 		default:
 			codec = nil
 		}

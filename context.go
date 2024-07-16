@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/restatedev/sdk-go/internal/futures"
+	"github.com/restatedev/sdk-go/internal/options"
 	"github.com/restatedev/sdk-go/internal/rand"
 )
 
@@ -24,33 +25,29 @@ type Context interface {
 	// the sleep and other Selectable operations.
 	After(d time.Duration) After
 
-	// Service gets a Service accessor by name where service
-	// must be another service known by restate runtime
-	// Note: use the CallAs and SendAs helper functions to send and receive serialised values
-	Service(service, method string) CallClient[[]byte, []byte]
+	// Service gets a Service accessor by service and method name
+	// Note: use the CallAs helper function to deserialise return values
+	Service(service, method string, opts ...options.CallOption) CallClient
 
-	// Object gets a Object accessor by name where object
-	// must be another object known by restate runtime and
-	// key is any string representing the key for the object
-	// Note: use the CallAs and SendAs helper functions to send and receive serialised values
-	Object(object, key, method string) CallClient[[]byte, []byte]
+	// Object gets a Object accessor by name, key and method name
+	// Note: use the CallAs helper function to receive serialised values
+	Object(object, key, method string, opts ...options.CallOption) CallClient
 
 	// Run runs the function (fn), storing final results (including terminal errors)
 	// durably in the journal, or otherwise for transient errors stopping execution
 	// so Restate can retry the invocation. Replays will produce the same value, so
 	// all non-deterministic operations (eg, generating a unique ID) *must* happen
 	// inside Run blocks.
-	// Note: use the RunAs helper function to serialise non-[]byte return values
-	Run(fn func(RunContext) ([]byte, error)) ([]byte, error)
+	// Note: use the RunAs helper function to get typed output values instead of providing an output pointer
+	Run(fn func(RunContext) (any, error), output any, opts ...options.RunOption) error
 
 	// Awakeable returns a Restate awakeable; a 'promise' to a future
 	// value or error, that can be resolved or rejected by other services.
-	// Note: use the AwakeableAs helper function to deserialise the []byte value
-	Awakeable() Awakeable[[]byte]
+	// Note: use the AwakeableAs helper function to avoid having to pass a output pointer to Awakeable.Result()
+	Awakeable(options ...options.AwakeableOption) Awakeable
 	// ResolveAwakeable allows an awakeable (not necessarily from this service) to be
 	// resolved with a particular value.
-	// Note: use the ResolveAwakeableAs helper function to provide a value to be serialised
-	ResolveAwakeable(id string, value []byte)
+	ResolveAwakeable(id string, value any, options ...options.ResolveAwakeableOption) error
 	// ResolveAwakeable allows an awakeable (not necessarily from this service) to be
 	// rejected with a particular error.
 	RejectAwakeable(id string, reason error)
@@ -63,24 +60,38 @@ type Context interface {
 	Select(futs ...futures.Selectable) Selector
 }
 
-type CallClient[I any, O any] interface {
-	// RequestFuture makes a call and returns a handle on a future response
-	RequestFuture(input I) (ResponseFuture[O], error)
-	// Request makes a call and blocks on getting the response
-	Request(input I) (O, error)
-	SendClient[I]
-}
-
-type SendClient[I any] interface {
-	// Send makes a one-way call which is executed in the background
-	Send(input I, delay time.Duration) error
-}
-
-type ResponseFuture[O any] interface {
-	// Response blocks on the response to the call
+// Awakeable is the Go representation of a Restate awakeable; a 'promise' to a future
+// value or error, that can be resolved or rejected by other services.
+type Awakeable interface {
+	// Id returns the awakeable ID, which can be stored or sent to a another service
+	Id() string
+	// Result blocks on receiving the result of the awakeable, storing the value it was
+	// resolved with in output or otherwise returning the error it was rejected with.
 	// It is *not* safe to call this in a goroutine - use Context.Select if you
 	// want to wait on multiple results at once.
-	Response() (O, error)
+	// Note: use the AwakeableAs helper function to avoid having to pass a output pointer
+	Result(output any) error
+	futures.Selectable
+}
+
+type CallClient interface {
+	// RequestFuture makes a call and returns a handle on a future response
+	RequestFuture(input any) (ResponseFuture, error)
+	// Request makes a call and blocks on getting the response which is stored in output
+	Request(input any, output any) error
+	SendClient
+}
+
+type SendClient interface {
+	// Send makes a one-way call which is executed in the background
+	Send(input any, delay time.Duration) error
+}
+
+type ResponseFuture interface {
+	// Response blocks on the response to the call and stores it in output, or returns the associated error
+	// It is *not* safe to call this in a goroutine - use Context.Select if you
+	// want to wait on multiple results at once.
+	Response(output any) error
 	futures.Selectable
 }
 
@@ -119,32 +130,28 @@ type ObjectContext interface {
 	Context
 	KeyValueReader
 	KeyValueWriter
-	// Key retrieves the key for this virtual object invocation. This is a no-op and is
-	// always safe to call.
-	Key() string
 }
 
 type ObjectSharedContext interface {
 	Context
 	KeyValueReader
+}
+
+type KeyValueReader interface {
+	// Get gets value associated with key and stores it in value
+	// If key does not exist, this function returns ErrKeyNotFound
+	// Note: Use GetAs generic helper function to avoid passing in a value pointer
+	Get(key string, value any, options ...options.GetOption) error
+	// Keys returns a list of all associated key
+	Keys() []string
 	// Key retrieves the key for this virtual object invocation. This is a no-op and is
 	// always safe to call.
 	Key() string
 }
 
-type KeyValueReader interface {
-	// Get gets value (bytes array) associated with key
-	// If key does not exist, this function return a nil bytes array
-	// Note: Use GetAs helper function to read serialised values
-	Get(key string) []byte
-	// Keys returns a list of all associated key
-	Keys() []string
-}
-
 type KeyValueWriter interface {
-	// Set sets a byte array against a key
-	// Note: Use SetAs helper function to store serialised values
-	Set(key string, value []byte)
+	// Set sets a value against a key, using the provided codec (defaults to JSON)
+	Set(key string, value any, options ...options.SetOption) error
 	// Clear deletes a key
 	Clear(key string)
 	// ClearAll drops all stored state associated with key

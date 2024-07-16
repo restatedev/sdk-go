@@ -32,7 +32,7 @@ func checkMessage(t *testing.T, msg *protocol.AwakeableEntryMessage) {
 }
 
 func TestProto(t *testing.T) {
-	p := ProtoCodec{}
+	p := ProtoCodec
 
 	_, err := p.Marshal(protocol.AwakeableEntryMessage{Name: "foobar"})
 	if err == nil {

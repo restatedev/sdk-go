@@ -8,6 +8,14 @@ import (
 	"google.golang.org/protobuf/proto"
 )
 
+var (
+	BinaryCodec PayloadCodec = binaryCodec{}
+	VoidCodec   PayloadCodec = voidCodec{}
+	ProtoCodec  PayloadCodec = protoCodec{}
+	JSONCodec   PayloadCodec = jsonCodec{}
+	_           PayloadCodec = PairCodec{}
+)
+
 type Void struct{}
 
 type Codec interface {
@@ -32,23 +40,21 @@ type OutputPayload struct {
 	JsonSchema            interface{} `json:"jsonSchema,omitempty"`
 }
 
-type VoidCodec struct{}
+type voidCodec struct{}
 
-var _ PayloadCodec = VoidCodec{}
-
-func (j VoidCodec) InputPayload() *InputPayload {
+func (j voidCodec) InputPayload() *InputPayload {
 	return &InputPayload{}
 }
 
-func (j VoidCodec) OutputPayload() *OutputPayload {
+func (j voidCodec) OutputPayload() *OutputPayload {
 	return &OutputPayload{}
 }
 
-func (j VoidCodec) Unmarshal(data []byte, input any) (err error) {
+func (j voidCodec) Unmarshal(data []byte, input any) (err error) {
 	return nil
 }
 
-func (j VoidCodec) Marshal(output any) ([]byte, error) {
+func (j voidCodec) Marshal(output any) ([]byte, error) {
 	return nil, nil
 }
 
@@ -56,8 +62,6 @@ type PairCodec struct {
 	Input  PayloadCodec
 	Output PayloadCodec
 }
-
-var _ PayloadCodec = PairCodec{}
 
 func (w PairCodec) InputPayload() *InputPayload {
 	return w.Input.InputPayload()
@@ -117,29 +121,27 @@ func PartialVoidCodec[I any, O any]() PayloadCodec {
 	_, outputVoid := any(output).(Void)
 	switch {
 	case inputVoid && outputVoid:
-		return VoidCodec{}
+		return VoidCodec
 	case inputVoid:
-		return PairCodec{Input: VoidCodec{}, Output: nil}
+		return PairCodec{Input: VoidCodec, Output: nil}
 	case outputVoid:
-		return PairCodec{Input: nil, Output: VoidCodec{}}
+		return PairCodec{Input: nil, Output: VoidCodec}
 	default:
 		return nil
 	}
 }
 
-type BinaryCodec struct{}
+type binaryCodec struct{}
 
-var _ PayloadCodec = BinaryCodec{}
-
-func (j BinaryCodec) InputPayload() *InputPayload {
+func (j binaryCodec) InputPayload() *InputPayload {
 	return &InputPayload{Required: true, ContentType: proto.String("application/octet-stream")}
 }
 
-func (j BinaryCodec) OutputPayload() *OutputPayload {
+func (j binaryCodec) OutputPayload() *OutputPayload {
 	return &OutputPayload{ContentType: proto.String("application/octet-stream")}
 }
 
-func (j BinaryCodec) Unmarshal(data []byte, input any) (err error) {
+func (j binaryCodec) Unmarshal(data []byte, input any) (err error) {
 	switch input := input.(type) {
 	case *[]byte:
 		*input = data
@@ -149,7 +151,7 @@ func (j BinaryCodec) Unmarshal(data []byte, input any) (err error) {
 	}
 }
 
-func (j BinaryCodec) Marshal(output any) ([]byte, error) {
+func (j binaryCodec) Marshal(output any) ([]byte, error) {
 	switch output := output.(type) {
 	case []byte:
 		return output, nil
@@ -158,39 +160,35 @@ func (j BinaryCodec) Marshal(output any) ([]byte, error) {
 	}
 }
 
-type JSONCodec struct{}
+type jsonCodec struct{}
 
-var _ PayloadCodec = JSONCodec{}
-
-func (j JSONCodec) InputPayload() *InputPayload {
+func (j jsonCodec) InputPayload() *InputPayload {
 	return &InputPayload{Required: true, ContentType: proto.String("application/json")}
 }
 
-func (j JSONCodec) OutputPayload() *OutputPayload {
+func (j jsonCodec) OutputPayload() *OutputPayload {
 	return &OutputPayload{ContentType: proto.String("application/json")}
 }
 
-func (j JSONCodec) Unmarshal(data []byte, input any) (err error) {
+func (j jsonCodec) Unmarshal(data []byte, input any) (err error) {
 	return json.Unmarshal(data, &input)
 }
 
-func (j JSONCodec) Marshal(output any) ([]byte, error) {
+func (j jsonCodec) Marshal(output any) ([]byte, error) {
 	return json.Marshal(output)
 }
 
-type ProtoCodec struct{}
+type protoCodec struct{}
 
-var _ PayloadCodec = ProtoCodec{}
-
-func (p ProtoCodec) InputPayload() *InputPayload {
+func (p protoCodec) InputPayload() *InputPayload {
 	return &InputPayload{Required: true, ContentType: proto.String("application/proto")}
 }
 
-func (p ProtoCodec) OutputPayload() *OutputPayload {
+func (p protoCodec) OutputPayload() *OutputPayload {
 	return &OutputPayload{ContentType: proto.String("application/proto")}
 }
 
-func (p ProtoCodec) Unmarshal(data []byte, input any) (err error) {
+func (p protoCodec) Unmarshal(data []byte, input any) (err error) {
 	switch input := input.(type) {
 	case proto.Message:
 		// called with a *Message
@@ -216,7 +214,7 @@ func (p ProtoCodec) Unmarshal(data []byte, input any) (err error) {
 	}
 }
 
-func (p ProtoCodec) Marshal(output any) (data []byte, err error) {
+func (p protoCodec) Marshal(output any) (data []byte, err error) {
 	switch output := output.(type) {
 	case proto.Message:
 		return proto.Marshal(output)

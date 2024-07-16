@@ -1,24 +1,29 @@
 package restate
 
-import "github.com/restatedev/sdk-go/encoding"
+import (
+	"github.com/restatedev/sdk-go/encoding"
+	"github.com/restatedev/sdk-go/internal/options"
+)
 
 type withCodec struct {
 	codec encoding.Codec
 }
 
-var _ GetOption = withCodec{}
-var _ SetOption = withCodec{}
-var _ RunOption = withCodec{}
-var _ AwakeableOption = withCodec{}
-var _ ResolveAwakeableOption = withCodec{}
-var _ CallOption = withCodec{}
+var _ options.GetOption = withCodec{}
+var _ options.SetOption = withCodec{}
+var _ options.RunOption = withCodec{}
+var _ options.AwakeableOption = withCodec{}
+var _ options.ResolveAwakeableOption = withCodec{}
+var _ options.CallOption = withCodec{}
 
-func (w withCodec) beforeGet(opts *getOptions)                           { opts.codec = w.codec }
-func (w withCodec) beforeSet(opts *setOptions)                           { opts.codec = w.codec }
-func (w withCodec) beforeRun(opts *runOptions)                           { opts.codec = w.codec }
-func (w withCodec) beforeAwakeable(opts *awakeableOptions)               { opts.codec = w.codec }
-func (w withCodec) beforeResolveAwakeable(opts *resolveAwakeableOptions) { opts.codec = w.codec }
-func (w withCodec) beforeCall(opts *callOptions)                         { opts.codec = w.codec }
+func (w withCodec) BeforeGet(opts *options.GetOptions)             { opts.Codec = w.codec }
+func (w withCodec) BeforeSet(opts *options.SetOptions)             { opts.Codec = w.codec }
+func (w withCodec) BeforeRun(opts *options.RunOptions)             { opts.Codec = w.codec }
+func (w withCodec) BeforeAwakeable(opts *options.AwakeableOptions) { opts.Codec = w.codec }
+func (w withCodec) BeforeResolveAwakeable(opts *options.ResolveAwakeableOptions) {
+	opts.Codec = w.codec
+}
+func (w withCodec) BeforeCall(opts *options.CallOptions) { opts.Codec = w.codec }
 
 func WithCodec(codec encoding.Codec) withCodec {
 	return withCodec{codec}
@@ -45,4 +50,6 @@ func WithPayloadCodec(codec encoding.PayloadCodec) withPayloadCodec {
 	return withPayloadCodec{withCodec{codec}, codec}
 }
 
-var WithProto = WithPayloadCodec(encoding.ProtoCodec{})
+var WithProto = WithPayloadCodec(encoding.ProtoCodec)
+var WithBinary = WithPayloadCodec(encoding.BinaryCodec)
+var WithJSON = WithPayloadCodec(encoding.JSONCodec)

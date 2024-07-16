@@ -37,11 +37,11 @@ func (u *userSession) AddTicket(ctx restate.ObjectContext, ticketId string) (boo
 
 	tickets = append(tickets, ticketId)
 
-	if err := restate.SetAs(ctx, "tickets", tickets); err != nil {
+	if err := ctx.Set("tickets", tickets); err != nil {
 		return false, err
 	}
 
-	if err := restate.SendAs(ctx.Object(UserSessionServiceName, ticketId, "ExpireTicket")).Send(ticketId, 15*time.Minute); err != nil {
+	if err := ctx.Object(UserSessionServiceName, ticketId, "ExpireTicket").Send(ticketId, 15*time.Minute); err != nil {
 		return false, err
 	}
 
@@ -66,7 +66,7 @@ func (u *userSession) ExpireTicket(ctx restate.ObjectContext, ticketId string) (
 		return void, nil
 	}
 
-	if err := restate.SetAs(ctx, "tickets", tickets); err != nil {
+	if err := ctx.Set("tickets", tickets); err != nil {
 		return void, err
 	}
 

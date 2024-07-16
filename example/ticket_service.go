@@ -27,7 +27,7 @@ func (t *ticketService) Reserve(ctx restate.ObjectContext, _ restate.Void) (bool
 	}
 
 	if status == TicketAvailable {
-		return true, restate.SetAs(ctx, "status", TicketReserved)
+		return true, ctx.Set("status", TicketReserved)
 	}
 
 	return false, nil
@@ -59,7 +59,7 @@ func (t *ticketService) MarkAsSold(ctx restate.ObjectContext, _ restate.Void) (v
 	}
 
 	if status == TicketReserved {
-		return void, restate.SetAs(ctx, "status", TicketSold)
+		return void, ctx.Set("status", TicketSold)
 	}
 
 	return void, nil

@@ -1,15 +1,8 @@
 package restate
 
 import (
-	"fmt"
-	"net/http"
-
 	"github.com/restatedev/sdk-go/encoding"
 	"github.com/restatedev/sdk-go/internal"
-)
-
-var (
-	ErrKeyNotFound = TerminalError(fmt.Errorf("key not found"), http.StatusNotFound)
 )
 
 // Router interface
@@ -44,7 +37,7 @@ func NewServiceRouter(name string, options ...ServiceRouterOption) *ServiceRoute
 		opt.beforeServiceRouter(&opts)
 	}
 	if opts.defaultCodec == nil {
-		opts.defaultCodec = encoding.JSONCodec{}
+		opts.defaultCodec = encoding.JSONCodec
 	}
 	return &ServiceRouter{
 		name:     name,
@@ -95,7 +88,7 @@ func NewObjectRouter(name string, options ...ObjectRouterOption) *ObjectRouter {
 		opt.beforeObjectRouter(&opts)
 	}
 	if opts.defaultCodec == nil {
-		opts.defaultCodec = encoding.JSONCodec{}
+		opts.defaultCodec = encoding.JSONCodec
 	}
 	return &ObjectRouter{
 		name:     name,
