@@ -86,12 +86,11 @@ func NewResponseFuture(suspensionCtx context.Context, entry *wire.CallEntryMessa
 func (r *ResponseFuture) Response() ([]byte, error) {
 	r.entry.Await(r.suspensionCtx, r.entryIndex)
 
-	var bytes []byte
 	switch result := r.entry.Result.(type) {
 	case *protocol.CallEntryMessage_Failure:
 		return nil, errors.ErrorFromFailure(result.Failure)
 	case *protocol.CallEntryMessage_Value:
-		return bytes, nil
+		return result.Value, nil
 	default:
 		panic(r.newProtocolViolation(fmt.Errorf("call entry had invalid result: %v", r.entry.Result)))
 	}

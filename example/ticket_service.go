@@ -64,3 +64,15 @@ func (t *ticketService) MarkAsSold(ctx restate.ObjectContext, _ restate.Void) (v
 
 	return void, nil
 }
+
+func (t *ticketService) Status(ctx restate.ObjectSharedContext, _ restate.Void) (TicketStatus, error) {
+	ticketId := ctx.Key()
+	ctx.Log().Info("mark ticket as sold", "ticket", ticketId)
+
+	status, err := restate.GetAs[TicketStatus](ctx, "status")
+	if err != nil && !errors.Is(err, restate.ErrKeyNotFound) {
+		return status, err
+	}
+
+	return status, nil
+}

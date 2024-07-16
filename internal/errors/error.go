@@ -19,7 +19,7 @@ type CodeError struct {
 }
 
 func (e *CodeError) Error() string {
-	return fmt.Sprintf("[CODE %04X] %s", e.Code, e.Inner)
+	return fmt.Sprintf("[%d] %s", e.Code, e.Inner)
 }
 
 func (e *CodeError) Unwrap() error {

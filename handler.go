@@ -5,6 +5,7 @@ import (
 	"net/http"
 
 	"github.com/restatedev/sdk-go/encoding"
+	"github.com/restatedev/sdk-go/internal"
 )
 
 // Void is a placeholder to signify 'no value' where a type is otherwise needed. It can be used in several contexts:
@@ -28,13 +29,17 @@ type Handler interface {
 	sealed()
 	InputPayload() *encoding.InputPayload
 	OutputPayload() *encoding.OutputPayload
+	HandlerType() *internal.ServiceHandlerType
 }
 
 // ServiceHandlerFn signature of service (unkeyed) handler function
-type ServiceHandlerFn[I any, O any] func(ctx Context, input I) (output O, err error)
+type ServiceHandlerFn[I any, O any] func(ctx Context, input I) (O, error)
 
 // ObjectHandlerFn signature for object (keyed) handler function
-type ObjectHandlerFn[I any, O any] func(ctx ObjectContext, input I) (output O, err error)
+type ObjectHandlerFn[I any, O any] func(ctx ObjectContext, input I) (O, error)
+
+// ObjectHandlerFn signature for object (keyed) handler function that can run concurrently with other handlers against a snapshot of state
+type ObjectSharedHandlerFn[I any, O any] func(ctx ObjectSharedContext, input I) (O, error)
 
 type serviceHandlerOptions struct {
 	codec encoding.PayloadCodec
@@ -96,6 +101,10 @@ func (h *serviceHandler[I, O]) OutputPayload() *encoding.OutputPayload {
 	return h.options.codec.OutputPayload()
 }
 
+func (h *serviceHandler[I, O]) HandlerType() *internal.ServiceHandlerType {
+	return nil
+}
+
 func (h *serviceHandler[I, O]) getOptions() *serviceHandlerOptions {
 	return &h.options
 }
@@ -107,8 +116,11 @@ type objectHandlerOptions struct {
 }
 
 type objectHandler[I any, O any] struct {
-	fn      ObjectHandlerFn[I, O]
-	options objectHandlerOptions
+	// only one of exclusiveFn or sharedFn should be set, as indicated by handlerType
+	exclusiveFn ObjectHandlerFn[I, O]
+	sharedFn    ObjectSharedHandlerFn[I, O]
+	options     objectHandlerOptions
+	handlerType internal.ServiceHandlerType
 }
 
 var _ ObjectHandler = (*objectHandler[struct{}, struct{}])(nil)
@@ -126,7 +138,24 @@ func NewObjectHandler[I any, O any](fn ObjectHandlerFn[I, O], options ...ObjectH
 		opts.codec = encoding.PartialVoidCodec[I, O]()
 	}
 	return &objectHandler[I, O]{
-		fn: fn,
+		exclusiveFn: fn,
+		options:     opts,
+		handlerType: internal.ServiceHandlerType_EXCLUSIVE,
+	}
+}
+
+func NewObjectSharedHandler[I any, O any](fn ObjectSharedHandlerFn[I, O], options ...ObjectHandlerOption) *objectHandler[I, O] {
+	opts := objectHandlerOptions{}
+	for _, opt := range options {
+		opt.beforeObjectHandler(&opts)
+	}
+	if opts.codec == nil {
+		opts.codec = encoding.PartialVoidCodec[I, O]()
+	}
+	return &objectHandler[I, O]{
+		sharedFn:    fn,
+		options:     opts,
+		handlerType: internal.ServiceHandlerType_SHARED,
 	}
 }
 
@@ -136,10 +165,20 @@ func (h *objectHandler[I, O]) Call(ctx ObjectContext, bytes []byte) ([]byte, err
 		return nil, TerminalError(fmt.Errorf("request could not be decoded into handler input type: %w", err), http.StatusBadRequest)
 	}
 
-	output, err := h.fn(
-		ctx,
-		input,
-	)
+	var output O
+	var err error
+	switch h.handlerType {
+	case internal.ServiceHandlerType_EXCLUSIVE:
+		output, err = h.exclusiveFn(
+			ctx,
+			input,
+		)
+	case internal.ServiceHandlerType_SHARED:
+		output, err = h.sharedFn(
+			ctx,
+			input,
+		)
+	}
 	if err != nil {
 		return nil, err
 	}
@@ -162,6 +201,10 @@ func (h *objectHandler[I, O]) OutputPayload() *encoding.OutputPayload {
 
 func (h *objectHandler[I, O]) getOptions() *objectHandlerOptions {
 	return &h.options
+}
+
+func (h *objectHandler[I, O]) HandlerType() *internal.ServiceHandlerType {
+	return &h.handlerType
 }
 
 func (h *objectHandler[I, O]) sealed() {}

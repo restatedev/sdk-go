@@ -6,6 +6,7 @@ import (
 	"reflect"
 
 	"github.com/restatedev/sdk-go/encoding"
+	"github.com/restatedev/sdk-go/internal"
 )
 
 type serviceNamer interface {
@@ -13,16 +14,17 @@ type serviceNamer interface {
 }
 
 var (
-	typeOfContext       = reflect.TypeOf((*Context)(nil)).Elem()
-	typeOfObjectContext = reflect.TypeOf((*ObjectContext)(nil)).Elem()
-	typeOfVoid          = reflect.TypeOf((*Void)(nil)).Elem()
-	typeOfError         = reflect.TypeOf((*error)(nil)).Elem()
+	typeOfContext             = reflect.TypeOf((*Context)(nil)).Elem()
+	typeOfObjectContext       = reflect.TypeOf((*ObjectContext)(nil)).Elem()
+	typeOfSharedObjectContext = reflect.TypeOf((*ObjectSharedContext)(nil)).Elem()
+	typeOfVoid                = reflect.TypeOf((*Void)(nil)).Elem()
+	typeOfError               = reflect.TypeOf((*error)(nil)).Elem()
 )
 
 // Object converts a struct with methods into a Virtual Object where each correctly-typed
 // and exported method of the struct will become a handler on the Object. The Object name defaults
 // to the name of the struct, but this can be overidden by providing a `ServiceName() string` method.
-// The handler name is the name of the method. Handler methods should be of the type `ObjectHandlerFn[I, O]`.
+// The handler name is the name of the method. Handler methods should be of the type `ObjectHandlerFn[I, O]` or `ObjectSharedHandlerFn[I, O]`.
 // Input types I will be deserialised with the provided codec (defaults to JSON) except when they are restate.Void,
 // in which case no input bytes or content type may be sent.
 // Output types O will be serialised with the provided codec (defaults to JSON) except when they are restate.Void,
@@ -51,7 +53,15 @@ func Object(object any, options ...ObjectRouterOption) *ObjectRouter {
 			continue
 		}
 
-		if ctxType := mtype.In(1); ctxType != typeOfObjectContext {
+		var handlerType internal.ServiceHandlerType
+
+		switch mtype.In(1) {
+		case typeOfObjectContext:
+			handlerType = internal.ServiceHandlerType_EXCLUSIVE
+		case typeOfSharedObjectContext:
+			handlerType = internal.ServiceHandlerType_SHARED
+		default:
+			// first parameter is not an object context
 			continue
 		}
 
@@ -82,6 +92,7 @@ func Object(object any, options ...ObjectRouterOption) *ObjectRouter {
 
 		router.Handler(mname, &objectReflectHandler{
 			objectHandlerOptions{codec},
+			handlerType,
 			reflectHandler{
 				fn:       method.Func,
 				receiver: val,
@@ -181,7 +192,8 @@ type reflectHandler struct {
 func (h *reflectHandler) sealed() {}
 
 type objectReflectHandler struct {
-	options objectHandlerOptions
+	options     objectHandlerOptions
+	handlerType internal.ServiceHandlerType
 	reflectHandler
 }
 
@@ -225,6 +237,10 @@ func (h *objectReflectHandler) InputPayload() *encoding.InputPayload {
 
 func (h *objectReflectHandler) OutputPayload() *encoding.OutputPayload {
 	return h.options.codec.OutputPayload()
+}
+
+func (h *objectReflectHandler) HandlerType() *internal.ServiceHandlerType {
+	return &h.handlerType
 }
 
 type serviceReflectHandler struct {
@@ -272,4 +288,8 @@ func (h *serviceReflectHandler) InputPayload() *encoding.InputPayload {
 
 func (h *serviceReflectHandler) OutputPayload() *encoding.OutputPayload {
 	return h.options.codec.OutputPayload()
+}
+
+func (h *serviceReflectHandler) HandlerType() *internal.ServiceHandlerType {
+	return nil
 }

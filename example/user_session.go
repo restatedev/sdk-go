@@ -88,7 +88,7 @@ func (u *userSession) Checkout(ctx restate.ObjectContext, _ restate.Void) (bool,
 
 	timeout := ctx.After(time.Minute)
 
-	request, err := restate.CallAs[PaymentResponse](ctx.Object(CheckoutServiceName, "Payment", "")).
+	request, err := restate.CallAs[PaymentResponse](ctx.Object(CheckoutServiceName, "", "Payment")).
 		RequestFuture(PaymentRequest{UserID: userId, Tickets: tickets})
 	if err != nil {
 		return false, err

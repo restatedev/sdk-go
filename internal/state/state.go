@@ -90,15 +90,6 @@ func (c *Context) Service(service, method string) restate.CallClient[[]byte, []b
 	}
 }
 
-// func (c *Context) ServiceSend(service, method string, delay time.Duration) restate.SendClient[[]byte] {
-// 	return &serviceSend{
-// 		machine: c.machine,
-// 		service: service,
-// 		method:  method,
-// 		delay:   delay,
-// 	}
-// }
-
 func (c *Context) Object(service, key, method string) restate.CallClient[[]byte, []byte] {
 	return &serviceCall{
 		machine: c.machine,
@@ -107,16 +98,6 @@ func (c *Context) Object(service, key, method string) restate.CallClient[[]byte,
 		method:  method,
 	}
 }
-
-// func (c *Context) ObjectSend(service, key, method string, delay time.Duration) restate.SendClient[[]byte] {
-// 	return &serviceSend{
-// 		machine: c.machine,
-// 		service: service,
-// 		method:  method,
-// 		key:     key,
-// 		delay:   delay,
-// 	}
-// }
 
 func (c *Context) Run(fn func(ctx restate.RunContext) ([]byte, error)) ([]byte, error) {
 	return c.machine.run(fn)

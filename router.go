@@ -2,13 +2,14 @@ package restate
 
 import (
 	"fmt"
+	"net/http"
 
 	"github.com/restatedev/sdk-go/encoding"
 	"github.com/restatedev/sdk-go/internal"
 )
 
 var (
-	ErrKeyNotFound = fmt.Errorf("key not found")
+	ErrKeyNotFound = TerminalError(fmt.Errorf("key not found"), http.StatusNotFound)
 )
 
 // Router interface

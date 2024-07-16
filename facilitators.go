@@ -1,6 +1,7 @@
 package restate
 
 import (
+	"fmt"
 	"time"
 
 	"github.com/restatedev/sdk-go/encoding"
@@ -19,7 +20,7 @@ type GetOption interface {
 // if there is no associated value with key, an error ErrKeyNotFound is
 // returned
 // it does encoding/decoding of bytes, defaulting to json codec
-func GetAs[T any](ctx ObjectContext, key string, options ...GetOption) (output T, err error) {
+func GetAs[T any](ctx ObjectSharedContext, key string, options ...GetOption) (output T, err error) {
 	opts := getOptions{}
 	for _, opt := range options {
 		opt.beforeGet(&opts)
@@ -34,7 +35,11 @@ func GetAs[T any](ctx ObjectContext, key string, options ...GetOption) (output T
 		return output, ErrKeyNotFound
 	}
 
-	return output, opts.codec.Unmarshal(bytes, &output)
+	if err := opts.codec.Unmarshal(bytes, &output); err != nil {
+		return output, TerminalError(fmt.Errorf("failed to unmarshal Get state into T: %w", err))
+	}
+
+	return output, nil
 }
 
 type setOptions struct {
@@ -58,7 +63,7 @@ func SetAs(ctx ObjectContext, key string, value any, options ...SetOption) error
 
 	bytes, err := opts.codec.Marshal(value)
 	if err != nil {
-		return err
+		return TerminalError(fmt.Errorf("failed to marshal Set value: %w", err))
 	}
 
 	ctx.Set(key, bytes)
@@ -91,15 +96,21 @@ func RunAs[T any](ctx Context, fn func(RunContext) (T, error), options ...RunOpt
 		}
 
 		bytes, err := opts.codec.Marshal(out)
-		// todo: should this be terminal
-		return bytes, TerminalError(err)
+		if err != nil {
+			return nil, TerminalError(fmt.Errorf("failed to marshal Run output: %w", err))
+		}
+		return bytes, nil
 	})
 
 	if err != nil {
 		return output, err
 	}
 
-	return output, TerminalError(opts.codec.Unmarshal(bytes, &output))
+	if err := opts.codec.Unmarshal(bytes, &output); err != nil {
+		return output, TerminalError(fmt.Errorf("failed to unmarshal Run output into T: %w", err))
+	}
+
+	return output, nil
 }
 
 // Awakeable is the Go representation of a Restate awakeable; a 'promise' to a future
@@ -127,7 +138,7 @@ func (d decodingAwakeable[T]) Result() (out T, err error) {
 		return out, err
 	}
 	if err := d.opts.codec.Unmarshal(bytes, &out); err != nil {
-		return out, err
+		return out, TerminalError(fmt.Errorf("failed to unmarshal Awakeable result into T: %w", err))
 	}
 	return
 }
@@ -163,7 +174,7 @@ type ResolveAwakeableOption interface {
 
 // ResolveAwakeableAs helper function to resolve an awakeable with a particular type
 // The type will be serialised to bytes, defaulting to JSON
-func ResolveAwakeableAs[T any](ctx Context, id string, value T, options ...ResolveAwakeableOption) error {
+func ResolveAwakeableAs(ctx Context, id string, value any, options ...ResolveAwakeableOption) error {
 	opts := resolveAwakeableOptions{}
 	for _, opt := range options {
 		opt.beforeResolveAwakeable(&opts)
@@ -173,7 +184,7 @@ func ResolveAwakeableAs[T any](ctx Context, id string, value T, options ...Resol
 	}
 	bytes, err := opts.codec.Marshal(value)
 	if err != nil {
-		return TerminalError(err)
+		return TerminalError(fmt.Errorf("failed to marshal ResolveAwakeable value: %w", err))
 	}
 	ctx.ResolveAwakeable(id, bytes)
 	return nil
@@ -195,7 +206,7 @@ type codecCallClient[O any] struct {
 func (c codecCallClient[O]) RequestFuture(input any) (ResponseFuture[O], error) {
 	bytes, err := c.options.codec.Marshal(input)
 	if err != nil {
-		return nil, TerminalError(err)
+		return nil, TerminalError(fmt.Errorf("failed to marshal RequestFuture input: %w", err))
 	}
 	fut, err := c.client.RequestFuture(bytes)
 	if err != nil {
@@ -215,12 +226,12 @@ func (c codecCallClient[O]) Request(input any) (output O, err error) {
 func (c codecCallClient[O]) Send(input any, delay time.Duration) error {
 	bytes, err := c.options.codec.Marshal(input)
 	if err != nil {
-		return TerminalError(err)
+		return TerminalError(fmt.Errorf("failed to marshal Send input: %w", err))
 	}
 	return c.client.Send(bytes, delay)
 }
 
-// CallClientAs helper function to use a codec for encoding and decoding, defaulting to JSON
+// CallAs helper function to use a codec for encoding and decoding, defaulting to JSON
 func CallAs[O any](client CallClient[[]byte, []byte], options ...CallOption) CallClient[any, O] {
 	opts := callOptions{}
 	for _, opt := range options {
@@ -232,6 +243,7 @@ func CallAs[O any](client CallClient[[]byte, []byte], options ...CallOption) Cal
 	return codecCallClient[O]{client, opts}
 }
 
+// SendAs helper function to use a codec for encoding .Send request parameters, defaulting to JSON
 func SendAs(client CallClient[[]byte, []byte], options ...CallOption) SendClient[any] {
 	opts := callOptions{}
 	for _, opt := range options {
@@ -242,18 +254,6 @@ func SendAs(client CallClient[[]byte, []byte], options ...CallOption) SendClient
 	}
 	return codecCallClient[struct{}]{client, opts}
 }
-
-// // ResponseFutureAs helper function to receive JSON without immediately blocking
-// func ResponseFutureAs[O any](responseFuture ResponseFuture[[]byte], options ...CallOption) ResponseFuture[O] {
-// 	opts := callOptions{}
-// 	for _, opt := range options {
-// 		opt.beforeCall(&opts)
-// 	}
-// 	if opts.codec == nil {
-// 		opts.codec = encoding.JSONCodec{}
-// 	}
-// 	return decodingResponseFuture[O]{responseFuture, opts}
-// }
 
 type decodingResponseFuture[O any] struct {
 	ResponseFuture[[]byte]
@@ -266,47 +266,9 @@ func (d decodingResponseFuture[O]) Response() (output O, err error) {
 		return output, err
 	}
 
-	return output, d.options.codec.Unmarshal(bytes, &output)
+	if err := d.options.codec.Unmarshal(bytes, &output); err != nil {
+		return output, TerminalError(fmt.Errorf("failed to unmarshal Call response into O: %w", err))
+	}
+
+	return output, nil
 }
-
-// // CallAsFuture helper function to send JSON and allow receiving JSON later
-// func CallAsFuture[O any, I any](client CallClient[[]byte, []byte], input I) (ResponseFuture[O], error) {
-// 	var bytes []byte
-// 	switch any(input).(type) {
-// 	case Void:
-// 	default:
-// 		var err error
-// 		bytes, err = json.Marshal(input)
-// 		if err != nil {
-// 			return nil, err
-// 		}
-// 	}
-
-// 	return ResponseFutureAs[O](client.Request(bytes)), nil
-// }
-
-// type codecSendClient struct {
-// 	client  SendClient[[]byte]
-// 	options callOptions
-// }
-
-// func (c codecSendClient) Request(input any) error {
-// 	bytes, err := c.options.codec.Marshal(input)
-// 	if err != nil {
-// 		return TerminalError(err)
-// 	}
-// 	return c.client.Request(bytes)
-// }
-
-// // CallClientAs helper function to use a codec for encoding, defaulting to JSON
-// func SendClientAs(client SendClient[[]byte], options ...CallOption) SendClient[any] {
-// 	opts := callOptions{}
-// 	for _, opt := range options {
-// 		opt.beforeCall(&opts)
-// 	}
-// 	if opts.codec == nil {
-// 		opts.codec = encoding.JSONCodec{}
-// 	}
-
-// 	return codecSendClient{client, opts}
-// }

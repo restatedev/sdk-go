@@ -26,11 +26,13 @@ type Context interface {
 
 	// Service gets a Service accessor by name where service
 	// must be another service known by restate runtime
+	// Note: use the CallAs and SendAs helper functions to send and receive serialised values
 	Service(service, method string) CallClient[[]byte, []byte]
 
 	// Object gets a Object accessor by name where object
 	// must be another object known by restate runtime and
 	// key is any string representing the key for the object
+	// Note: use the CallAs and SendAs helper functions to send and receive serialised values
 	Object(object, key, method string) CallClient[[]byte, []byte]
 
 	// Run runs the function (fn), storing final results (including terminal errors)
@@ -115,26 +117,36 @@ type After interface {
 
 type ObjectContext interface {
 	Context
-	KeyValueStore
+	KeyValueReader
+	KeyValueWriter
 	// Key retrieves the key for this virtual object invocation. This is a no-op and is
 	// always safe to call.
 	Key() string
 }
 
-type KeyValueStore interface {
-	// Set sets a byte array against a key
-	// Note: Use SetAs helper function to seamlessly store
-	// a value of specific type.
-	Set(key string, value []byte)
+type ObjectSharedContext interface {
+	Context
+	KeyValueReader
+	// Key retrieves the key for this virtual object invocation. This is a no-op and is
+	// always safe to call.
+	Key() string
+}
+
+type KeyValueReader interface {
 	// Get gets value (bytes array) associated with key
 	// If key does not exist, this function return a nil bytes array
-	// Note: Use GetAs helper function to seamlessly get value
-	// as specific type.
+	// Note: Use GetAs helper function to read serialised values
 	Get(key string) []byte
+	// Keys returns a list of all associated key
+	Keys() []string
+}
+
+type KeyValueWriter interface {
+	// Set sets a byte array against a key
+	// Note: Use SetAs helper function to store serialised values
+	Set(key string, value []byte)
 	// Clear deletes a key
 	Clear(key string)
 	// ClearAll drops all stored state associated with key
 	ClearAll()
-	// Keys returns a list of all associated key
-	Keys() []string
 }

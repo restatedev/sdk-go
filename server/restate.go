@@ -109,6 +109,7 @@ func (r *Restate) discover() (resource *internal.Endpoint, err error) {
 				Name:   name,
 				Input:  handler.InputPayload(),
 				Output: handler.OutputPayload(),
+				Ty:     handler.HandlerType(),
 			})
 		}
 		resource.Services = append(resource.Services, service)
