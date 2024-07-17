@@ -10,6 +10,7 @@ import (
 	"github.com/restatedev/sdk-go/internal/rand"
 )
 
+// Context is the base set of operations that all Restate handlers may perform.
 type Context interface {
 	RunContext
 
@@ -77,6 +78,7 @@ type Awakeable interface {
 	Selectable
 }
 
+// CallClient represents all the different ways you can invoke a particular service/key/method tuple.
 type CallClient interface {
 	// RequestFuture makes a call and returns a handle on a future response
 	RequestFuture(input any) (ResponseFuture, error)
@@ -85,11 +87,13 @@ type CallClient interface {
 	SendClient
 }
 
+// SendClient allows for one-way invocations to a particular service/key/method tuple.
 type SendClient interface {
 	// Send makes a one-way call which is executed in the background
 	Send(input any, delay time.Duration) error
 }
 
+// ResponseFuture is a handle on a potentially not-yet completed outbound call.
 type ResponseFuture interface {
 	// Response blocks on the response to the call and stores it in output, or returns the associated error
 	// It is *not* safe to call this in a goroutine - use Context.Select if you
@@ -105,11 +109,12 @@ type Selector interface {
 	// There will always be exactly the same number of results as there were operations
 	// given to Context.Select
 	Remaining() bool
-	// Select blocks on the next completed operation
+	// Select blocks on the next completed operation or returns nil if there are none left
 	Select() Selectable
 }
 
-// RunContext methods are the only methods safe to call from inside a .Run()
+// RunContext methods are the only methods of [Context] that are safe to call from inside a .Run()
+// Calling any other method inside a Run() will panic.
 type RunContext interface {
 	context.Context
 
@@ -129,17 +134,22 @@ type After interface {
 	Selectable
 }
 
+// ObjectContext is an extension of [Context] which can be used in exclusive-mode Virtual Object handlers,
+// giving mutable access to state.
 type ObjectContext interface {
 	Context
 	KeyValueReader
 	KeyValueWriter
 }
 
+// ObjectContext is an extension of [Context] which can be used in shared-mode Virtual Object handlers,
+// giving read-only access to a snapshot of state.
 type ObjectSharedContext interface {
 	Context
 	KeyValueReader
 }
 
+// KeyValueReader is the set of read-only methods which can be used in all Virtual Object handlers.
 type KeyValueReader interface {
 	// Get gets value associated with key and stores it in value
 	// If key does not exist, this function returns ErrKeyNotFound
@@ -152,6 +162,7 @@ type KeyValueReader interface {
 	Key() string
 }
 
+// KeyValueWriter is the set of mutating methods which can be used in exclusive-mode Virtual Object handlers.
 type KeyValueWriter interface {
 	// Set sets a value against a key, using the provided codec (defaults to JSON)
 	Set(key string, value any, options ...options.SetOption) error

@@ -11,7 +11,7 @@ import (
 var health = restate.
 	NewServiceRouter("health").
 	Handler("ping", restate.NewServiceHandler(
-		func(restate.Context, struct{}) (restate.Void, error) {
+		func(restate.Context, restate.Void) (restate.Void, error) {
 			return restate.Void{}, nil
 		}))
 
@@ -36,7 +36,7 @@ var bigCounter = restate.
 			return newCount.String(), nil
 		})).
 	Handler("get", restate.NewObjectSharedHandler(
-		func(ctx restate.ObjectSharedContext, input restate.Void) (string, error) {
+		func(ctx restate.ObjectSharedContext, _ restate.Void) (string, error) {
 			bytes, err := restate.GetAs[[]byte](ctx, "counter", restate.WithBinary)
 			if err != nil {
 				return "", err

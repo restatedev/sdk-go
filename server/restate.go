@@ -10,7 +10,6 @@ import (
 	"runtime/debug"
 	"strings"
 
-	"github.com/posener/h2conn"
 	restate "github.com/restatedev/sdk-go"
 	"github.com/restatedev/sdk-go/generated/proto/discovery"
 	"github.com/restatedev/sdk-go/generated/proto/protocol"
@@ -21,12 +20,12 @@ import (
 	"golang.org/x/net/http2"
 )
 
-const MIN_SERVICE_PROTOCOL_VERSION protocol.ServiceProtocolVersion = protocol.ServiceProtocolVersion_V1
-const MAX_SERVICE_PROTOCOL_VERSION protocol.ServiceProtocolVersion = protocol.ServiceProtocolVersion_V1
-const MIN_SERVICE_DISCOVERY_PROTOCOL_VERSION discovery.ServiceDiscoveryProtocolVersion = discovery.ServiceDiscoveryProtocolVersion_V1
-const MAX_SERVICE_DISCOVERY_PROTOCOL_VERSION discovery.ServiceDiscoveryProtocolVersion = discovery.ServiceDiscoveryProtocolVersion_V1
+const minServiceProtocolVersion protocol.ServiceProtocolVersion = protocol.ServiceProtocolVersion_V1
+const maxServiceProtocolVersion protocol.ServiceProtocolVersion = protocol.ServiceProtocolVersion_V1
+const minServiceDiscoveryProtocolVersion discovery.ServiceDiscoveryProtocolVersion = discovery.ServiceDiscoveryProtocolVersion_V1
+const maxServiceDiscoveryProtocolVersion discovery.ServiceDiscoveryProtocolVersion = discovery.ServiceDiscoveryProtocolVersion_V1
 
-var X_RESTATE_SERVER = `restate-sdk-go/unknown`
+var xRestateServer = `restate-sdk-go/unknown`
 
 func init() {
 	bi, ok := debug.ReadBuildInfo()
@@ -35,12 +34,13 @@ func init() {
 	}
 	for _, dep := range bi.Deps {
 		if dep.Path == "github.com/restatedev/sdk-go" {
-			X_RESTATE_SERVER = "restate-sdk-go/" + dep.Version
+			xRestateServer = "restate-sdk-go/" + dep.Version
 			break
 		}
 	}
 }
 
+// Restate represents a Restate HTTP handler to which services or virtual objects may be attached.
 type Restate struct {
 	logHandler     slog.Handler
 	dropReplayLogs bool
@@ -48,6 +48,7 @@ type Restate struct {
 	routers        map[string]restate.Router
 	keyIDs         []string
 	keySet         identity.KeySetV1
+	protocolMode   internal.ProtocolMode
 }
 
 // NewRestate creates a new instance of Restate server
@@ -58,13 +59,14 @@ func NewRestate() *Restate {
 		systemLog:      slog.New(log.NewRestateContextHandler(handler)),
 		dropReplayLogs: true,
 		routers:        make(map[string]restate.Router),
+		protocolMode:   internal.ProtocolMode_BIDI_STREAM,
 	}
 }
 
 // WithLogger overrides the slog handler used by the SDK (which defaults to the slog Default())
 // You may specify with dropReplayLogs whether to drop logs that originated from handler code
 // while the invocation was replaying. If they are not dropped, you may still determine the replay
-// status in a slog.Handler using rcontext.LogContextFrom(ctx)
+// status in a slog.Handler using [github.com/restatedev/sdk-go/rcontext.LogContextFrom]
 func (r *Restate) WithLogger(h slog.Handler, dropReplayLogs bool) *Restate {
 	r.dropReplayLogs = dropReplayLogs
 	r.systemLog = slog.New(log.NewRestateContextHandler(h))
@@ -72,11 +74,28 @@ func (r *Restate) WithLogger(h slog.Handler, dropReplayLogs bool) *Restate {
 	return r
 }
 
+// WithIdentityV1 attaches v1 request identity public keys to this server. All incoming requests will be validated
+// against one of these keys.
 func (r *Restate) WithIdentityV1(keys ...string) *Restate {
 	r.keyIDs = append(r.keyIDs, keys...)
 	return r
 }
 
+// Bidirectional is used to change the protocol mode advertised to Restate on discovery
+// In bidirectional mode, Restate will keep the request body open even after we have started to respond,
+// allowing for more work to be done without suspending.
+// This is supported over HTTP2 and, in some cases (where there is no buffering proxy), with HTTP1.1.
+// When serving over a non-bidirectional channel (eg, Lambda), use .WithBidirectional(false) otherwise your handlers may get stuck.
+func (r *Restate) Bidirectional(bidi bool) *Restate {
+	if bidi {
+		r.protocolMode = internal.ProtocolMode_BIDI_STREAM
+	} else {
+		r.protocolMode = internal.ProtocolMode_REQUEST_RESPONSE
+	}
+	return r
+}
+
+// Bind attaches a Router (a Service or Virtual Object) to this server
 func (r *Restate) Bind(router restate.Router) *Restate {
 	if _, ok := r.routers[router.Name()]; ok {
 		// panic because this is a programming error
@@ -91,9 +110,9 @@ func (r *Restate) Bind(router restate.Router) *Restate {
 
 func (r *Restate) discover() (resource *internal.Endpoint, err error) {
 	resource = &internal.Endpoint{
-		ProtocolMode:       internal.ProtocolMode_BIDI_STREAM,
-		MinProtocolVersion: 1,
-		MaxProtocolVersion: 2,
+		ProtocolMode:       r.protocolMode,
+		MinProtocolVersion: int32(minServiceProtocolVersion),
+		MaxProtocolVersion: int32(maxServiceDiscoveryProtocolVersion),
 		Services:           make([]internal.Service, 0, len(r.routers)),
 	}
 
@@ -153,6 +172,7 @@ func (r *Restate) discoverHandler(writer http.ResponseWriter, req *http.Request)
 		return
 	}
 
+	writer.Header().Add("x-restate-server", xRestateServer)
 	writer.Header().Add("Content-Type", serviceDiscoveryProtocolVersionToHeaderValue(serviceDiscoveryProtocolVersion))
 	if _, err := writer.Write(bytes); err != nil {
 		r.systemLog.LogAttrs(req.Context(), slog.LevelError, "Failed to write discovery information", log.Error(err))
@@ -181,7 +201,7 @@ func parseServiceDiscoveryProtocolVersion(versionString string) discovery.Servic
 }
 
 func isServiceDiscoveryProtocolVersionSupported(version discovery.ServiceDiscoveryProtocolVersion) bool {
-	return version >= MIN_SERVICE_DISCOVERY_PROTOCOL_VERSION && version <= MAX_SERVICE_DISCOVERY_PROTOCOL_VERSION
+	return version >= minServiceDiscoveryProtocolVersion && version <= maxServiceDiscoveryProtocolVersion
 }
 
 func serviceDiscoveryProtocolVersionToHeaderValue(serviceDiscoveryProtocolVersion discovery.ServiceDiscoveryProtocolVersion) string {
@@ -201,7 +221,7 @@ func parseServiceProtocolVersion(versionString string) protocol.ServiceProtocolV
 }
 
 func isServiceProtocolVersionSupported(version protocol.ServiceProtocolVersion) bool {
-	return version >= MIN_SERVICE_PROTOCOL_VERSION && version <= MAX_SERVICE_PROTOCOL_VERSION
+	return version >= minServiceProtocolVersion && version <= maxServiceProtocolVersion
 }
 
 func serviceProtocolVersionToHeaderValue(serviceProtocolVersion protocol.ServiceProtocolVersion) string {
@@ -221,7 +241,7 @@ type serviceMethod struct {
 func (r *Restate) callHandler(serviceProtocolVersion protocol.ServiceProtocolVersion, service, method string, writer http.ResponseWriter, request *http.Request) {
 	logger := r.systemLog.With("method", slog.StringValue(fmt.Sprintf("%s/%s", service, method)))
 
-	writer.Header().Add("x-restate-server", X_RESTATE_SERVER)
+	writer.Header().Add("x-restate-server", xRestateServer)
 	writer.Header().Add("content-type", serviceProtocolVersionToHeaderValue(serviceProtocolVersion))
 
 	router, ok := r.routers[service]
@@ -238,18 +258,14 @@ func (r *Restate) callHandler(serviceProtocolVersion protocol.ServiceProtocolVer
 
 	writer.WriteHeader(200)
 
-	conn, err := h2conn.Accept(writer, request)
-	if err != nil {
-		logger.LogAttrs(request.Context(), slog.LevelError, "Failed to upgrade connection", log.Error(err))
-		return
-	}
+	conn := newConnection(writer, request)
 
 	defer conn.Close()
 
 	machine := state.NewMachine(handler, conn)
 
 	if err := machine.Start(request.Context(), r.dropReplayLogs, r.logHandler); err != nil {
-		machine.Log().LogAttrs(request.Context(), slog.LevelError, "Failed to handle invocation", log.Error(err))
+		r.systemLog.LogAttrs(request.Context(), slog.LevelError, "Failed to handle invocation", log.Error(err))
 	}
 }
 
@@ -268,6 +284,19 @@ func (r *Restate) handler(writer http.ResponseWriter, request *http.Request) {
 	if request.RequestURI == "/discover" {
 		r.discoverHandler(writer, request)
 		return
+	}
+
+	if r.protocolMode == internal.ProtocolMode_BIDI_STREAM && !request.ProtoAtLeast(2, 0) {
+		// bidi http1.1 requires enabling full duplex
+		rc := http.NewResponseController(writer)
+		if err := rc.EnableFullDuplex(); err != nil {
+			r.systemLog.LogAttrs(request.Context(), slog.LevelError, "Could not enable full duplex mode on the underlying HTTP1 transport, server must be created with .Bidirectional(false)", log.Error(err))
+
+			writer.WriteHeader(http.StatusInternalServerError)
+			writer.Write([]byte("BIDI_STREAM not supported"))
+
+			return
+		}
 	}
 
 	serviceProtocolVersionString := request.Header.Get("content-type")
@@ -303,22 +332,35 @@ func (r *Restate) handler(writer http.ResponseWriter, request *http.Request) {
 	if len(parts) != 2 {
 		r.systemLog.LogAttrs(request.Context(), slog.LevelError, "Invalid request path", slog.String("path", request.RequestURI))
 		writer.WriteHeader(http.StatusNotFound)
+
 		return
 	}
 
 	r.callHandler(serviceProtocolVersion, parts[0], parts[1], writer, request)
 }
 
-func (r *Restate) Start(ctx context.Context, address string) error {
+// Handler obtains a [http.HandlerFunc] representing the bound routers which can be passed to other types of server.
+// Ensure that .Bidirectional(false) is set when serving over a channel that doesn't support full-duplex request and response.
+func (r *Restate) Handler() (http.HandlerFunc, error) {
 	if r.keyIDs == nil {
-		r.systemLog.WarnContext(ctx, "Accepting requests without validating request signatures; handler access must be restricted")
+		r.systemLog.Warn("Accepting requests without validating request signatures; handler access must be restricted")
 	} else {
 		ks, err := identity.ParseKeySetV1(r.keyIDs)
 		if err != nil {
-			return fmt.Errorf("invalid request identity keys: %w", err)
+			return nil, fmt.Errorf("invalid request identity keys: %w", err)
 		}
 		r.keySet = ks
-		r.systemLog.LogAttrs(ctx, slog.LevelInfo, "Validating requests using signing keys", slog.Any("keys", r.keyIDs))
+		r.systemLog.Info("Validating requests using signing keys", "keys", r.keyIDs)
+	}
+
+	return http.HandlerFunc(r.handler), nil
+}
+
+// Start starts a HTTP2 server serving the bound routers
+func (r *Restate) Start(ctx context.Context, address string) error {
+	handler, err := r.Handler()
+	if err != nil {
+		return err
 	}
 
 	listener, err := net.Listen("tcp", address)
@@ -330,7 +372,7 @@ func (r *Restate) Start(ctx context.Context, address string) error {
 
 	opts := &http2.ServeConnOpts{
 		Context: ctx,
-		Handler: http.HandlerFunc(r.handler),
+		Handler: handler,
 	}
 
 	for {

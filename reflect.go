@@ -7,6 +7,7 @@ import (
 
 	"github.com/restatedev/sdk-go/encoding"
 	"github.com/restatedev/sdk-go/internal"
+	"github.com/restatedev/sdk-go/internal/options"
 )
 
 type serviceNamer interface {
@@ -22,14 +23,15 @@ var (
 )
 
 // Object converts a struct with methods into a Virtual Object where each correctly-typed
-// and exported method of the struct will become a handler on the Object. The Object name defaults
-// to the name of the struct, but this can be overidden by providing a `ServiceName() string` method.
+// and exported method of the struct will become a handler on the Object. The Object name
+// defaults to the name of the struct, but this can be overidden by providing a `ServiceName() string` method.
 // The handler name is the name of the method. Handler methods should be of the type `ObjectHandlerFn[I, O]` or `ObjectSharedHandlerFn[I, O]`.
-// Input types I will be deserialised with the provided codec (defaults to JSON) except when they are restate.Void,
+//
+// Input types will be deserialised with the provided codec (defaults to JSON) except when they are restate.Void,
 // in which case no input bytes or content type may be sent.
-// Output types O will be serialised with the provided codec (defaults to JSON) except when they are restate.Void,
+// Output types will be serialised with the provided codec (defaults to JSON) except when they are restate.Void,
 // in which case no data will be sent and no content type set.
-func Object(object any, options ...ObjectRouterOption) *ObjectRouter {
+func Object(object any, opts ...options.ObjectRouterOption) *ObjectRouter {
 	typ := reflect.TypeOf(object)
 	val := reflect.ValueOf(object)
 	var name string
@@ -38,7 +40,7 @@ func Object(object any, options ...ObjectRouterOption) *ObjectRouter {
 	} else {
 		name = reflect.Indirect(val).Type().Name()
 	}
-	router := NewObjectRouter(name, options...)
+	router := NewObjectRouter(name, opts...)
 
 	for m := 0; m < typ.NumMethod(); m++ {
 		method := typ.Method(m)
@@ -79,7 +81,7 @@ func Object(object any, options ...ObjectRouterOption) *ObjectRouter {
 		output := mtype.Out(0)
 
 		router.Handler(mname, &objectReflectHandler{
-			objectHandlerOptions{},
+			options.ObjectHandlerOptions{},
 			handlerType,
 			reflectHandler{
 				fn:       method.Func,
@@ -97,11 +99,12 @@ func Object(object any, options ...ObjectRouterOption) *ObjectRouter {
 // and exported method of the struct will become a handler on the Service. The Service name defaults
 // to the name of the struct, but this can be overidden by providing a `ServiceName() string` method.
 // The handler name is the name of the method. Handler methods should be of the type `ServiceHandlerFn[I, O]`.
-// Input types I will be deserialised with the provided codec (defaults to JSON) except when they are restate.Void,
+//
+// Input types will be deserialised with the provided codec (defaults to JSON) except when they are restate.Void,
 // in which case no input bytes or content type may be sent.
-// Output types O will be serialised with the provided codec (defaults to JSON) except when they are restate.Void,
+// Output types will be serialised with the provided codec (defaults to JSON) except when they are restate.Void,
 // in which case no data will be sent and no content type set.
-func Service(service any, options ...ServiceRouterOption) *ServiceRouter {
+func Service(service any, opts ...options.ServiceRouterOption) *ServiceRouter {
 	typ := reflect.TypeOf(service)
 	val := reflect.ValueOf(service)
 	var name string
@@ -110,7 +113,7 @@ func Service(service any, options ...ServiceRouterOption) *ServiceRouter {
 	} else {
 		name = reflect.Indirect(val).Type().Name()
 	}
-	router := NewServiceRouter(name, options...)
+	router := NewServiceRouter(name, opts...)
 
 	for m := 0; m < typ.NumMethod(); m++ {
 		method := typ.Method(m)
@@ -145,7 +148,7 @@ func Service(service any, options ...ServiceRouterOption) *ServiceRouter {
 		output := mtype.Out(0)
 
 		router.Handler(mname, &serviceReflectHandler{
-			serviceHandlerOptions{},
+			options.ServiceHandlerOptions{},
 			reflectHandler{
 				fn:       method.Func,
 				receiver: val,
@@ -168,7 +171,7 @@ type reflectHandler struct {
 func (h *reflectHandler) sealed() {}
 
 type objectReflectHandler struct {
-	options     objectHandlerOptions
+	options     options.ObjectHandlerOptions
 	handlerType internal.ServiceHandlerType
 	reflectHandler
 }
@@ -178,7 +181,7 @@ var _ ObjectHandler = (*objectReflectHandler)(nil)
 func (h *objectReflectHandler) Call(ctx ObjectContext, bytes []byte) ([]byte, error) {
 	input := reflect.New(h.input)
 
-	if err := encoding.Unmarshal(h.options.codec, bytes, input.Interface()); err != nil {
+	if err := encoding.Unmarshal(h.options.Codec, bytes, input.Interface()); err != nil {
 		return nil, TerminalError(fmt.Errorf("request could not be decoded into handler input type: %w", err), http.StatusBadRequest)
 	}
 
@@ -195,7 +198,7 @@ func (h *objectReflectHandler) Call(ctx ObjectContext, bytes []byte) ([]byte, er
 		return nil, errI.(error)
 	}
 
-	bytes, err := encoding.Marshal(h.options.codec, outI)
+	bytes, err := encoding.Marshal(h.options.Codec, outI)
 	if err != nil {
 		return nil, TerminalError(fmt.Errorf("failed to serialize output: %w", err))
 	}
@@ -203,16 +206,16 @@ func (h *objectReflectHandler) Call(ctx ObjectContext, bytes []byte) ([]byte, er
 	return bytes, nil
 }
 
-func (h *objectReflectHandler) getOptions() *objectHandlerOptions {
+func (h *objectReflectHandler) getOptions() *options.ObjectHandlerOptions {
 	return &h.options
 }
 
 func (h *objectReflectHandler) InputPayload() *encoding.InputPayload {
-	return encoding.InputPayloadFor(h.options.codec, reflect.Zero(h.input).Interface())
+	return encoding.InputPayloadFor(h.options.Codec, reflect.Zero(h.input).Interface())
 }
 
 func (h *objectReflectHandler) OutputPayload() *encoding.OutputPayload {
-	return encoding.OutputPayloadFor(h.options.codec, reflect.Zero(h.output).Interface())
+	return encoding.OutputPayloadFor(h.options.Codec, reflect.Zero(h.output).Interface())
 }
 
 func (h *objectReflectHandler) HandlerType() *internal.ServiceHandlerType {
@@ -220,7 +223,7 @@ func (h *objectReflectHandler) HandlerType() *internal.ServiceHandlerType {
 }
 
 type serviceReflectHandler struct {
-	options serviceHandlerOptions
+	options options.ServiceHandlerOptions
 	reflectHandler
 }
 
@@ -229,7 +232,7 @@ var _ ServiceHandler = (*serviceReflectHandler)(nil)
 func (h *serviceReflectHandler) Call(ctx Context, bytes []byte) ([]byte, error) {
 	input := reflect.New(h.input)
 
-	if err := encoding.Unmarshal(h.options.codec, bytes, input.Interface()); err != nil {
+	if err := encoding.Unmarshal(h.options.Codec, bytes, input.Interface()); err != nil {
 		return nil, TerminalError(fmt.Errorf("request could not be decoded into handler input type: %w", err), http.StatusBadRequest)
 	}
 
@@ -246,7 +249,7 @@ func (h *serviceReflectHandler) Call(ctx Context, bytes []byte) ([]byte, error) 
 		return nil, errI.(error)
 	}
 
-	bytes, err := encoding.Marshal(h.options.codec, outI)
+	bytes, err := encoding.Marshal(h.options.Codec, outI)
 	if err != nil {
 		return nil, TerminalError(fmt.Errorf("failed to serialize output: %w", err))
 	}
@@ -254,16 +257,16 @@ func (h *serviceReflectHandler) Call(ctx Context, bytes []byte) ([]byte, error) 
 	return bytes, nil
 }
 
-func (h *serviceReflectHandler) getOptions() *serviceHandlerOptions {
+func (h *serviceReflectHandler) getOptions() *options.ServiceHandlerOptions {
 	return &h.options
 }
 
 func (h *serviceReflectHandler) InputPayload() *encoding.InputPayload {
-	return h.options.codec.InputPayload()
+	return h.options.Codec.InputPayload(reflect.Zero(h.input))
 }
 
 func (h *serviceReflectHandler) OutputPayload() *encoding.OutputPayload {
-	return h.options.codec.OutputPayload()
+	return h.options.Codec.OutputPayload(reflect.Zero(h.output))
 }
 
 func (h *serviceReflectHandler) HandlerType() *internal.ServiceHandlerType {

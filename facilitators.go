@@ -4,14 +4,14 @@ import (
 	"github.com/restatedev/sdk-go/internal/options"
 )
 
-// GetAs helper function to get a key, returning a typed response instead of accepting a pointer.
-// If there is no associated value with key, an error ErrKeyNotFound is returned
+// GetAs get the value for a key, returning a typed response instead of accepting a pointer.
+// If there is no associated value with key, [ErrKeyNotFound] is returned
 func GetAs[T any](ctx ObjectSharedContext, key string, options ...options.GetOption) (output T, err error) {
 	err = ctx.Get(key, &output, options...)
 	return
 }
 
-// RunAs helper function runs a Run function, returning a typed response instead of accepting a pointer
+// RunAs executes a Run function on a [Context], returning a typed response instead of accepting a pointer
 func RunAs[T any](ctx Context, fn func(RunContext) (T, error), options ...options.RunOption) (output T, err error) {
 	err = ctx.Run(func(ctx RunContext) (any, error) {
 		return fn(ctx)
@@ -20,7 +20,7 @@ func RunAs[T any](ctx Context, fn func(RunContext) (T, error), options ...option
 	return
 }
 
-// TypedAwakeable is an extension of Awakeable which returns typed responses instead of accepting a pointer
+// TypedAwakeable is an extension of [Awakeable] which returns typed responses instead of accepting a pointer
 type TypedAwakeable[T any] interface {
 	// Id returns the awakeable ID, which can be stored or sent to a another service
 	Id() string
@@ -41,12 +41,12 @@ func (t typedAwakeable[T]) Result() (output T, err error) {
 	return
 }
 
-// AwakeableAs helper function to treat awakeable results as a particular type.
+// AwakeableAs helper function to treat [Awakeable] results as a particular type.
 func AwakeableAs[T any](ctx Context, options ...options.AwakeableOption) TypedAwakeable[T] {
 	return typedAwakeable[T]{ctx.Awakeable(options...)}
 }
 
-// TypedCallClient is an extension of CallClient which returns typed responses instead of accepting a pointer
+// TypedCallClient is an extension of [CallClient] which returns typed responses instead of accepting a pointer
 type TypedCallClient[O any] interface {
 	// RequestFuture makes a call and returns a handle on a future response
 	RequestFuture(input any) (TypedResponseFuture[O], error)
@@ -76,7 +76,7 @@ func (t typedCallClient[O]) RequestFuture(input any) (TypedResponseFuture[O], er
 	return typedResponseFuture[O]{fut}, nil
 }
 
-// TypedResponseFuture is an extension of ResponseFuture which returns typed responses instead of accepting a pointer
+// TypedResponseFuture is an extension of [ResponseFuture] which returns typed responses instead of accepting a pointer
 type TypedResponseFuture[O any] interface {
 	// Response blocks on the response to the call and returns it or the associated error
 	// It is *not* safe to call this in a goroutine - use Context.Select if you
@@ -94,7 +94,7 @@ func (t typedResponseFuture[O]) Response() (output O, err error) {
 	return
 }
 
-// CallAs helper function to get typed responses instead of passing in a pointer
+// CallAs helper function to get typed responses from a [CallClient] instead of passing in a pointer
 func CallAs[O any](client CallClient) TypedCallClient[O] {
 	return typedCallClient[O]{client}
 }

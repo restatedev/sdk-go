@@ -25,6 +25,10 @@ func (w withCodec) BeforeResolveAwakeable(opts *options.ResolveAwakeableOptions)
 }
 func (w withCodec) BeforeCall(opts *options.CallOptions) { opts.Codec = w.codec }
 
+// WithCodec is an option that can be provided to many different functions that perform (de)serialisation
+// in order to specify a custom codec with which to (de)serialise instead of the default of JSON.
+//
+// See also [WithProto], [WithBinary], [WithJSON].
 func WithCodec(codec encoding.Codec) withCodec {
 	return withCodec{codec}
 }
@@ -34,22 +38,38 @@ type withPayloadCodec struct {
 	codec encoding.PayloadCodec
 }
 
-var _ ServiceHandlerOption = withPayloadCodec{}
-var _ ServiceRouterOption = withPayloadCodec{}
-var _ ObjectHandlerOption = withPayloadCodec{}
-var _ ObjectRouterOption = withPayloadCodec{}
+var _ options.ServiceHandlerOption = withPayloadCodec{}
+var _ options.ServiceRouterOption = withPayloadCodec{}
+var _ options.ObjectHandlerOption = withPayloadCodec{}
+var _ options.ObjectRouterOption = withPayloadCodec{}
 
-func (w withPayloadCodec) beforeServiceHandler(opts *serviceHandlerOptions) { opts.codec = w.codec }
-func (w withPayloadCodec) beforeObjectHandler(opts *objectHandlerOptions)   { opts.codec = w.codec }
-func (w withPayloadCodec) beforeServiceRouter(opts *serviceRouterOptions) {
-	opts.defaultCodec = w.codec
+func (w withPayloadCodec) BeforeServiceHandler(opts *options.ServiceHandlerOptions) {
+	opts.Codec = w.codec
 }
-func (w withPayloadCodec) beforeObjectRouter(opts *objectRouterOptions) { opts.defaultCodec = w.codec }
+func (w withPayloadCodec) BeforeObjectHandler(opts *options.ObjectHandlerOptions) {
+	opts.Codec = w.codec
+}
+func (w withPayloadCodec) BeforeServiceRouter(opts *options.ServiceRouterOptions) {
+	opts.DefaultCodec = w.codec
+}
+func (w withPayloadCodec) BeforeObjectRouter(opts *options.ObjectRouterOptions) {
+	opts.DefaultCodec = w.codec
+}
 
+// withPayloadCodec is an option that can be provided to handler/router options
+// in order to specify a custom [encoding.PayloadCodec] with which to (de)serialise and
+// set content-types instead of the default of JSON.
+//
+// See also [WithProto], [WithBinary], [WithJSON].
 func WithPayloadCodec(codec encoding.PayloadCodec) withPayloadCodec {
 	return withPayloadCodec{withCodec{codec}, codec}
 }
 
+// WithProto is an option to specify the use of [encoding.ProtoCodec] for (de)serialisation
 var WithProto = WithPayloadCodec(encoding.ProtoCodec)
+
+// WithBinary is an option to specify the use of [encoding.BinaryCodec] for (de)serialisation
 var WithBinary = WithPayloadCodec(encoding.BinaryCodec)
+
+// WithJSON is an option to specify the use of [encoding.JsonCodec] for (de)serialisation
 var WithJSON = WithPayloadCodec(encoding.JSONCodec)

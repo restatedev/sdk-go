@@ -49,3 +49,35 @@ type RunOptions struct {
 type RunOption interface {
 	BeforeRun(*RunOptions)
 }
+
+type ServiceHandlerOptions struct {
+	Codec encoding.PayloadCodec
+}
+
+type ServiceHandlerOption interface {
+	BeforeServiceHandler(*ServiceHandlerOptions)
+}
+
+type ObjectHandlerOptions struct {
+	Codec encoding.PayloadCodec
+}
+
+type ObjectHandlerOption interface {
+	BeforeObjectHandler(*ObjectHandlerOptions)
+}
+
+type ServiceRouterOptions struct {
+	DefaultCodec encoding.PayloadCodec
+}
+
+type ServiceRouterOption interface {
+	BeforeServiceRouter(*ServiceRouterOptions)
+}
+
+type ObjectRouterOptions struct {
+	DefaultCodec encoding.PayloadCodec
+}
+
+type ObjectRouterOption interface {
+	BeforeObjectRouter(*ObjectRouterOptions)
+}
