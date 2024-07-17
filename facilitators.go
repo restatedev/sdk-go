@@ -1,7 +1,6 @@
 package restate
 
 import (
-	"github.com/restatedev/sdk-go/internal/futures"
 	"github.com/restatedev/sdk-go/internal/options"
 )
 
@@ -30,7 +29,7 @@ type TypedAwakeable[T any] interface {
 	// It is *not* safe to call this in a goroutine - use Context.Select if you
 	// want to wait on multiple results at once.
 	Result() (T, error)
-	futures.Selectable
+	Selectable
 }
 
 type typedAwakeable[T any] struct {
@@ -83,7 +82,7 @@ type TypedResponseFuture[O any] interface {
 	// It is *not* safe to call this in a goroutine - use Context.Select if you
 	// want to wait on multiple results at once.
 	Response() (O, error)
-	futures.Selectable
+	Selectable
 }
 
 type typedResponseFuture[O any] struct {

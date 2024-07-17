@@ -57,8 +57,11 @@ type Context interface {
 	// that things complete in durably inside Restate, so that on replay the same order
 	// can be used. This avoids non-determinism. It is *not* safe to use goroutines or channels
 	// outside of Context.Run functions, as they do not behave deterministically.
-	Select(futs ...futures.Selectable) Selector
+	Select(futs ...Selectable) Selector
 }
+
+// Selectable is implemented by types that may be passed to Context.Select
+type Selectable = futures.Selectable
 
 // Awakeable is the Go representation of a Restate awakeable; a 'promise' to a future
 // value or error, that can be resolved or rejected by other services.
@@ -71,7 +74,7 @@ type Awakeable interface {
 	// want to wait on multiple results at once.
 	// Note: use the AwakeableAs helper function to avoid having to pass a output pointer
 	Result(output any) error
-	futures.Selectable
+	Selectable
 }
 
 type CallClient interface {
@@ -92,7 +95,7 @@ type ResponseFuture interface {
 	// It is *not* safe to call this in a goroutine - use Context.Select if you
 	// want to wait on multiple results at once.
 	Response(output any) error
-	futures.Selectable
+	Selectable
 }
 
 // Selector is an iterator over a list of blocking Restate operations that are running
@@ -103,7 +106,7 @@ type Selector interface {
 	// given to Context.Select
 	Remaining() bool
 	// Select blocks on the next completed operation
-	Select() futures.Selectable
+	Select() Selectable
 }
 
 // RunContext methods are the only methods safe to call from inside a .Run()
@@ -123,7 +126,7 @@ type After interface {
 	// It is *not* safe to call this in a goroutine - use Context.Select if you
 	// want to wait on multiple results at once.
 	Done()
-	futures.Selectable
+	Selectable
 }
 
 type ObjectContext interface {

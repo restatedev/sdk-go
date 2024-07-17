@@ -237,7 +237,7 @@ func (c *Context) RejectAwakeable(id string, reason error) {
 	c.machine.rejectAwakeable(id, reason)
 }
 
-func (c *Context) Select(futs ...futures.Selectable) restate.Selector {
+func (c *Context) Select(futs ...restate.Selectable) restate.Selector {
 	return c.machine.selector(futs...)
 }
 
