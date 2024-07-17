@@ -9,24 +9,24 @@ import (
 )
 
 // Void is a placeholder to signify 'no value' where a type is otherwise needed
+// It implements [RestateMarshaler] and [RestateUnmarshaler] to ensure that no marshaling or unmarshaling ever happens
+// on this type.
 type Void struct{}
 
 var (
 	// BinaryCodec marshals []byte and unmarshals into *[]byte
 	// In handlers, it uses a content type of application/octet-stream
 	BinaryCodec PayloadCodec = binaryCodec{}
-	// VoidCodec marshals anything into []byte(nil) and skips unmarshaling
-	// In handlers, it requires that there is no input content-type and does not set an output content-type
-	VoidCodec PayloadCodec = voidCodec{}
 	// ProtoCodec marshals proto.Message and unmarshals into proto.Message or pointers to types that implement proto.Message
 	// In handlers, it uses a content-type of application/proto
 	ProtoCodec PayloadCodec = protoCodec{}
 	// JSONCodec marshals any json.Marshallable type and unmarshals into any json.Unmarshallable type
 	// In handlers, it uses a content-type of application/json
-	JSONCodec PayloadCodec       = jsonCodec{}
-	_         RestateMarshaler   = Void{}
-	_         RestateUnmarshaler = Void{}
-	_         RestateUnmarshaler = &Void{}
+	JSONCodec PayloadCodec = jsonCodec{}
+
+	_ RestateMarshaler   = Void{}
+	_ RestateUnmarshaler = Void{}
+	_ RestateUnmarshaler = &Void{}
 )
 
 func (v Void) RestateUnmarshal(codec Codec, data []byte) error {
@@ -45,31 +45,28 @@ func (v Void) OutputPayload(codec Codec) *OutputPayload {
 	return &OutputPayload{}
 }
 
+// RestateUnmarshaler can be implemented by types that want to control their own unmarshaling
 type RestateUnmarshaler interface {
 	RestateUnmarshal(codec Codec, data []byte) error
 	InputPayload(codec Codec) *InputPayload
 }
 
+// InputPayloadFor determines the InputPayload for the type stored in i, respecting [RestateUnmarshaler] implementors
 func InputPayloadFor(codec PayloadCodec, i any) *InputPayload {
 	ru, ok := i.(RestateUnmarshaler)
 	if ok {
 		return ru.InputPayload(codec)
 	}
-	return codec.InputPayload()
+	return codec.InputPayload(i)
 }
 
+// OutputPayloadFor determines the OutputPayload for the type stored in o, respecting [RestateMarshaler] implementors
 func OutputPayloadFor(codec PayloadCodec, o any) *OutputPayload {
 	ru, ok := o.(RestateMarshaler)
 	if ok {
 		return ru.OutputPayload(codec)
 	}
-	return codec.OutputPayload()
-}
-
-func RestateMarshalerFor[O any]() (RestateMarshaler, bool) {
-	var o O
-	ru, ok := any(o).(RestateMarshaler)
-	return ru, ok
+	return codec.OutputPayload(o)
 }
 
 // RestateMarshaler can be implemented by types that want to control their own marshaling
@@ -78,11 +75,14 @@ type RestateMarshaler interface {
 	OutputPayload(codec Codec) *OutputPayload
 }
 
+// Codec is a mechanism for serialising and deserialising a wide range of types.
+// Care should be taken to ensure that only valid types are passed to a codec, eg proto.Message for [ProtoCodec].
 type Codec interface {
 	Marshal(v any) ([]byte, error)
 	Unmarshal(data []byte, v any) error
 }
 
+// Marshal converts its input v into []byte using the codec, respecting [RestateMarshaler] implementors
 func Marshal(codec Codec, v any) ([]byte, error) {
 	if marshaler, ok := v.(RestateMarshaler); ok {
 		return marshaler.RestateMarshal(codec)
@@ -90,6 +90,8 @@ func Marshal(codec Codec, v any) ([]byte, error) {
 	return codec.Marshal(v)
 }
 
+// Unmarshal converts its input data and stores the result into v using the codec, respecting [RestateUnmarshaler] implementors
+// v is expected to be a mutable concrete type, generally a pointer.
 func Unmarshal(codec Codec, data []byte, v any) error {
 	if marshaler, ok := v.(RestateUnmarshaler); ok {
 		return marshaler.RestateUnmarshal(codec, data)
@@ -97,50 +99,38 @@ func Unmarshal(codec Codec, data []byte, v any) error {
 	return codec.Unmarshal(data, v)
 }
 
+// PayloadCodec is implemented by a [Codec] that can also be used in handlers, and so must provide a [InputPayload] and [OutputPayload]
+// i and o are zero values of the input/output types, which the codec may use to influence its response.
 type PayloadCodec interface {
-	InputPayload() *InputPayload
-	OutputPayload() *OutputPayload
+	InputPayload(i any) *InputPayload
+	OutputPayload(o any) *OutputPayload
 	Codec
 }
 
+// InputPayload is provided to Restate upon handler discovery, to teach the ingress how to validate incoming
+// request bodies.
 type InputPayload struct {
 	Required    bool        `json:"required"`
 	ContentType *string     `json:"contentType,omitempty"`
 	JsonSchema  interface{} `json:"jsonSchema,omitempty"`
 }
 
+// OutputPayload is provided to Restate upon handler discovery, to teach the ingress how to annotate outgoing
+// response bodies.
 type OutputPayload struct {
 	ContentType           *string     `json:"contentType,omitempty"`
 	SetContentTypeIfEmpty bool        `json:"setContentTypeIfEmpty"`
 	JsonSchema            interface{} `json:"jsonSchema,omitempty"`
 }
 
-type voidCodec struct{}
-
-func (j voidCodec) InputPayload() *InputPayload {
-	return &InputPayload{}
-}
-
-func (j voidCodec) OutputPayload() *OutputPayload {
-	return &OutputPayload{}
-}
-
-func (j voidCodec) Unmarshal(data []byte, input any) (err error) {
-	return nil
-}
-
-func (j voidCodec) Marshal(output any) ([]byte, error) {
-	return nil, nil
-}
-
 type binaryCodec struct{}
 
-func (j binaryCodec) InputPayload() *InputPayload {
+func (j binaryCodec) InputPayload(_ any) *InputPayload {
 	// Required false because 0 bytes is a valid input
 	return &InputPayload{Required: false, ContentType: proto.String("application/octet-stream")}
 }
 
-func (j binaryCodec) OutputPayload() *OutputPayload {
+func (j binaryCodec) OutputPayload(_ any) *OutputPayload {
 	// SetContentTypeIfEmpty true because 0 bytes is a valid output
 	return &OutputPayload{ContentType: proto.String("application/octet-stream"), SetContentTypeIfEmpty: true}
 }
@@ -166,11 +156,11 @@ func (j binaryCodec) Marshal(output any) ([]byte, error) {
 
 type jsonCodec struct{}
 
-func (j jsonCodec) InputPayload() *InputPayload {
+func (j jsonCodec) InputPayload(_ any) *InputPayload {
 	return &InputPayload{Required: true, ContentType: proto.String("application/json")}
 }
 
-func (j jsonCodec) OutputPayload() *OutputPayload {
+func (j jsonCodec) OutputPayload(_ any) *OutputPayload {
 	return &OutputPayload{ContentType: proto.String("application/json")}
 }
 
@@ -184,11 +174,11 @@ func (j jsonCodec) Marshal(output any) ([]byte, error) {
 
 type protoCodec struct{}
 
-func (p protoCodec) InputPayload() *InputPayload {
+func (p protoCodec) InputPayload(_ any) *InputPayload {
 	return &InputPayload{Required: true, ContentType: proto.String("application/proto")}
 }
 
-func (p protoCodec) OutputPayload() *OutputPayload {
+func (p protoCodec) OutputPayload(_ any) *OutputPayload {
 	return &OutputPayload{ContentType: proto.String("application/proto")}
 }
 

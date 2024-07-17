@@ -359,6 +359,18 @@ func (m *Machine) invoke(ctx *Context, input []byte, outputSeen bool) error {
 			}); err != nil {
 				m.log.LogAttrs(m.ctx, slog.LevelError, "Error sending failure message", log.Error(err))
 			}
+		case *concurrentContextUse:
+			m.log.LogAttrs(m.ctx, slog.LevelError, "Concurrent context use detected; either a Context method was used while a Run() is in progress, or Context methods are being called from multiple goroutines. Failing invocation.", slog.Uint64("entryType", uint64(typ.entryType)))
+
+			if err := m.protocol.Write(wire.ErrorMessageType, &wire.ErrorMessage{
+				ErrorMessage: protocol.ErrorMessage{
+					Code:             uint32(errors.ErrProtocolViolation),
+					Message:          "Concurrent context use detected; either a Context method was used while a Run() is in progress, or Context methods are being called from multiple goroutines.",
+					RelatedEntryType: typ.entryType.UInt32(),
+				},
+			}); err != nil {
+				m.log.LogAttrs(m.ctx, slog.LevelError, "Error sending failure message", log.Error(err))
+			}
 		case *entryMismatch:
 			expected, _ := json.Marshal(typ.expectedEntry)
 			actual, _ := json.Marshal(typ.actualEntry)
@@ -604,7 +616,10 @@ func replayOrNew[M wire.Message, O any](
 	new func() O,
 ) (output O, entryIndex uint32) {
 	// lock around preparing the entry, but we would never await an ack or completion with this held.
-	m.entryMutex.Lock()
+	if !m.entryMutex.TryLock() {
+		var msg M
+		panic(m.newConcurrentContextUse(wire.MessageType(msg)))
+	}
 	defer m.entryMutex.Unlock()
 
 	if m.failure != nil {
@@ -635,4 +650,14 @@ func replayOrNew[M wire.Message, O any](
 
 	// other wise call the new function
 	return new(), m.entryIndex
+}
+
+type concurrentContextUse struct {
+	entryType wire.Type
+}
+
+func (m *Machine) newConcurrentContextUse(entry wire.Type) *concurrentContextUse {
+	c := &concurrentContextUse{entry}
+	m.failure = c
+	return c
 }

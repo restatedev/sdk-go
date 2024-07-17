@@ -10,7 +10,6 @@ import (
 )
 
 func main() {
-
 	server := server.NewRestate().
 		// Handlers can be inferred from object methods
 		Bind(restate.Object(&userSession{})).

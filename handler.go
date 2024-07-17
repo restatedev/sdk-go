@@ -6,27 +6,33 @@ import (
 
 	"github.com/restatedev/sdk-go/encoding"
 	"github.com/restatedev/sdk-go/internal"
+	"github.com/restatedev/sdk-go/internal/options"
 )
 
 // Void is a placeholder to signify 'no value' where a type is otherwise needed. It can be used in several contexts:
-// 1. Input types for handlers - the request payload codec will default to a encoding.VoidCodec which will reject input at the ingress
-// 2. Output types for handlers - the response payload codec will default to a encoding.VoidCodec which will send no bytes and set no content-type
-// 3. Input for a outgoing Request or Send - no bytes will be sent
-// 4. The output type for an outgoing Request - the response body will be ignored. A pointer is also accepted.
+//
+//  1. Input types for handlers - the request payload codec will reject input at the ingress
+//  2. Output types for handlers - the response payload codec will send no bytes and set no content-type
+//  3. Input for a outgoing Request or Send - no bytes will be sent
+//  4. The output type for an outgoing Request - the response body will be ignored. A pointer is also accepted.
+//  5. The output type for an awakeable - the result body will be ignored. A pointer is also accepted.
 type Void = encoding.Void
 
+// ObjectHandler is the required set of methods for a Virtual Object handler.
 type ObjectHandler interface {
 	Call(ctx ObjectContext, request []byte) (output []byte, err error)
-	getOptions() *objectHandlerOptions
+	getOptions() *options.ObjectHandlerOptions
 	Handler
 }
 
+// ServiceHandler is the required set of methods for a Service handler.
 type ServiceHandler interface {
 	Call(ctx Context, request []byte) (output []byte, err error)
-	getOptions() *serviceHandlerOptions
+	getOptions() *options.ServiceHandlerOptions
 	Handler
 }
 
+// Handler is implemented by all Restate handlers
 type Handler interface {
 	sealed()
 	InputPayload() *encoding.InputPayload
@@ -34,45 +40,37 @@ type Handler interface {
 	HandlerType() *internal.ServiceHandlerType
 }
 
-// ServiceHandlerFn signature of service (unkeyed) handler function
+// ServiceHandlerFn is the signature for a Service handler function
 type ServiceHandlerFn[I any, O any] func(ctx Context, input I) (O, error)
 
-// ObjectHandlerFn signature for object (keyed) handler function
+// ObjectHandlerFn is the signature for a Virtual Object exclusive-mode handler function
 type ObjectHandlerFn[I any, O any] func(ctx ObjectContext, input I) (O, error)
 
-// ObjectHandlerFn signature for object (keyed) handler function that can run concurrently with other handlers against a snapshot of state
+// ObjectHandlerFn is the signature for a Virtual Object shared-mode handler function
 type ObjectSharedHandlerFn[I any, O any] func(ctx ObjectSharedContext, input I) (O, error)
-
-type serviceHandlerOptions struct {
-	codec encoding.PayloadCodec
-}
 
 type serviceHandler[I any, O any] struct {
 	fn      ServiceHandlerFn[I, O]
-	options serviceHandlerOptions
+	options options.ServiceHandlerOptions
 }
 
 var _ ServiceHandler = (*serviceHandler[struct{}, struct{}])(nil)
 
-type ServiceHandlerOption interface {
-	beforeServiceHandler(*serviceHandlerOptions)
-}
-
-// NewServiceHandler create a new handler for a service, defaulting to JSON encoding
-func NewServiceHandler[I any, O any](fn ServiceHandlerFn[I, O], options ...ServiceHandlerOption) *serviceHandler[I, O] {
-	opts := serviceHandlerOptions{}
-	for _, opt := range options {
-		opt.beforeServiceHandler(&opts)
+// NewServiceHandler converts a function of signature [ServiceHandlerFn] into a handler on a Restate service.
+func NewServiceHandler[I any, O any](fn ServiceHandlerFn[I, O], opts ...options.ServiceHandlerOption) *serviceHandler[I, O] {
+	o := options.ServiceHandlerOptions{}
+	for _, opt := range opts {
+		opt.BeforeServiceHandler(&o)
 	}
 	return &serviceHandler[I, O]{
 		fn:      fn,
-		options: opts,
+		options: o,
 	}
 }
 
 func (h *serviceHandler[I, O]) Call(ctx Context, bytes []byte) ([]byte, error) {
 	var input I
-	if err := encoding.Unmarshal(h.options.codec, bytes, &input); err != nil {
+	if err := encoding.Unmarshal(h.options.Codec, bytes, &input); err != nil {
 		return nil, TerminalError(fmt.Errorf("request could not be decoded into handler input type: %w", err), http.StatusBadRequest)
 	}
 
@@ -84,7 +82,7 @@ func (h *serviceHandler[I, O]) Call(ctx Context, bytes []byte) ([]byte, error) {
 		return nil, err
 	}
 
-	bytes, err = encoding.Marshal(h.options.codec, output)
+	bytes, err = encoding.Marshal(h.options.Codec, output)
 	if err != nil {
 		return nil, TerminalError(fmt.Errorf("failed to serialize output: %w", err))
 	}
@@ -94,69 +92,65 @@ func (h *serviceHandler[I, O]) Call(ctx Context, bytes []byte) ([]byte, error) {
 
 func (h *serviceHandler[I, O]) InputPayload() *encoding.InputPayload {
 	var i I
-	return encoding.InputPayloadFor(h.options.codec, i)
+	return encoding.InputPayloadFor(h.options.Codec, i)
 }
 
 func (h *serviceHandler[I, O]) OutputPayload() *encoding.OutputPayload {
 	var o O
-	return encoding.OutputPayloadFor(h.options.codec, o)
+	return encoding.OutputPayloadFor(h.options.Codec, o)
 }
 
 func (h *serviceHandler[I, O]) HandlerType() *internal.ServiceHandlerType {
 	return nil
 }
 
-func (h *serviceHandler[I, O]) getOptions() *serviceHandlerOptions {
+func (h *serviceHandler[I, O]) getOptions() *options.ServiceHandlerOptions {
 	return &h.options
 }
 
 func (h *serviceHandler[I, O]) sealed() {}
 
-type objectHandlerOptions struct {
-	codec encoding.PayloadCodec
-}
-
 type objectHandler[I any, O any] struct {
 	// only one of exclusiveFn or sharedFn should be set, as indicated by handlerType
 	exclusiveFn ObjectHandlerFn[I, O]
 	sharedFn    ObjectSharedHandlerFn[I, O]
-	options     objectHandlerOptions
+	options     options.ObjectHandlerOptions
 	handlerType internal.ServiceHandlerType
 }
 
 var _ ObjectHandler = (*objectHandler[struct{}, struct{}])(nil)
 
-type ObjectHandlerOption interface {
-	beforeObjectHandler(*objectHandlerOptions)
-}
-
-func NewObjectHandler[I any, O any](fn ObjectHandlerFn[I, O], options ...ObjectHandlerOption) *objectHandler[I, O] {
-	opts := objectHandlerOptions{}
-	for _, opt := range options {
-		opt.beforeObjectHandler(&opts)
+// NewObjectHandler converts a function of signature [ObjectHandlerFn] into an exclusive-mode handler on a Virtual Object.
+// The handler will have access to a full [ObjectContext] which may mutate state.
+func NewObjectHandler[I any, O any](fn ObjectHandlerFn[I, O], opts ...options.ObjectHandlerOption) *objectHandler[I, O] {
+	o := options.ObjectHandlerOptions{}
+	for _, opt := range opts {
+		opt.BeforeObjectHandler(&o)
 	}
 	return &objectHandler[I, O]{
 		exclusiveFn: fn,
-		options:     opts,
+		options:     o,
 		handlerType: internal.ServiceHandlerType_EXCLUSIVE,
 	}
 }
 
-func NewObjectSharedHandler[I any, O any](fn ObjectSharedHandlerFn[I, O], options ...ObjectHandlerOption) *objectHandler[I, O] {
-	opts := objectHandlerOptions{}
-	for _, opt := range options {
-		opt.beforeObjectHandler(&opts)
+// NewObjectSharedHandler converts a function of signature [ObjectSharedHandlerFn] into a shared-mode handler on a Virtual Object.
+// The handler will only have access to a [ObjectSharedContext] which can only read a snapshot of state.
+func NewObjectSharedHandler[I any, O any](fn ObjectSharedHandlerFn[I, O], opts ...options.ObjectHandlerOption) *objectHandler[I, O] {
+	o := options.ObjectHandlerOptions{}
+	for _, opt := range opts {
+		opt.BeforeObjectHandler(&o)
 	}
 	return &objectHandler[I, O]{
 		sharedFn:    fn,
-		options:     opts,
+		options:     o,
 		handlerType: internal.ServiceHandlerType_SHARED,
 	}
 }
 
 func (h *objectHandler[I, O]) Call(ctx ObjectContext, bytes []byte) ([]byte, error) {
 	var input I
-	if err := encoding.Unmarshal(h.options.codec, bytes, &input); err != nil {
+	if err := encoding.Unmarshal(h.options.Codec, bytes, &input); err != nil {
 		return nil, TerminalError(fmt.Errorf("request could not be decoded into handler input type: %w", err), http.StatusBadRequest)
 	}
 
@@ -178,7 +172,7 @@ func (h *objectHandler[I, O]) Call(ctx ObjectContext, bytes []byte) ([]byte, err
 		return nil, err
 	}
 
-	bytes, err = encoding.Marshal(h.options.codec, output)
+	bytes, err = encoding.Marshal(h.options.Codec, output)
 	if err != nil {
 		return nil, TerminalError(fmt.Errorf("failed to serialize output: %w", err))
 	}
@@ -188,15 +182,15 @@ func (h *objectHandler[I, O]) Call(ctx ObjectContext, bytes []byte) ([]byte, err
 
 func (h *objectHandler[I, O]) InputPayload() *encoding.InputPayload {
 	var i I
-	return encoding.InputPayloadFor(h.options.codec, i)
+	return encoding.InputPayloadFor(h.options.Codec, i)
 }
 
 func (h *objectHandler[I, O]) OutputPayload() *encoding.OutputPayload {
 	var o O
-	return encoding.OutputPayloadFor(h.options.codec, o)
+	return encoding.OutputPayloadFor(h.options.Codec, o)
 }
 
-func (h *objectHandler[I, O]) getOptions() *objectHandlerOptions {
+func (h *objectHandler[I, O]) getOptions() *options.ObjectHandlerOptions {
 	return &h.options
 }
 
