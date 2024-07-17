@@ -3,7 +3,10 @@
 
 # Restate Go SDK
 
-[Restate](https://restate.dev/) is a system for easily building resilient applications using *distributed durable async/await*. This repository contains the Restate SDK for writing services in **Golang**.
+[Restate](https://restate.dev/) is a system for easily building resilient applications using *distributed durable async/await*. This repository contains the Restate SDK for writing services in **Golang**. This SDK has not yet seen
+a stable release and APIs are subject to change. Feedback is welcome via
+[issues](https://github.com/restatedev/sdk-go/issues/new) and in
+[Discord](https://discord.gg/skW3AZ6uGd).
 
 ## Features implemented
 
@@ -19,17 +22,18 @@
 
 ## Basic usage
 
-Please check [example](example) for a fully working example. The example tries to implement the same exact example provided by restate official docs and TypeScript SDK but with few changes. So I recommend you start there first before trying out this example.
+Please check [example](example) for a fully working example based on the
+[TypeScript ticket reservation example]
+(https://github.com/restatedev/examples/tree/main/patterns-use-cases/ticket-reservation/ticket-reservation-typescript)
 
 ### How to use the example
 
-Download and run restate [v0.8](https://github.com/restatedev/restate/releases/tag/v0.8.0)
+Download and run restate
+[v1.x](https://github.com/restatedev/restate/releases/)
 
 ```bash
-restate-server --wipe all
+restate-server
 ```
-
-> Generally you don't have to use `--wipe all` but that is mainly for testing to make sure you starting from clean state
 
 In another terminal run the example
 
@@ -38,13 +42,13 @@ cd restate-sdk-go/example
 go run .
 ```
 
-Registration
+In a third terminal register:
 
 ```bash
 restate deployments register --force -y http://localhost:9080
 ```
 
-In yet a third terminal do the following steps
+And do the following steps
 
 - Add tickets to basket
 
@@ -60,11 +64,27 @@ curl -v localhost:8080/UserSession/azmy/AddTicket \
 # {"response":true}
 ```
 
-Trying adding the same tickets again should return `false` since they are already reserved. If you didn't check out the tickets in 15min (if you are inpatient like me change the delay in code to make it shorter)
+Trying adding the same tickets again should return `false` since they are already reserved. If you didn't check out the tickets in 15min (if you are impatient change the delay in code to make it shorter)
 
-Finally checkout
+- Check out
 
 ```bash
 curl localhost:8080/UserSession/azmy/Checkout
 #{"response":true}
 ```
+
+## Versions
+
+This library follows [Semantic Versioning](https://semver.org/).
+
+The compatibility with Restate is described in the following table:
+
+| Restate Server\sdk-go | 0.9 |
+|-------------------------|-----|
+| 1.0                     | ✅   |
+
+## Contributing
+
+We’re excited if you join the Restate community and start contributing!
+Whether it is feature requests, bug reports, ideas & feedback or PRs, we appreciate any and all contributions.
+We know that your time is precious and, therefore, deeply value any effort to contribute!
