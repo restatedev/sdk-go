@@ -41,7 +41,7 @@ func (u *userSession) AddTicket(ctx restate.ObjectContext, ticketId string) (boo
 		return false, err
 	}
 
-	if err := ctx.Object(UserSessionServiceName, ticketId, "ExpireTicket").Send(ticketId, 15*time.Minute); err != nil {
+	if err := ctx.Object(UserSessionServiceName, userId, "ExpireTicket").Send(ticketId, 15*time.Minute); err != nil {
 		return false, err
 	}
 
