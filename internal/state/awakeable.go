@@ -18,7 +18,7 @@ func (c *Machine) awakeable() *futures.Awakeable {
 		c._awakeable,
 	)
 
-	return futures.NewAwakeable(c.suspensionCtx, c.id, entry, entryIndex)
+	return futures.NewAwakeable(c.suspensionCtx, c.request.ID, entry, entryIndex)
 }
 
 func (c *Machine) _awakeable() *wire.AwakeableEntryMessage {
