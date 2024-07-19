@@ -307,13 +307,15 @@ func (m *Machine) run(fn func(restate.RunContext) ([]byte, error)) ([]byte, erro
 
 type runContext struct {
 	context.Context
-	log *slog.Logger
+	log     *slog.Logger
+	request *restate.Request
 }
 
-func (r runContext) Log() *slog.Logger { return r.log }
+func (r runContext) Log() *slog.Logger         { return r.log }
+func (r runContext) Request() *restate.Request { return r.request }
 
 func (m *Machine) _run(fn func(restate.RunContext) ([]byte, error)) *wire.RunEntryMessage {
-	bytes, err := fn(runContext{m.ctx, m.userLog})
+	bytes, err := fn(runContext{m.ctx, m.userLog, &m.request})
 
 	if err != nil {
 		if restate.IsTerminalError(err) {

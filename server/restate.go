@@ -262,7 +262,7 @@ func (r *Restate) callHandler(serviceProtocolVersion protocol.ServiceProtocolVer
 
 	defer conn.Close()
 
-	machine := state.NewMachine(handler, conn)
+	machine := state.NewMachine(handler, conn, request.Header)
 
 	if err := machine.Start(request.Context(), r.dropReplayLogs, r.logHandler); err != nil {
 		r.systemLog.LogAttrs(request.Context(), slog.LevelError, "Failed to handle invocation", log.Error(err))

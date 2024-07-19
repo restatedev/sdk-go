@@ -47,6 +47,10 @@ func (c *Context) Log() *slog.Logger {
 	return c.machine.userLog
 }
 
+func (c *Context) Request() *restate.Request {
+	return &c.machine.request
+}
+
 func (c *Context) Rand() *rand.Rand {
 	return c.machine.rand
 }
@@ -266,8 +270,8 @@ type Machine struct {
 	protocol *wire.Protocol
 
 	// state
-	id  []byte
-	key string
+	key     string
+	request restate.Request
 
 	partial bool
 	current map[string][]byte
@@ -289,12 +293,15 @@ type Machine struct {
 	failure any
 }
 
-func NewMachine(handler restate.Handler, conn io.ReadWriter) *Machine {
+func NewMachine(handler restate.Handler, conn io.ReadWriter, attemptHeaders map[string][]string) *Machine {
 	m := &Machine{
 		handler:            handler,
 		current:            make(map[string][]byte),
 		pendingAcks:        map[uint32]wire.AckableMessage{},
 		pendingCompletions: map[uint32]wire.CompleteableMessage{},
+		request: restate.Request{
+			AttemptHeaders: attemptHeaders,
+		},
 	}
 	m.protocol = wire.NewProtocol(conn)
 	return m
@@ -317,8 +324,8 @@ func (m *Machine) Start(inner context.Context, dropReplayLogs bool, logHandler s
 
 	m.ctx = inner
 	m.suspensionCtx, m.suspend = context.WithCancelCause(m.ctx)
-	m.id = start.Id
-	m.rand = rand.New(m.id)
+	m.request.ID = start.Id
+	m.rand = rand.New(m.request.ID)
 	m.key = start.Key
 
 	logHandler = logHandler.WithAttrs([]slog.Attr{slog.String("invocationID", start.DebugId)})
@@ -331,7 +338,7 @@ func (m *Machine) Start(inner context.Context, dropReplayLogs bool, logHandler s
 	return m.process(ctx, start)
 }
 
-func (m *Machine) invoke(ctx *Context, input []byte, outputSeen bool) error {
+func (m *Machine) invoke(ctx *Context, outputSeen bool) error {
 	// always terminate the invocation with
 	// an end message.
 	// this will always terminate the connection
@@ -485,9 +492,9 @@ The journal entry at position %d was:
 	var err error
 	switch handler := m.handler.(type) {
 	case restate.ObjectHandler:
-		bytes, err = handler.Call(ctx, input)
+		bytes, err = handler.Call(ctx, m.request.Body)
 	case restate.ServiceHandler:
-		bytes, err = handler.Call(ctx, input)
+		bytes, err = handler.Call(ctx, m.request.Body)
 	}
 
 	if err != nil && restate.IsTerminalError(err) {
@@ -580,9 +587,16 @@ func (m *Machine) process(ctx *Context, start *wire.StartMessage) error {
 	go m.handleCompletionsAcks()
 
 	inputMsg := msg.(*wire.InputEntryMessage)
-	value := inputMsg.GetValue()
-	return m.invoke(ctx, value, outputSeen)
+	m.request.Body = inputMsg.GetValue()
 
+	if len(inputMsg.GetHeaders()) > 0 {
+		m.request.Headers = make(map[string]string, len(inputMsg.Headers))
+		for _, header := range inputMsg.Headers {
+			m.request.Headers[header.Key] = header.Value
+		}
+	}
+
+	return m.invoke(ctx, outputSeen)
 }
 
 func (c *Machine) currentEntry() (wire.Message, bool) {
