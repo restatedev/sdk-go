@@ -57,11 +57,11 @@ curl -v localhost:8080/UserSession/azmy/AddTicket \
     -H 'content-type: application/json' \
     -d '"ticket-1"'
 
-# {"response":true}
+# true
 curl -v localhost:8080/UserSession/azmy/AddTicket \
     -H 'content-type: application/json' \
     -d '"ticket-2"'
-# {"response":true}
+# true
 ```
 
 Trying adding the same tickets again should return `false` since they are already reserved. If you didn't check out the tickets in 15min (if you are impatient change the delay in code to make it shorter)
@@ -70,7 +70,7 @@ Trying adding the same tickets again should return `false` since they are alread
 
 ```bash
 curl localhost:8080/UserSession/azmy/Checkout
-#{"response":true}
+# true
 ```
 
 ## Versions
