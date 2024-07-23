@@ -553,7 +553,8 @@ func (m *Machine) process(ctx *Context, start *wire.StartMessage) error {
 		return err
 	}
 
-	if _, ok := msg.(*wire.InputEntryMessage); !ok {
+	inputMsg, ok := msg.(*wire.InputEntryMessage)
+	if !ok {
 		return wire.ErrUnexpectedMessage
 	}
 
@@ -587,7 +588,6 @@ func (m *Machine) process(ctx *Context, start *wire.StartMessage) error {
 
 	go m.handleCompletionsAcks()
 
-	inputMsg := msg.(*wire.InputEntryMessage)
 	m.request.Body = inputMsg.GetValue()
 
 	if len(inputMsg.GetHeaders()) > 0 {
