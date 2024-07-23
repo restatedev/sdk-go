@@ -12,7 +12,7 @@ func GetAs[T any](ctx ObjectSharedContext, key string, options ...options.GetOpt
 }
 
 // RunAs executes a Run function on a [Context], returning a typed response instead of accepting a pointer
-func RunAs[T any](ctx Context, fn func(RunContext) (T, error), options ...options.RunOption) (output T, err error) {
+func RunAs[T any](ctx Context, fn func(ctx RunContext) (T, error), options ...options.RunOption) (output T, err error) {
 	err = ctx.Run(func(ctx RunContext) (any, error) {
 		return fn(ctx)
 	}, &output, options...)

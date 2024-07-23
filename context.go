@@ -40,7 +40,7 @@ type Context interface {
 	// all non-deterministic operations (eg, generating a unique ID) *must* happen
 	// inside Run blocks.
 	// Note: use the RunAs helper function to get typed output values instead of providing an output pointer
-	Run(fn func(RunContext) (any, error), output any, opts ...options.RunOption) error
+	Run(fn func(ctx RunContext) (any, error), output any, opts ...options.RunOption) error
 
 	// Awakeable returns a Restate awakeable; a 'promise' to a future
 	// value or error, that can be resolved or rejected by other services.
