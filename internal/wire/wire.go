@@ -11,8 +11,8 @@ import (
 	"sync"
 	"sync/atomic"
 
-	_go "github.com/restatedev/sdk-go/generated/proto/go"
-	protocol "github.com/restatedev/sdk-go/generated/proto/protocol"
+	"github.com/restatedev/sdk-go/generated/dev/restate/sdk"
+	protocol "github.com/restatedev/sdk-go/generated/dev/restate/service"
 	"google.golang.org/protobuf/proto"
 )
 
@@ -567,7 +567,7 @@ var _ AckableMessage = (*RunEntryMessage)(nil)
 
 type SelectorEntryMessage struct {
 	ackable
-	_go.SelectorEntryMessage
+	sdk.SelectorEntryMessage
 }
 
 var _ AckableMessage = (*SelectorEntryMessage)(nil)
