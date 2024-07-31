@@ -10,7 +10,8 @@ import (
 )
 
 func init() {
-	// TODO register services
+	RegisterCoordinator()
+	RegisterReceiver()
 }
 
 func main() {

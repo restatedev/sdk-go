@@ -13,7 +13,6 @@ exclusions:
   - "dev.restate.sdktesting.tests.WorkflowAPI"
   - "dev.restate.sdktesting.tests.UserErrors"
   - "dev.restate.sdktesting.tests.State"
-  - "dev.restate.sdktesting.tests.ServiceToServiceCommunication"
   - "dev.restate.sdktesting.tests.Sleep"
   - "dev.restate.sdktesting.tests.RequestSigning"
   - "dev.restate.sdktesting.tests.CancelInvocation"
@@ -27,7 +26,6 @@ exclusions:
   - "dev.restate.sdktesting.tests.WorkflowAPI"
   - "dev.restate.sdktesting.tests.UserErrors"
   - "dev.restate.sdktesting.tests.State"
-  - "dev.restate.sdktesting.tests.ServiceToServiceCommunication"
   - "dev.restate.sdktesting.tests.Sleep"
   "singleThreadSinglePartition":
   - "dev.restate.sdktesting.tests.KafkaIngressTest"
@@ -43,7 +41,6 @@ exclusions:
   - "dev.restate.sdktesting.tests.WorkflowAPI"
   - "dev.restate.sdktesting.tests.UserErrors"
   - "dev.restate.sdktesting.tests.State"
-  - "dev.restate.sdktesting.tests.ServiceToServiceCommunication"
   - "dev.restate.sdktesting.tests.Sleep"
   - "dev.restate.sdktesting.tests.RequestSigning"
   - "dev.restate.sdktesting.tests.CancelInvocation"
