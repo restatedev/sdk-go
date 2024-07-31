@@ -1,6 +1,10 @@
 name: Go
 on: [push]
 
+permissions:
+  checks: write
+  pull-requests: write
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -40,7 +44,7 @@ jobs:
       - name: Setup ko
         uses: ko-build/setup-ko@v0.6
       - name: Setup sdk-test-suite
-        run: wget https://github.com/restatedev/sdk-test-suite/releases/download/v${{ matrix.sdk-test-suite }}/restate-sdk-test-suite.jar
+        run: wget --no-verbose https://github.com/restatedev/sdk-test-suite/releases/download/v${{ matrix.sdk-test-suite }}/restate-sdk-test-suite.jar
 
       # Build docker image
       - name: Install dependencies
