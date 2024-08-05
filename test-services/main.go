@@ -10,8 +10,8 @@ import (
 )
 
 func init() {
-	RegisterCoordinator()
-	RegisterReceiver()
+	RegisterProxy()
+	RegisterCounter()
 }
 
 func main() {
