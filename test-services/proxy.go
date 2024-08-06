@@ -18,7 +18,7 @@ type ManyCallRequest struct {
 	AwaitAtTheEnd bool         `json:"awaitAtTheEnd"`
 }
 
-func RegisterProxy() {
+func init() {
 	REGISTRY.AddRouter(
 		restate.NewServiceRouter("Proxy").
 			Handler("call", restate.NewServiceHandler(

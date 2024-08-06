@@ -1,0 +1,31 @@
+package main
+
+import (
+	restate "github.com/restatedev/sdk-go"
+)
+
+func init() {
+	REGISTRY.AddRouter(restate.NewServiceRouter("KillTestRunner").Handler("startCallTree", restate.NewServiceHandler(func(ctx restate.Context, _ restate.Void) (restate.Void, error) {
+		return restate.Void{}, ctx.Object("KillTestSingleton", "", "recursiveCall").Request(restate.Void{}, restate.Void{})
+	})))
+
+	REGISTRY.AddRouter(
+		restate.NewObjectRouter("KillTestSingleton").
+			Handler("recursiveCall", restate.NewObjectHandler(
+				func(ctx restate.ObjectContext, _ restate.Void) (restate.Void, error) {
+					awakeable := ctx.Awakeable()
+					if err := ctx.Object("AwakeableHolder", "kill", "hold").Send(awakeable.Id(), 0); err != nil {
+						return restate.Void{}, err
+					}
+					if err := awakeable.Result(restate.Void{}); err != nil {
+						return restate.Void{}, err
+					}
+
+					return restate.CallAs[restate.Void](ctx.Object("KillTestSingleton", "", "recursiveCall")).Request(restate.Void{})
+				})).
+			Handler("isUnlocked", restate.NewObjectHandler(
+				func(ctx restate.ObjectContext, _ restate.Void) (restate.Void, error) {
+					// no-op
+					return restate.Void{}, nil
+				})))
+}

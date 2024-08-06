@@ -9,11 +9,6 @@ import (
 	"github.com/restatedev/sdk-go/server"
 )
 
-func init() {
-	RegisterProxy()
-	RegisterCounter()
-}
-
 func main() {
 	services := "*"
 	if os.Getenv("SERVICES") != "" {
