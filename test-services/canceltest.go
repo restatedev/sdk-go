@@ -53,11 +53,9 @@ func init() {
 					case CALL:
 						return restate.Void{}, ctx.Object("CancelTestBlockingService", "", "block").Request(operation, restate.Void{})
 					case SLEEP:
-						ctx.Sleep(1024 * time.Hour * 24)
-						return restate.Void{}, nil
+						return restate.Void{}, ctx.Sleep(1024 * time.Hour * 24)
 					case AWAKEABLE:
-						ctx.Awakeable().Result(restate.Void{})
-						return restate.Void{}, nil
+						return restate.Void{}, ctx.Awakeable().Result(restate.Void{})
 					default:
 						return restate.Void{}, restate.TerminalError(fmt.Errorf("unexpected operation %s", operation), 400)
 					}

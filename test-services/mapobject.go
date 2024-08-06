@@ -35,6 +35,7 @@ func init() {
 						}
 						out = append(out, Entry{Key: k, Value: value})
 					}
+					ctx.ClearAll()
 					return out, nil
 				})))
 }

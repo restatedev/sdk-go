@@ -109,8 +109,8 @@ func (c *Context) Keys() []string {
 	return c.machine.keys()
 }
 
-func (c *Context) Sleep(d time.Duration) {
-	c.machine.sleep(d)
+func (c *Context) Sleep(d time.Duration) error {
+	return c.machine.sleep(d)
 }
 
 func (c *Context) After(d time.Duration) restate.After {
@@ -545,6 +545,7 @@ func (m *Machine) process(ctx *Context, start *wire.StartMessage) error {
 	for _, entry := range start.StateMap {
 		m.current[string(entry.Key)] = entry.Value
 	}
+	m.partial = start.PartialState
 
 	// expect input message
 	msg, _, err := m.protocol.Read()

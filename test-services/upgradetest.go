@@ -21,7 +21,7 @@ func init() {
 			Handler("executeComplex", restate.NewServiceHandler(
 				func(ctx restate.Context, _ restate.Void) (string, error) {
 					if version() != "v1" {
-						return "", restate.TerminalError(fmt.Errorf("executeComplex should not be invoked with version different from 1!"))
+						return "", fmt.Errorf("executeComplex should not be invoked with version different from 1!")
 					}
 					awakeable := restate.AwakeableAs[string](ctx)
 					if err := ctx.Object("AwakeableHolder", "upgrade", "hold").Send(awakeable.Id(), 0); err != nil {

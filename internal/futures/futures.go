@@ -27,8 +27,16 @@ func NewAfter(suspensionCtx context.Context, entry *wire.SleepEntryMessage, entr
 	return &After{suspensionCtx, entry, entryIndex}
 }
 
-func (a *After) Done() {
+func (a *After) Done() error {
 	a.entry.Await(a.suspensionCtx, a.entryIndex)
+	switch result := a.entry.Result.(type) {
+	case *protocol.SleepEntryMessage_Empty:
+		return nil
+	case *protocol.SleepEntryMessage_Failure:
+		return errors.ErrorFromFailure(result.Failure)
+	default:
+		return fmt.Errorf("sleep entry had invalid result: %v", a.entry.Result)
+	}
 }
 
 func (a *After) getEntry() (wire.CompleteableMessage, uint32) {
