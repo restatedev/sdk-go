@@ -19,8 +19,8 @@ type Context interface {
 	// This source is not safe for use inside .Run()
 	Rand() *rand.Rand
 
-	// Sleep for the duration d
-	Sleep(d time.Duration)
+	// Sleep for the duration d. Can return a terminal error in the case where the invocation was cancelled mid-sleep.
+	Sleep(d time.Duration) error
 	// After is an alternative to Context.Sleep which allows you to complete other tasks concurrently
 	// with the sleep. This is particularly useful when combined with Context.Select to race between
 	// the sleep and other Selectable operations.
@@ -146,9 +146,10 @@ type Request struct {
 // with the sleep.
 type After interface {
 	// Done blocks waiting on the remaining duration of the sleep.
-	// It is *not* safe to call this in a goroutine - use Context.Select if you
-	// want to wait on multiple results at once.
-	Done()
+	// It is *not* safe to call this in a goroutine - use Context.Select if you want to wait on multiple
+	// results at once. Can return a terminal error in the case where the invocation was cancelled mid-sleep,
+	// hence Done() should always be called, even after using Context.Select.
+	Done() error
 	Selectable
 }
 

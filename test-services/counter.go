@@ -3,6 +3,7 @@ package main
 import (
 	"errors"
 	"fmt"
+
 	restate "github.com/restatedev/sdk-go"
 )
 
@@ -13,7 +14,7 @@ type CounterUpdateResponse struct {
 	NewValue int64 `json:"newValue"`
 }
 
-func RegisterCounter() {
+func init() {
 	REGISTRY.AddRouter(
 		restate.NewObjectRouter("Counter").
 			Handler("reset", restate.NewObjectHandler(

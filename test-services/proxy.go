@@ -12,127 +12,73 @@ type ProxyRequest struct {
 	Message []int `json:"message"`
 }
 
+func (req *ProxyRequest) ToTarget(ctx restate.Context) restate.TypedCallClient[[]byte] {
+	if req.VirtualObjectKey != nil {
+		return restate.CallAs[[]byte](ctx.Object(
+			req.ServiceName,
+			*req.VirtualObjectKey,
+			req.HandlerName,
+			restate.WithBinary))
+	} else {
+		return restate.CallAs[[]byte](ctx.Service(
+			req.ServiceName,
+			req.HandlerName,
+			restate.WithBinary))
+	}
+}
+
 type ManyCallRequest struct {
 	ProxyRequest  ProxyRequest `json:"proxyRequest"`
 	OneWayCall    bool         `json:"oneWayCall"`
 	AwaitAtTheEnd bool         `json:"awaitAtTheEnd"`
 }
 
-func RegisterProxy() {
+func init() {
 	REGISTRY.AddRouter(
 		restate.NewServiceRouter("Proxy").
 			Handler("call", restate.NewServiceHandler(
 				// We need to use []int because Golang takes the opinionated choice of treating []byte as Base64
 				func(ctx restate.Context, req ProxyRequest) ([]int, error) {
 					input := intArrayToByteArray(req.Message)
-					if req.VirtualObjectKey != nil {
-						var output []byte
-						err := ctx.Object(
-							req.ServiceName,
-							*req.VirtualObjectKey,
-							req.HandlerName,
-							restate.WithBinary).
-							Request(input, &output)
-						if err != nil {
-							return nil, err
-						}
-						return byteArrayToIntArray(output), nil
-					} else {
-						var output []byte
-						err := ctx.Service(
-							req.ServiceName,
-							req.HandlerName,
-							restate.WithBinary).
-							Request(input, &output)
-						if err != nil {
-							return nil, err
-						}
-						return byteArrayToIntArray(output), nil
-					}
+					bytes, err := req.ToTarget(ctx).Request(input)
+					return byteArrayToIntArray(bytes), err
 				})).
 			Handler("oneWayCall", restate.NewServiceHandler(
 				// We need to use []int because Golang takes the opinionated choice of treating []byte as Base64
 				func(ctx restate.Context, req ProxyRequest) (restate.Void, error) {
 					input := intArrayToByteArray(req.Message)
-					if req.VirtualObjectKey != nil {
-						err := ctx.Object(
-							req.ServiceName,
-							*req.VirtualObjectKey,
-							req.HandlerName,
-							restate.WithBinary).
-							Send(input, 0)
-						return restate.Void{}, err
-					} else {
-						err := ctx.Service(
-							req.ServiceName,
-							req.HandlerName,
-							restate.WithBinary).
-							Send(input, 0)
-						return restate.Void{}, err
-					}
+					return restate.Void{}, req.ToTarget(ctx).Send(input, 0)
 				})).
 			Handler("manyCalls", restate.NewServiceHandler(
 				// We need to use []int because Golang takes the opinionated choice of treating []byte as Base64
 				func(ctx restate.Context, requests []ManyCallRequest) (restate.Void, error) {
-					var toAwait []restate.ResponseFuture
+					var toAwait []restate.Selectable
 
 					for _, req := range requests {
 						input := intArrayToByteArray(req.ProxyRequest.Message)
 						if req.OneWayCall {
-							if req.ProxyRequest.VirtualObjectKey != nil {
-								err := ctx.Object(
-									req.ProxyRequest.ServiceName,
-									*req.ProxyRequest.VirtualObjectKey,
-									req.ProxyRequest.HandlerName,
-									restate.WithBinary).
-									Send(input, 0)
-								return restate.Void{}, err
-							} else {
-								err := ctx.Service(
-									req.ProxyRequest.ServiceName,
-									req.ProxyRequest.HandlerName,
-									restate.WithBinary).
-									Send(input, 0)
+							if err := req.ProxyRequest.ToTarget(ctx).Send(input, 0); err != nil {
 								return restate.Void{}, err
 							}
 						} else {
-							if req.ProxyRequest.VirtualObjectKey != nil {
-								fut, err := ctx.Object(
-									req.ProxyRequest.ServiceName,
-									*req.ProxyRequest.VirtualObjectKey,
-									req.ProxyRequest.HandlerName,
-									restate.WithBinary).
-									RequestFuture(input)
-								if err != nil {
-									return restate.Void{}, err
-								}
-								if req.AwaitAtTheEnd {
-									toAwait = append(toAwait, fut)
-								}
-							} else {
-								fut, err := ctx.Service(
-									req.ProxyRequest.ServiceName,
-									req.ProxyRequest.HandlerName,
-									restate.WithBinary).
-									RequestFuture(input)
-								if err != nil {
-									return restate.Void{}, err
-								}
-								if req.AwaitAtTheEnd {
-									toAwait = append(toAwait, fut)
-								}
+							fut, err := req.ProxyRequest.ToTarget(ctx).RequestFuture(input)
+							if err != nil {
+								return restate.Void{}, err
+							}
+							if req.AwaitAtTheEnd {
+								toAwait = append(toAwait, fut)
 							}
 						}
 					}
 
-					// TODO replace this with select
-					for _, fut := range toAwait {
-						var output []byte
-						err := fut.Response(&output)
-						if err != nil {
+					selector := ctx.Select(toAwait...)
+					for selector.Remaining() {
+						result := selector.Select()
+						if _, err := result.(restate.TypedResponseFuture[[]byte]).Response(); err != nil {
 							return restate.Void{}, err
 						}
 					}
+
 					return restate.Void{}, nil
 				})))
 }

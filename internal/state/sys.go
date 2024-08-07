@@ -236,8 +236,6 @@ func (m *Machine) _keys() *wire.GetStateKeysEntryMessage {
 		}
 
 		// we can return keys entirely from cache
-		// current is complete. we need to return nil to the user
-		// but also send an empty get state entry message
 		msg.Complete(&protocol.CompletionMessage{Result: &protocol.CompletionMessage_Value{
 			Value: value,
 		}})
@@ -262,8 +260,8 @@ func (m *Machine) after(d time.Duration) *futures.After {
 	return futures.NewAfter(m.suspensionCtx, entry, entryIndex)
 }
 
-func (m *Machine) sleep(d time.Duration) {
-	m.after(d).Done()
+func (m *Machine) sleep(d time.Duration) error {
+	return m.after(d).Done()
 }
 
 // _sleep creating a new sleep entry.
