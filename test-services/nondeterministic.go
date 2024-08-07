@@ -23,7 +23,7 @@ func init() {
 		return invocationCounts[countKey]%2 == 1
 	}
 	incrementCounter := func(ctx restate.ObjectContext) error {
-		return ctx.Object("Counter", "abc", "add").Send(int64(1), 0)
+		return ctx.Object("Counter", ctx.Key(), "add").Send(int64(1), 0)
 	}
 
 	REGISTRY.AddRouter(
