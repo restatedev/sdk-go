@@ -9,14 +9,14 @@ import (
 )
 
 var health = restate.
-	NewServiceRouter("health").
+	NewService("health").
 	Handler("ping", restate.NewServiceHandler(
 		func(restate.Context, restate.Void) (restate.Void, error) {
 			return restate.Void{}, nil
 		}))
 
 var bigCounter = restate.
-	NewObjectRouter("bigCounter").
+	NewObject("bigCounter").
 	Handler("add", restate.NewObjectHandler(
 		func(ctx restate.ObjectContext, deltaText string) (string, error) {
 			delta, ok := big.NewInt(0).SetString(deltaText, 10)

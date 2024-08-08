@@ -10,8 +10,8 @@ type Entry struct {
 }
 
 func init() {
-	REGISTRY.AddRouter(
-		restate.NewObjectRouter("MapObject").
+	REGISTRY.AddDefinition(
+		restate.NewObject("MapObject").
 			Handler("set", restate.NewObjectHandler(
 				func(ctx restate.ObjectContext, value Entry) (restate.Void, error) {
 					return restate.Void{}, ctx.Set(value.Key, value.Value)

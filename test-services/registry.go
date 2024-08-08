@@ -22,10 +22,10 @@ func (r *Registry) Add(c Component) {
 	r.components[c.Fqdn] = c
 }
 
-func (r *Registry) AddRouter(router restate.Router) {
+func (r *Registry) AddDefinition(definition restate.ServiceDefinition) {
 	r.Add(Component{
-		Fqdn:   router.Name(),
-		Binder: func(e *server.Restate) { e.Bind(router) },
+		Fqdn:   definition.Name(),
+		Binder: func(e *server.Restate) { e.Bind(definition) },
 	})
 }
 

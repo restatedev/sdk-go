@@ -15,8 +15,8 @@ type CounterUpdateResponse struct {
 }
 
 func init() {
-	REGISTRY.AddRouter(
-		restate.NewObjectRouter("Counter").
+	REGISTRY.AddDefinition(
+		restate.NewObject("Counter").
 			Handler("reset", restate.NewObjectHandler(
 				func(ctx restate.ObjectContext, _ restate.Void) (restate.Void, error) {
 					ctx.Clear(COUNTER_KEY)

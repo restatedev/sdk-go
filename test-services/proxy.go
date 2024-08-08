@@ -34,8 +34,8 @@ type ManyCallRequest struct {
 }
 
 func init() {
-	REGISTRY.AddRouter(
-		restate.NewServiceRouter("Proxy").
+	REGISTRY.AddDefinition(
+		restate.NewService("Proxy").
 			Handler("call", restate.NewServiceHandler(
 				// We need to use []int because Golang takes the opinionated choice of treating []byte as Base64
 				func(ctx restate.Context, req ProxyRequest) ([]int, error) {

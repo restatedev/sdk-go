@@ -66,18 +66,18 @@ type ObjectHandlerOption interface {
 	BeforeObjectHandler(*ObjectHandlerOptions)
 }
 
-type ServiceRouterOptions struct {
+type ServiceOptions struct {
 	DefaultCodec encoding.PayloadCodec
 }
 
-type ServiceRouterOption interface {
-	BeforeServiceRouter(*ServiceRouterOptions)
+type ServiceOption interface {
+	BeforeService(*ServiceOptions)
 }
 
-type ObjectRouterOptions struct {
+type ObjectOptions struct {
 	DefaultCodec encoding.PayloadCodec
 }
 
-type ObjectRouterOption interface {
-	BeforeObjectRouter(*ObjectRouterOptions)
+type ObjectOption interface {
+	BeforeObject(*ObjectOptions)
 }

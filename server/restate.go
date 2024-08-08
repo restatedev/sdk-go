@@ -45,7 +45,7 @@ type Restate struct {
 	logHandler     slog.Handler
 	dropReplayLogs bool
 	systemLog      *slog.Logger
-	routers        map[string]restate.Router
+	definitions    map[string]restate.ServiceDefinition
 	keyIDs         []string
 	keySet         identity.KeySetV1
 	protocolMode   internal.ProtocolMode
@@ -58,7 +58,7 @@ func NewRestate() *Restate {
 		logHandler:     handler,
 		systemLog:      slog.New(log.NewRestateContextHandler(handler)),
 		dropReplayLogs: true,
-		routers:        make(map[string]restate.Router),
+		definitions:    make(map[string]restate.ServiceDefinition),
 		protocolMode:   internal.ProtocolMode_BIDI_STREAM,
 	}
 }
@@ -95,15 +95,15 @@ func (r *Restate) Bidirectional(bidi bool) *Restate {
 	return r
 }
 
-// Bind attaches a Router (a Service or Virtual Object) to this server
-func (r *Restate) Bind(router restate.Router) *Restate {
-	if _, ok := r.routers[router.Name()]; ok {
+// Bind attaches a Service Definition (a Service or Virtual Object) to this server
+func (r *Restate) Bind(definition restate.ServiceDefinition) *Restate {
+	if _, ok := r.definitions[definition.Name()]; ok {
 		// panic because this is a programming error
-		// to register multiple router with the same name
-		panic("router with the same name exists")
+		// to register multiple definitions with the same name
+		panic("service definition with the same name exists")
 	}
 
-	r.routers[router.Name()] = router
+	r.definitions[definition.Name()] = definition
 
 	return r
 }
@@ -113,17 +113,17 @@ func (r *Restate) discover() (resource *internal.Endpoint, err error) {
 		ProtocolMode:       r.protocolMode,
 		MinProtocolVersion: int32(minServiceProtocolVersion),
 		MaxProtocolVersion: int32(maxServiceDiscoveryProtocolVersion),
-		Services:           make([]internal.Service, 0, len(r.routers)),
+		Services:           make([]internal.Service, 0, len(r.definitions)),
 	}
 
-	for name, router := range r.routers {
+	for name, definition := range r.definitions {
 		service := internal.Service{
 			Name:     name,
-			Ty:       router.Type(),
-			Handlers: make([]internal.Handler, 0, len(router.Handlers())),
+			Ty:       definition.Type(),
+			Handlers: make([]internal.Handler, 0, len(definition.Handlers())),
 		}
 
-		for name, handler := range router.Handlers() {
+		for name, handler := range definition.Handlers() {
 			service.Handlers = append(service.Handlers, internal.Handler{
 				Name:   name,
 				Input:  handler.InputPayload(),
@@ -244,13 +244,13 @@ func (r *Restate) callHandler(serviceProtocolVersion protocol.ServiceProtocolVer
 	writer.Header().Add("x-restate-server", xRestateServer)
 	writer.Header().Add("content-type", serviceProtocolVersionToHeaderValue(serviceProtocolVersion))
 
-	router, ok := r.routers[service]
+	definition, ok := r.definitions[service]
 	if !ok {
 		logger.WarnContext(request.Context(), "Service not found")
 		writer.WriteHeader(http.StatusNotFound)
 		return
 	}
-	handler, ok := router.Handlers()[method]
+	handler, ok := definition.Handlers()[method]
 	if !ok {
 		logger.WarnContext(request.Context(), "Method not found on service")
 		writer.WriteHeader(http.StatusNotFound)
@@ -339,7 +339,7 @@ func (r *Restate) handler(writer http.ResponseWriter, request *http.Request) {
 	r.callHandler(serviceProtocolVersion, parts[0], parts[1], writer, request)
 }
 
-// Handler obtains a [http.HandlerFunc] representing the bound routers which can be passed to other types of server.
+// Handler obtains a [http.HandlerFunc] representing the bound services which can be passed to other types of server.
 // Ensure that .Bidirectional(false) is set when serving over a channel that doesn't support full-duplex request and response.
 func (r *Restate) Handler() (http.HandlerFunc, error) {
 	if r.keyIDs == nil {
@@ -356,7 +356,7 @@ func (r *Restate) Handler() (http.HandlerFunc, error) {
 	return http.HandlerFunc(r.handler), nil
 }
 
-// Start starts a HTTP2 server serving the bound routers
+// Start starts a HTTP2 server serving the bound services
 func (r *Restate) Start(ctx context.Context, address string) error {
 	handler, err := r.Handler()
 	if err != nil {

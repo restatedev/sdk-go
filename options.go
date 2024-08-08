@@ -39,9 +39,9 @@ type withPayloadCodec struct {
 }
 
 var _ options.ServiceHandlerOption = withPayloadCodec{}
-var _ options.ServiceRouterOption = withPayloadCodec{}
+var _ options.ServiceOption = withPayloadCodec{}
 var _ options.ObjectHandlerOption = withPayloadCodec{}
-var _ options.ObjectRouterOption = withPayloadCodec{}
+var _ options.ObjectOption = withPayloadCodec{}
 
 func (w withPayloadCodec) BeforeServiceHandler(opts *options.ServiceHandlerOptions) {
 	opts.Codec = w.codec
@@ -49,14 +49,14 @@ func (w withPayloadCodec) BeforeServiceHandler(opts *options.ServiceHandlerOptio
 func (w withPayloadCodec) BeforeObjectHandler(opts *options.ObjectHandlerOptions) {
 	opts.Codec = w.codec
 }
-func (w withPayloadCodec) BeforeServiceRouter(opts *options.ServiceRouterOptions) {
+func (w withPayloadCodec) BeforeService(opts *options.ServiceOptions) {
 	opts.DefaultCodec = w.codec
 }
-func (w withPayloadCodec) BeforeObjectRouter(opts *options.ObjectRouterOptions) {
+func (w withPayloadCodec) BeforeObject(opts *options.ObjectOptions) {
 	opts.DefaultCodec = w.codec
 }
 
-// withPayloadCodec is an option that can be provided to handler/router options
+// withPayloadCodec is an option that can be provided to handler/service options
 // in order to specify a custom [encoding.PayloadCodec] with which to (de)serialise and
 // set content-types instead of the default of JSON.
 //

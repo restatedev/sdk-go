@@ -5,12 +5,12 @@ import (
 )
 
 func init() {
-	REGISTRY.AddRouter(restate.NewServiceRouter("KillTestRunner").Handler("startCallTree", restate.NewServiceHandler(func(ctx restate.Context, _ restate.Void) (restate.Void, error) {
+	REGISTRY.AddDefinition(restate.NewService("KillTestRunner").Handler("startCallTree", restate.NewServiceHandler(func(ctx restate.Context, _ restate.Void) (restate.Void, error) {
 		return restate.Void{}, ctx.Object("KillTestSingleton", "", "recursiveCall").Request(restate.Void{}, restate.Void{})
 	})))
 
-	REGISTRY.AddRouter(
-		restate.NewObjectRouter("KillTestSingleton").
+	REGISTRY.AddDefinition(
+		restate.NewObject("KillTestSingleton").
 			Handler("recursiveCall", restate.NewObjectHandler(
 				func(ctx restate.ObjectContext, _ restate.Void) (restate.Void, error) {
 					awakeable := ctx.Awakeable()
