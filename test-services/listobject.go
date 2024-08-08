@@ -7,8 +7,8 @@ import (
 const LIST_KEY = "list"
 
 func init() {
-	REGISTRY.AddRouter(
-		restate.NewObjectRouter("ListObject").
+	REGISTRY.AddDefinition(
+		restate.NewObject("ListObject").
 			Handler("append", restate.NewObjectHandler(
 				func(ctx restate.ObjectContext, value string) (restate.Void, error) {
 					list, err := restate.GetAs[[]string](ctx, LIST_KEY)

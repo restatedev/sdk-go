@@ -18,8 +18,8 @@ const (
 )
 
 func init() {
-	REGISTRY.AddRouter(
-		restate.NewObjectRouter("CancelTestRunner").
+	REGISTRY.AddDefinition(
+		restate.NewObject("CancelTestRunner").
 			Handler("startTest", restate.NewObjectHandler(
 				func(ctx restate.ObjectContext, operation BlockingOperation) (restate.Void, error) {
 					if err := ctx.Object("CancelTestBlockingService", "", "block").Request(operation, restate.Void{}); err != nil {
@@ -38,8 +38,8 @@ func init() {
 					}
 					return canceled, nil
 				})))
-	REGISTRY.AddRouter(
-		restate.NewObjectRouter("CancelTestBlockingService").
+	REGISTRY.AddDefinition(
+		restate.NewObject("CancelTestBlockingService").
 			Handler("block", restate.NewObjectHandler(
 				func(ctx restate.ObjectContext, operation BlockingOperation) (restate.Void, error) {
 					awakeable := ctx.Awakeable()

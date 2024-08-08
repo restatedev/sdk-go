@@ -6,33 +6,33 @@ import (
 	"github.com/restatedev/sdk-go/internal/options"
 )
 
-// Router is the set of methods implemented by both services and virtual objects
-type Router interface {
+// ServiceDefinition is the set of methods implemented by both services and virtual objects
+type ServiceDefinition interface {
 	Name() string
 	Type() internal.ServiceType
-	// Set of handlers associated with this router
+	// Set of handlers associated with this service definition
 	Handlers() map[string]Handler
 }
 
-// ServiceRouter stores a list of handlers under a named Service
-type ServiceRouter struct {
+// service stores a list of handlers under a named Service
+type service struct {
 	name     string
 	handlers map[string]Handler
-	options  options.ServiceRouterOptions
+	options  options.ServiceOptions
 }
 
-var _ Router = &ServiceRouter{}
+var _ ServiceDefinition = &service{}
 
-// NewServiceRouter creates a new named Service
-func NewServiceRouter(name string, opts ...options.ServiceRouterOption) *ServiceRouter {
-	o := options.ServiceRouterOptions{}
+// NewService creates a new named Service
+func NewService(name string, opts ...options.ServiceOption) *service {
+	o := options.ServiceOptions{}
 	for _, opt := range opts {
-		opt.BeforeServiceRouter(&o)
+		opt.BeforeService(&o)
 	}
 	if o.DefaultCodec == nil {
 		o.DefaultCodec = encoding.JSONCodec
 	}
-	return &ServiceRouter{
+	return &service{
 		name:     name,
 		handlers: make(map[string]Handler),
 		options:  o,
@@ -40,12 +40,12 @@ func NewServiceRouter(name string, opts ...options.ServiceRouterOption) *Service
 }
 
 // Name returns the name of this Service
-func (r *ServiceRouter) Name() string {
+func (r *service) Name() string {
 	return r.name
 }
 
 // Handler registers a new Service handler by name
-func (r *ServiceRouter) Handler(name string, handler ServiceHandler) *ServiceRouter {
+func (r *service) Handler(name string, handler ServiceHandler) *service {
 	if handler.getOptions().Codec == nil {
 		handler.getOptions().Codec = r.options.DefaultCodec
 	}
@@ -54,34 +54,34 @@ func (r *ServiceRouter) Handler(name string, handler ServiceHandler) *ServiceRou
 }
 
 // Handlers returns the list of handlers in this Service
-func (r *ServiceRouter) Handlers() map[string]Handler {
+func (r *service) Handlers() map[string]Handler {
 	return r.handlers
 }
 
-// Type implements [Router] by returning [internal.ServiceType_SERVICE]
-func (r *ServiceRouter) Type() internal.ServiceType {
+// Type implements [ServiceDefinition] by returning [internal.ServiceType_SERVICE]
+func (r *service) Type() internal.ServiceType {
 	return internal.ServiceType_SERVICE
 }
 
-// ObjectRouter stores a list of handlers under a named Virtual Object
-type ObjectRouter struct {
+// object stores a list of handlers under a named Virtual Object
+type object struct {
 	name     string
 	handlers map[string]Handler
-	options  options.ObjectRouterOptions
+	options  options.ObjectOptions
 }
 
-var _ Router = &ObjectRouter{}
+var _ ServiceDefinition = &object{}
 
-// NewObjectRouter creates a new named Virtual Object
-func NewObjectRouter(name string, opts ...options.ObjectRouterOption) *ObjectRouter {
-	o := options.ObjectRouterOptions{}
+// NewObject creates a new named Virtual Object
+func NewObject(name string, opts ...options.ObjectOption) *object {
+	o := options.ObjectOptions{}
 	for _, opt := range opts {
-		opt.BeforeObjectRouter(&o)
+		opt.BeforeObject(&o)
 	}
 	if o.DefaultCodec == nil {
 		o.DefaultCodec = encoding.JSONCodec
 	}
-	return &ObjectRouter{
+	return &object{
 		name:     name,
 		handlers: make(map[string]Handler),
 		options:  o,
@@ -89,12 +89,12 @@ func NewObjectRouter(name string, opts ...options.ObjectRouterOption) *ObjectRou
 }
 
 // Name returns the name of this Virtual Object
-func (r *ObjectRouter) Name() string {
+func (r *object) Name() string {
 	return r.name
 }
 
 // Handler registers a new Virtual Object handler by name
-func (r *ObjectRouter) Handler(name string, handler ObjectHandler) *ObjectRouter {
+func (r *object) Handler(name string, handler ObjectHandler) *object {
 	if handler.getOptions().Codec == nil {
 		handler.getOptions().Codec = r.options.DefaultCodec
 	}
@@ -103,11 +103,11 @@ func (r *ObjectRouter) Handler(name string, handler ObjectHandler) *ObjectRouter
 }
 
 // Handlers returns the list of handlers in this Virtual Object
-func (r *ObjectRouter) Handlers() map[string]Handler {
+func (r *object) Handlers() map[string]Handler {
 	return r.handlers
 }
 
-// Type implements [Router] by returning [internal.ServiceType_VIRTUAL_OBJECT]
-func (r *ObjectRouter) Type() internal.ServiceType {
+// Type implements [ServiceDefinition] by returning [internal.ServiceType_VIRTUAL_OBJECT]
+func (r *object) Type() internal.ServiceType {
 	return internal.ServiceType_VIRTUAL_OBJECT
 }

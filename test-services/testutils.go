@@ -23,8 +23,8 @@ type CreateAwakeableAndAwaitItResponse struct {
 }
 
 func init() {
-	REGISTRY.AddRouter(
-		restate.NewServiceRouter("TestUtilsService").
+	REGISTRY.AddDefinition(
+		restate.NewService("TestUtilsService").
 			Handler("echo", restate.NewServiceHandler(
 				func(ctx restate.Context, input string) (string, error) {
 					return input, nil

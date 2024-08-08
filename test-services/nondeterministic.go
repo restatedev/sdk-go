@@ -26,8 +26,8 @@ func init() {
 		return ctx.Object("Counter", ctx.Key(), "add").Send(int64(1), 0)
 	}
 
-	REGISTRY.AddRouter(
-		restate.NewObjectRouter("NonDeterministic").
+	REGISTRY.AddDefinition(
+		restate.NewObject("NonDeterministic").
 			Handler("eitherSleepOrCall", restate.NewObjectHandler(
 				func(ctx restate.ObjectContext, _ restate.Void) (restate.Void, error) {
 					if doLeftAction(ctx) {

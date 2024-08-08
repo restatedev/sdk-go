@@ -9,8 +9,8 @@ import (
 const ID_KEY = "id"
 
 func init() {
-	REGISTRY.AddRouter(
-		restate.NewObjectRouter("AwakeableHolder").
+	REGISTRY.AddDefinition(
+		restate.NewObject("AwakeableHolder").
 			Handler("hold", restate.NewObjectHandler(
 				func(ctx restate.ObjectContext, id string) (restate.Void, error) {
 					if err := ctx.Set(ID_KEY, id); err != nil {

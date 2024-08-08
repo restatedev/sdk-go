@@ -12,8 +12,8 @@ func init() {
 	version := func() string {
 		return strings.TrimSpace(os.Getenv("E2E_UPGRADETEST_VERSION"))
 	}
-	REGISTRY.AddRouter(
-		restate.NewServiceRouter("UpgradeTest").
+	REGISTRY.AddDefinition(
+		restate.NewService("UpgradeTest").
 			Handler("executeSimple", restate.NewServiceHandler(
 				func(ctx restate.Context, _ restate.Void) (string, error) {
 					return version(), nil

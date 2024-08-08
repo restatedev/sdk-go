@@ -11,8 +11,8 @@ func init() {
 	var eventualSuccessCalls atomic.Int32
 	var eventualSuccessSideEffectCalls atomic.Int32
 
-	REGISTRY.AddRouter(
-		restate.NewObjectRouter("Failing").
+	REGISTRY.AddDefinition(
+		restate.NewObject("Failing").
 			Handler("terminallyFailingCall", restate.NewObjectHandler(
 				func(ctx restate.ObjectContext, errorMessage string) (restate.Void, error) {
 					return restate.Void{}, restate.TerminalError(fmt.Errorf(errorMessage))

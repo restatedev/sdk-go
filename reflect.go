@@ -31,7 +31,7 @@ var (
 // in which case no input bytes or content type may be sent.
 // Output types will be serialised with the provided codec (defaults to JSON) except when they are restate.Void,
 // in which case no data will be sent and no content type set.
-func Object(object any, opts ...options.ObjectRouterOption) *ObjectRouter {
+func Object(object any, opts ...options.ObjectOption) *object {
 	typ := reflect.TypeOf(object)
 	val := reflect.ValueOf(object)
 	var name string
@@ -40,7 +40,7 @@ func Object(object any, opts ...options.ObjectRouterOption) *ObjectRouter {
 	} else {
 		name = reflect.Indirect(val).Type().Name()
 	}
-	router := NewObjectRouter(name, opts...)
+	definition := NewObject(name, opts...)
 
 	for m := 0; m < typ.NumMethod(); m++ {
 		method := typ.Method(m)
@@ -80,7 +80,7 @@ func Object(object any, opts ...options.ObjectRouterOption) *ObjectRouter {
 		input := mtype.In(2)
 		output := mtype.Out(0)
 
-		router.Handler(mname, &objectReflectHandler{
+		definition.Handler(mname, &objectReflectHandler{
 			options.ObjectHandlerOptions{},
 			handlerType,
 			reflectHandler{
@@ -92,7 +92,7 @@ func Object(object any, opts ...options.ObjectRouterOption) *ObjectRouter {
 		})
 	}
 
-	return router
+	return definition
 }
 
 // Service converts a struct with methods into a Restate Service where each correctly-typed
@@ -104,7 +104,7 @@ func Object(object any, opts ...options.ObjectRouterOption) *ObjectRouter {
 // in which case no input bytes or content type may be sent.
 // Output types will be serialised with the provided codec (defaults to JSON) except when they are restate.Void,
 // in which case no data will be sent and no content type set.
-func Service(service any, opts ...options.ServiceRouterOption) *ServiceRouter {
+func Service(service any, opts ...options.ServiceOption) *service {
 	typ := reflect.TypeOf(service)
 	val := reflect.ValueOf(service)
 	var name string
@@ -113,7 +113,7 @@ func Service(service any, opts ...options.ServiceRouterOption) *ServiceRouter {
 	} else {
 		name = reflect.Indirect(val).Type().Name()
 	}
-	router := NewServiceRouter(name, opts...)
+	definition := NewService(name, opts...)
 
 	for m := 0; m < typ.NumMethod(); m++ {
 		method := typ.Method(m)
@@ -147,7 +147,7 @@ func Service(service any, opts ...options.ServiceRouterOption) *ServiceRouter {
 		input := mtype.In(2)
 		output := mtype.Out(0)
 
-		router.Handler(mname, &serviceReflectHandler{
+		definition.Handler(mname, &serviceReflectHandler{
 			options.ServiceHandlerOptions{},
 			reflectHandler{
 				fn:       method.Func,
@@ -158,7 +158,7 @@ func Service(service any, opts ...options.ServiceRouterOption) *ServiceRouter {
 		})
 	}
 
-	return router
+	return definition
 }
 
 type reflectHandler struct {
