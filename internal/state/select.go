@@ -4,7 +4,7 @@ import (
 	"slices"
 
 	restate "github.com/restatedev/sdk-go"
-	"github.com/restatedev/sdk-go/generated/dev/restate/sdk"
+	_go "github.com/restatedev/sdk-go/generated/dev/restate/sdk/go"
 	"github.com/restatedev/sdk-go/internal/futures"
 	"github.com/restatedev/sdk-go/internal/wire"
 )
@@ -26,7 +26,7 @@ func (s *selector) Select() restate.Selectable {
 			indexes := s.inner.Indexes()
 			if !slices.Equal(entry.JournalEntries, indexes) {
 				panic(s.machine.newEntryMismatch(&wire.SelectorEntryMessage{
-					SelectorEntryMessage: sdk.SelectorEntryMessage{
+					SelectorEntryMessage: _go.SelectorEntryMessage{
 						JournalEntries: indexes,
 					},
 				}, entry))
@@ -61,7 +61,7 @@ func (s *selector) _select() *wire.SelectorEntryMessage {
 	}
 
 	entry := &wire.SelectorEntryMessage{
-		SelectorEntryMessage: sdk.SelectorEntryMessage{
+		SelectorEntryMessage: _go.SelectorEntryMessage{
 			JournalEntries:    indexes,
 			WinningEntryIndex: winningEntryIndex,
 		},
