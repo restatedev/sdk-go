@@ -22,7 +22,7 @@ func generateClientStruct(g *protogen.GeneratedFile, service *protogen.Service, 
 	g.P("type ", unexport(clientName), " struct {")
 	g.P("ctx ", sdkPackage.Ident("Context"))
 	serviceType := proto.GetExtension(service.Desc.Options().(*descriptorpb.ServiceOptions), sdk.E_ServiceType).(sdk.ServiceType)
-	if serviceType == sdk.ServiceType_SERVICE_TYPE_VIRTUAL_OBJECT {
+	if serviceType == sdk.ServiceType_VIRTUAL_OBJECT {
 		g.P("key string")
 	}
 	g.P("options []", sdkPackage.Ident("CallOption"))
@@ -34,7 +34,7 @@ func generateNewClientDefinitions(g *protogen.GeneratedFile, service *protogen.S
 	g.P("return &", unexport(clientName), "{")
 	g.P("ctx,")
 	serviceType := proto.GetExtension(service.Desc.Options().(*descriptorpb.ServiceOptions), sdk.E_ServiceType).(sdk.ServiceType)
-	if serviceType == sdk.ServiceType_SERVICE_TYPE_VIRTUAL_OBJECT {
+	if serviceType == sdk.ServiceType_VIRTUAL_OBJECT {
 		g.P("key,")
 	}
 	g.P("cOpts,")
@@ -170,7 +170,7 @@ func genService(gen *protogen.Plugin, g *protogen.GeneratedFile, service *protog
 	}
 	newClientSignature := "New" + clientName + " (ctx " + g.QualifiedGoIdent(sdkPackage.Ident("Context"))
 	serviceType := proto.GetExtension(service.Desc.Options().(*descriptorpb.ServiceOptions), sdk.E_ServiceType).(sdk.ServiceType)
-	if serviceType == sdk.ServiceType_SERVICE_TYPE_VIRTUAL_OBJECT {
+	if serviceType == sdk.ServiceType_VIRTUAL_OBJECT {
 		newClientSignature += ", key string"
 	}
 	newClientSignature += ", opts..." + g.QualifiedGoIdent(sdkPackage.Ident("CallOption")) + ") " + clientName
@@ -282,9 +282,9 @@ func genClientMethod(gen *protogen.Plugin, g *protogen.GeneratedFile, method *pr
 	g.P("}")
 	getClient := `c.ctx.`
 	switch serviceType {
-	case sdk.ServiceType_SERVICE_TYPE_UNSET, sdk.ServiceType_SERVICE_TYPE_SERVICE:
+	case sdk.ServiceType_SERVICE:
 		getClient += `Service` + `("` + service.GoName + `",`
-	case sdk.ServiceType_SERVICE_TYPE_VIRTUAL_OBJECT:
+	case sdk.ServiceType_VIRTUAL_OBJECT:
 		getClient += `Object` + `("` + service.GoName + `", c.key,`
 	default:
 		gen.Error(fmt.Errorf("Unexpected service type: %s", serviceType.String()))
@@ -311,17 +311,17 @@ func contextType(gen *protogen.Plugin, g *protogen.GeneratedFile, method *protog
 	handlerType := proto.GetExtension(method.Desc.Options().(*descriptorpb.MethodOptions), sdk.E_HandlerType).(sdk.HandlerType)
 
 	switch serviceType {
-	case sdk.ServiceType_SERVICE_TYPE_UNSET, sdk.ServiceType_SERVICE_TYPE_SERVICE:
-		if handlerType != sdk.HandlerType_HANDLER_TYPE_UNSET {
+	case sdk.ServiceType_SERVICE:
+		if handlerType != sdk.HandlerType_UNSET {
 			gen.Error(fmt.Errorf("Handlers in services of type SERVICE should not have a handler type set"))
 			return ""
 		}
 		return g.QualifiedGoIdent(sdkPackage.Ident("Context"))
-	case sdk.ServiceType_SERVICE_TYPE_VIRTUAL_OBJECT:
+	case sdk.ServiceType_VIRTUAL_OBJECT:
 		switch handlerType {
-		case sdk.HandlerType_HANDLER_TYPE_SHARED:
+		case sdk.HandlerType_SHARED:
 			return g.QualifiedGoIdent(sdkPackage.Ident("ObjectSharedContext"))
-		case sdk.HandlerType_HANDLER_TYPE_UNSET, sdk.HandlerType_HANDLER_TYPE_EXCLUSIVE:
+		case sdk.HandlerType_UNSET, sdk.HandlerType_EXCLUSIVE:
 			// unset also defaults to exclusive
 			return g.QualifiedGoIdent(sdkPackage.Ident("ObjectContext"))
 		default:
@@ -337,9 +337,9 @@ func contextType(gen *protogen.Plugin, g *protogen.GeneratedFile, method *protog
 func newRouterType(gen *protogen.Plugin, g *protogen.GeneratedFile, service *protogen.Service) string {
 	serviceType := proto.GetExtension(service.Desc.Options().(*descriptorpb.ServiceOptions), sdk.E_ServiceType).(sdk.ServiceType)
 	switch serviceType {
-	case sdk.ServiceType_SERVICE_TYPE_UNSET, sdk.ServiceType_SERVICE_TYPE_SERVICE:
+	case sdk.ServiceType_SERVICE:
 		return g.QualifiedGoIdent(sdkPackage.Ident("NewService"))
-	case sdk.ServiceType_SERVICE_TYPE_VIRTUAL_OBJECT:
+	case sdk.ServiceType_VIRTUAL_OBJECT:
 		return g.QualifiedGoIdent(sdkPackage.Ident("NewObject"))
 	default:
 		gen.Error(fmt.Errorf("Unexpected service type: %s", serviceType.String()))
@@ -350,9 +350,9 @@ func newRouterType(gen *protogen.Plugin, g *protogen.GeneratedFile, service *pro
 func routerOptionType(gen *protogen.Plugin, g *protogen.GeneratedFile, service *protogen.Service) string {
 	serviceType := proto.GetExtension(service.Desc.Options().(*descriptorpb.ServiceOptions), sdk.E_ServiceType).(sdk.ServiceType)
 	switch serviceType {
-	case sdk.ServiceType_SERVICE_TYPE_UNSET, sdk.ServiceType_SERVICE_TYPE_SERVICE:
+	case sdk.ServiceType_SERVICE:
 		return g.QualifiedGoIdent(sdkPackage.Ident("ServiceOption"))
-	case sdk.ServiceType_SERVICE_TYPE_VIRTUAL_OBJECT:
+	case sdk.ServiceType_VIRTUAL_OBJECT:
 		return g.QualifiedGoIdent(sdkPackage.Ident("ObjectOption"))
 	default:
 		gen.Error(fmt.Errorf("Unexpected service type: %s", serviceType.String()))
@@ -365,17 +365,17 @@ func newHandlerType(gen *protogen.Plugin, g *protogen.GeneratedFile, method *pro
 	handlerType := proto.GetExtension(method.Desc.Options().(*descriptorpb.MethodOptions), sdk.E_HandlerType).(sdk.HandlerType)
 
 	switch serviceType {
-	case sdk.ServiceType_SERVICE_TYPE_UNSET, sdk.ServiceType_SERVICE_TYPE_SERVICE:
-		if handlerType != sdk.HandlerType_HANDLER_TYPE_UNSET {
+	case sdk.ServiceType_SERVICE:
+		if handlerType != sdk.HandlerType_UNSET {
 			gen.Error(fmt.Errorf("Handlers in services of type SERVICE should not have a handler type set"))
 			return ""
 		}
 		return g.QualifiedGoIdent(sdkPackage.Ident("NewServiceHandler"))
-	case sdk.ServiceType_SERVICE_TYPE_VIRTUAL_OBJECT:
+	case sdk.ServiceType_VIRTUAL_OBJECT:
 		switch handlerType {
-		case sdk.HandlerType_HANDLER_TYPE_SHARED:
+		case sdk.HandlerType_SHARED:
 			return g.QualifiedGoIdent(sdkPackage.Ident("NewObjectSharedHandler"))
-		case sdk.HandlerType_HANDLER_TYPE_UNSET, sdk.HandlerType_HANDLER_TYPE_EXCLUSIVE:
+		case sdk.HandlerType_UNSET, sdk.HandlerType_EXCLUSIVE:
 			// unset also defaults to exclusive
 			return g.QualifiedGoIdent(sdkPackage.Ident("NewObjectHandler"))
 		default:

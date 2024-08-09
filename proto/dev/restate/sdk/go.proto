@@ -18,17 +18,21 @@ import "google/protobuf/descriptor.proto";
 option go_package = "github.com/restatedev/sdk-go/generated/dev/restate/sdk";
 
 enum ServiceType {
-    SERVICE_TYPE_UNSET = 0;
-    SERVICE_TYPE_SERVICE = 1;
-    SERVICE_TYPE_VIRTUAL_OBJECT = 2;
-    SERVICE_TYPE_WORKFLOW = 3;
+    // SERVICE is the default and need not be provided
+    SERVICE = 0;
+    VIRTUAL_OBJECT = 1;
+    WORKFLOW = 2;
 }
 
 enum HandlerType {
-    HANDLER_TYPE_UNSET = 0;
-    HANDLER_TYPE_EXCLUSIVE = 1;
-    HANDLER_TYPE_SHARED = 2;
-    HANDLER_TYPE_WORKFLOW = 3;
+    // Handler type is ignored for service type SERVICE.
+    // For VIRTUAL_OBJECT, defaults to EXCLUSIVE.
+    // For WORKFLOW, defaults to SHARED.
+    UNSET = 0;
+    EXCLUSIVE = 1;
+    SHARED = 2;
+    // Signifies that this is the primary function for the workflow, typically named 'Run'.
+    WORKFLOW_RUN = 3;
 }
 
 extend google.protobuf.MethodOptions {

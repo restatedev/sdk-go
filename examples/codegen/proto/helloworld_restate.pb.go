@@ -4,7 +4,7 @@
 // - protoc             (unknown)
 // source: proto/helloworld.proto
 
-package helloworld
+package proto
 
 import (
 	fmt "fmt"
