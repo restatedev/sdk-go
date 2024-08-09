@@ -56,7 +56,7 @@ func (w withPayloadCodec) BeforeObject(opts *options.ObjectOptions) {
 	opts.DefaultCodec = w.codec
 }
 
-// withPayloadCodec is an option that can be provided to handler/service options
+// WithPayloadCodec is an option that can be provided to handler/service options
 // in order to specify a custom [encoding.PayloadCodec] with which to (de)serialise and
 // set content-types instead of the default of JSON.
 //
@@ -73,3 +73,18 @@ var WithBinary = WithPayloadCodec(encoding.BinaryCodec)
 
 // WithJSON is an option to specify the use of [encoding.JsonCodec] for (de)serialisation
 var WithJSON = WithPayloadCodec(encoding.JSONCodec)
+
+type withHeaders struct {
+	headers map[string]string
+}
+
+var _ options.CallOption = withHeaders{}
+
+func (w withHeaders) BeforeCall(opts *options.CallOptions) {
+	opts.Headers = w.headers
+}
+
+// WithHeaders is an option to specify outgoing headers when making a call
+func WithHeaders(headers map[string]string) withHeaders {
+	return withHeaders{headers}
+}

@@ -35,7 +35,8 @@ type SetOption interface {
 }
 
 type CallOptions struct {
-	Codec encoding.Codec
+	Codec   encoding.Codec
+	Headers map[string]string
 }
 
 type CallOption interface {
