@@ -12,8 +12,16 @@ service Greeter {
 
 service Counter {
   option (dev.restate.sdk.go.service_type) = VIRTUAL_OBJECT;
+  // Mutate the value
   rpc Add (AddRequest) returns (GetResponse) {}
+  // Get the current value
   rpc Get (GetRequest) returns (GetResponse) {
+    option (dev.restate.sdk.go.handler_type) = SHARED;
+  }
+  // Internal method to store an awakeable ID for the Watch method
+  rpc AddWatcher (AddWatcherRequest) returns (AddWatcherResponse) {}
+  // Wait for the counter to change and then return the new value
+  rpc Watch (WatchRequest) returns (GetResponse) {
     option (dev.restate.sdk.go.handler_type) = SHARED;
   }
 }
@@ -34,4 +42,14 @@ message GetRequest {}
 
 message GetResponse {
   int64 value = 1;
+}
+
+message AddWatcherRequest {
+  string awakeable_id = 1;
+}
+
+message AddWatcherResponse {}
+
+message WatchRequest {
+  int64 timeout_millis = 1;
 }
