@@ -78,8 +78,14 @@ func NewGreeterServer(srv GreeterServer, opts ...sdk_go.ServiceOption) sdk_go.Se
 
 // CounterClient is the client API for Counter service.
 type CounterClient interface {
+	// Mutate the value
 	Add(opts ...sdk_go.CallOption) sdk_go.TypedCallClient[*AddRequest, *GetResponse]
+	// Get the current value
 	Get(opts ...sdk_go.CallOption) sdk_go.TypedCallClient[*GetRequest, *GetResponse]
+	// Internal method to store an awakeable ID for the Watch method
+	AddWatcher(opts ...sdk_go.CallOption) sdk_go.TypedCallClient[*AddWatcherRequest, *AddWatcherResponse]
+	// Wait for the counter to change and then return the new value
+	Watch(opts ...sdk_go.CallOption) sdk_go.TypedCallClient[*WatchRequest, *GetResponse]
 }
 
 type counterClient struct {
@@ -112,12 +118,34 @@ func (c *counterClient) Get(opts ...sdk_go.CallOption) sdk_go.TypedCallClient[*G
 	return sdk_go.NewTypedCallClient[*GetRequest, *GetResponse](c.ctx.Object("Counter", c.key, "Get", cOpts...))
 }
 
+func (c *counterClient) AddWatcher(opts ...sdk_go.CallOption) sdk_go.TypedCallClient[*AddWatcherRequest, *AddWatcherResponse] {
+	cOpts := c.options
+	if len(opts) > 0 {
+		cOpts = append(append([]sdk_go.CallOption{}, cOpts...), opts...)
+	}
+	return sdk_go.NewTypedCallClient[*AddWatcherRequest, *AddWatcherResponse](c.ctx.Object("Counter", c.key, "AddWatcher", cOpts...))
+}
+
+func (c *counterClient) Watch(opts ...sdk_go.CallOption) sdk_go.TypedCallClient[*WatchRequest, *GetResponse] {
+	cOpts := c.options
+	if len(opts) > 0 {
+		cOpts = append(append([]sdk_go.CallOption{}, cOpts...), opts...)
+	}
+	return sdk_go.NewTypedCallClient[*WatchRequest, *GetResponse](c.ctx.Object("Counter", c.key, "Watch", cOpts...))
+}
+
 // CounterServer is the server API for Counter service.
 // All implementations should embed UnimplementedCounterServer
 // for forward compatibility.
 type CounterServer interface {
+	// Mutate the value
 	Add(ctx sdk_go.ObjectContext, req *AddRequest) (*GetResponse, error)
+	// Get the current value
 	Get(ctx sdk_go.ObjectSharedContext, req *GetRequest) (*GetResponse, error)
+	// Internal method to store an awakeable ID for the Watch method
+	AddWatcher(ctx sdk_go.ObjectContext, req *AddWatcherRequest) (*AddWatcherResponse, error)
+	// Wait for the counter to change and then return the new value
+	Watch(ctx sdk_go.ObjectSharedContext, req *WatchRequest) (*GetResponse, error)
 }
 
 // UnimplementedCounterServer should be embedded to have
@@ -132,6 +160,12 @@ func (UnimplementedCounterServer) Add(ctx sdk_go.ObjectContext, req *AddRequest)
 }
 func (UnimplementedCounterServer) Get(ctx sdk_go.ObjectSharedContext, req *GetRequest) (*GetResponse, error) {
 	return nil, sdk_go.TerminalError(fmt.Errorf("method Get not implemented"), 501)
+}
+func (UnimplementedCounterServer) AddWatcher(ctx sdk_go.ObjectContext, req *AddWatcherRequest) (*AddWatcherResponse, error) {
+	return nil, sdk_go.TerminalError(fmt.Errorf("method AddWatcher not implemented"), 501)
+}
+func (UnimplementedCounterServer) Watch(ctx sdk_go.ObjectSharedContext, req *WatchRequest) (*GetResponse, error) {
+	return nil, sdk_go.TerminalError(fmt.Errorf("method Watch not implemented"), 501)
 }
 func (UnimplementedCounterServer) testEmbeddedByValue() {}
 
@@ -154,5 +188,7 @@ func NewCounterServer(srv CounterServer, opts ...sdk_go.ObjectOption) sdk_go.Ser
 	router := sdk_go.NewObject("Counter", sOpts...)
 	router = router.Handler("Add", sdk_go.NewObjectHandler(srv.Add))
 	router = router.Handler("Get", sdk_go.NewObjectSharedHandler(srv.Get))
+	router = router.Handler("AddWatcher", sdk_go.NewObjectHandler(srv.AddWatcher))
+	router = router.Handler("Watch", sdk_go.NewObjectSharedHandler(srv.Watch))
 	return router
 }
