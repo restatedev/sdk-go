@@ -12,9 +12,9 @@ import (
 func main() {
 	server := server.NewRestate().
 		// Handlers can be inferred from object methods
-		Bind(restate.Object(&userSession{})).
-		Bind(restate.Object(&ticketService{})).
-		Bind(restate.Service(&checkout{}))
+		Bind(restate.Reflect(&userSession{})).
+		Bind(restate.Reflect(&ticketService{})).
+		Bind(restate.Reflect(&checkout{}))
 
 	if err := server.Start(context.Background(), ":9080"); err != nil {
 		slog.Error("application exited unexpectedly", "err", err.Error())

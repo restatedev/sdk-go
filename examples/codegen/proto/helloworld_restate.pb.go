@@ -62,7 +62,7 @@ type UnsafeGreeterServer interface {
 	mustEmbedUnimplementedGreeterServer()
 }
 
-func NewGreeterServer(srv GreeterServer, opts ...sdk_go.ServiceOption) sdk_go.ServiceDefinition {
+func NewGreeterServer(srv GreeterServer, opts ...sdk_go.ServiceDefinitionOption) sdk_go.ServiceDefinition {
 	// If the following call panics, it indicates UnimplementedGreeterServer was
 	// embedded by pointer and is nil.  This will cause panics if an
 	// unimplemented method is ever invoked, so we test this at initialization
@@ -70,7 +70,7 @@ func NewGreeterServer(srv GreeterServer, opts ...sdk_go.ServiceOption) sdk_go.Se
 	if t, ok := srv.(interface{ testEmbeddedByValue() }); ok {
 		t.testEmbeddedByValue()
 	}
-	sOpts := append([]sdk_go.ServiceOption{sdk_go.WithProtoJSON}, opts...)
+	sOpts := append([]sdk_go.ServiceDefinitionOption{sdk_go.WithProtoJSON}, opts...)
 	router := sdk_go.NewService("Greeter", sOpts...)
 	router = router.Handler("SayHello", sdk_go.NewServiceHandler(srv.SayHello))
 	return router
@@ -176,7 +176,7 @@ type UnsafeCounterServer interface {
 	mustEmbedUnimplementedCounterServer()
 }
 
-func NewCounterServer(srv CounterServer, opts ...sdk_go.ObjectOption) sdk_go.ServiceDefinition {
+func NewCounterServer(srv CounterServer, opts ...sdk_go.ServiceDefinitionOption) sdk_go.ServiceDefinition {
 	// If the following call panics, it indicates UnimplementedCounterServer was
 	// embedded by pointer and is nil.  This will cause panics if an
 	// unimplemented method is ever invoked, so we test this at initialization
@@ -184,7 +184,7 @@ func NewCounterServer(srv CounterServer, opts ...sdk_go.ObjectOption) sdk_go.Ser
 	if t, ok := srv.(interface{ testEmbeddedByValue() }); ok {
 		t.testEmbeddedByValue()
 	}
-	sOpts := append([]sdk_go.ObjectOption{sdk_go.WithProtoJSON}, opts...)
+	sOpts := append([]sdk_go.ServiceDefinitionOption{sdk_go.WithProtoJSON}, opts...)
 	router := sdk_go.NewObject("Counter", sOpts...)
 	router = router.Handler("Add", sdk_go.NewObjectHandler(srv.Add))
 	router = router.Handler("Get", sdk_go.NewObjectSharedHandler(srv.Get))

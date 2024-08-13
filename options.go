@@ -7,8 +7,7 @@ import (
 
 // re-export for use in generated code
 type CallOption = options.CallOption
-type ServiceOption = options.ServiceOption
-type ObjectOption = options.ObjectOption
+type ServiceDefinitionOption = options.ServiceDefinitionOption
 
 type withCodec struct {
 	codec encoding.Codec
@@ -43,21 +42,13 @@ type withPayloadCodec struct {
 	codec encoding.PayloadCodec
 }
 
-var _ options.ServiceHandlerOption = withPayloadCodec{}
-var _ options.ServiceOption = withPayloadCodec{}
-var _ options.ObjectHandlerOption = withPayloadCodec{}
-var _ options.ObjectOption = withPayloadCodec{}
+var _ options.HandlerOption = withPayloadCodec{}
+var _ options.ServiceDefinitionOption = withPayloadCodec{}
 
-func (w withPayloadCodec) BeforeServiceHandler(opts *options.ServiceHandlerOptions) {
+func (w withPayloadCodec) BeforeHandler(opts *options.HandlerOptions) {
 	opts.Codec = w.codec
 }
-func (w withPayloadCodec) BeforeObjectHandler(opts *options.ObjectHandlerOptions) {
-	opts.Codec = w.codec
-}
-func (w withPayloadCodec) BeforeService(opts *options.ServiceOptions) {
-	opts.DefaultCodec = w.codec
-}
-func (w withPayloadCodec) BeforeObject(opts *options.ObjectOptions) {
+func (w withPayloadCodec) BeforeServiceDefinition(opts *options.ServiceDefinitionOptions) {
 	opts.DefaultCodec = w.codec
 }
 
