@@ -21,20 +21,18 @@ type Void = encoding.Void
 // ObjectHandler is the required set of methods for a Virtual Object handler.
 type ObjectHandler interface {
 	Call(ctx ObjectContext, request []byte) (output []byte, err error)
-	getOptions() *options.ObjectHandlerOptions
 	Handler
 }
 
 // ServiceHandler is the required set of methods for a Service handler.
 type ServiceHandler interface {
 	Call(ctx Context, request []byte) (output []byte, err error)
-	getOptions() *options.ServiceHandlerOptions
 	Handler
 }
 
 // Handler is implemented by all Restate handlers
 type Handler interface {
-	sealed()
+	getOptions() *options.HandlerOptions
 	InputPayload() *encoding.InputPayload
 	OutputPayload() *encoding.OutputPayload
 	HandlerType() *internal.ServiceHandlerType
@@ -51,16 +49,16 @@ type ObjectSharedHandlerFn[I any, O any] func(ctx ObjectSharedContext, input I) 
 
 type serviceHandler[I any, O any] struct {
 	fn      ServiceHandlerFn[I, O]
-	options options.ServiceHandlerOptions
+	options options.HandlerOptions
 }
 
 var _ ServiceHandler = (*serviceHandler[struct{}, struct{}])(nil)
 
 // NewServiceHandler converts a function of signature [ServiceHandlerFn] into a handler on a Restate service.
-func NewServiceHandler[I any, O any](fn ServiceHandlerFn[I, O], opts ...options.ServiceHandlerOption) *serviceHandler[I, O] {
-	o := options.ServiceHandlerOptions{}
+func NewServiceHandler[I any, O any](fn ServiceHandlerFn[I, O], opts ...options.HandlerOption) *serviceHandler[I, O] {
+	o := options.HandlerOptions{}
 	for _, opt := range opts {
-		opt.BeforeServiceHandler(&o)
+		opt.BeforeHandler(&o)
 	}
 	return &serviceHandler[I, O]{
 		fn:      fn,
@@ -104,17 +102,15 @@ func (h *serviceHandler[I, O]) HandlerType() *internal.ServiceHandlerType {
 	return nil
 }
 
-func (h *serviceHandler[I, O]) getOptions() *options.ServiceHandlerOptions {
+func (h *serviceHandler[I, O]) getOptions() *options.HandlerOptions {
 	return &h.options
 }
-
-func (h *serviceHandler[I, O]) sealed() {}
 
 type objectHandler[I any, O any] struct {
 	// only one of exclusiveFn or sharedFn should be set, as indicated by handlerType
 	exclusiveFn ObjectHandlerFn[I, O]
 	sharedFn    ObjectSharedHandlerFn[I, O]
-	options     options.ObjectHandlerOptions
+	options     options.HandlerOptions
 	handlerType internal.ServiceHandlerType
 }
 
@@ -122,10 +118,10 @@ var _ ObjectHandler = (*objectHandler[struct{}, struct{}])(nil)
 
 // NewObjectHandler converts a function of signature [ObjectHandlerFn] into an exclusive-mode handler on a Virtual Object.
 // The handler will have access to a full [ObjectContext] which may mutate state.
-func NewObjectHandler[I any, O any](fn ObjectHandlerFn[I, O], opts ...options.ObjectHandlerOption) *objectHandler[I, O] {
-	o := options.ObjectHandlerOptions{}
+func NewObjectHandler[I any, O any](fn ObjectHandlerFn[I, O], opts ...options.HandlerOption) *objectHandler[I, O] {
+	o := options.HandlerOptions{}
 	for _, opt := range opts {
-		opt.BeforeObjectHandler(&o)
+		opt.BeforeHandler(&o)
 	}
 	return &objectHandler[I, O]{
 		exclusiveFn: fn,
@@ -136,10 +132,10 @@ func NewObjectHandler[I any, O any](fn ObjectHandlerFn[I, O], opts ...options.Ob
 
 // NewObjectSharedHandler converts a function of signature [ObjectSharedHandlerFn] into a shared-mode handler on a Virtual Object.
 // The handler will only have access to a [ObjectSharedContext] which can only read a snapshot of state.
-func NewObjectSharedHandler[I any, O any](fn ObjectSharedHandlerFn[I, O], opts ...options.ObjectHandlerOption) *objectHandler[I, O] {
-	o := options.ObjectHandlerOptions{}
+func NewObjectSharedHandler[I any, O any](fn ObjectSharedHandlerFn[I, O], opts ...options.HandlerOption) *objectHandler[I, O] {
+	o := options.HandlerOptions{}
 	for _, opt := range opts {
-		opt.BeforeObjectHandler(&o)
+		opt.BeforeHandler(&o)
 	}
 	return &objectHandler[I, O]{
 		sharedFn:    fn,
@@ -190,12 +186,10 @@ func (h *objectHandler[I, O]) OutputPayload() *encoding.OutputPayload {
 	return encoding.OutputPayloadFor(h.options.Codec, o)
 }
 
-func (h *objectHandler[I, O]) getOptions() *options.ObjectHandlerOptions {
+func (h *objectHandler[I, O]) getOptions() *options.HandlerOptions {
 	return &h.options
 }
 
 func (h *objectHandler[I, O]) HandlerType() *internal.ServiceHandlerType {
 	return &h.handlerType
 }
-
-func (h *objectHandler[I, O]) sealed() {}

@@ -51,34 +51,18 @@ type RunOption interface {
 	BeforeRun(*RunOptions)
 }
 
-type ServiceHandlerOptions struct {
+type HandlerOptions struct {
 	Codec encoding.PayloadCodec
 }
 
-type ServiceHandlerOption interface {
-	BeforeServiceHandler(*ServiceHandlerOptions)
+type HandlerOption interface {
+	BeforeHandler(*HandlerOptions)
 }
 
-type ObjectHandlerOptions struct {
-	Codec encoding.PayloadCodec
-}
-
-type ObjectHandlerOption interface {
-	BeforeObjectHandler(*ObjectHandlerOptions)
-}
-
-type ServiceOptions struct {
+type ServiceDefinitionOptions struct {
 	DefaultCodec encoding.PayloadCodec
 }
 
-type ServiceOption interface {
-	BeforeService(*ServiceOptions)
-}
-
-type ObjectOptions struct {
-	DefaultCodec encoding.PayloadCodec
-}
-
-type ObjectOption interface {
-	BeforeObject(*ObjectOptions)
+type ServiceDefinitionOption interface {
+	BeforeServiceDefinition(*ServiceDefinitionOptions)
 }

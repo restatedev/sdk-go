@@ -241,7 +241,7 @@ func genService(gen *protogen.Plugin, g *protogen.GeneratedFile, service *protog
 		g.P(deprecationComment)
 	}
 
-	g.P("func New", service.GoName, "Server(srv ", serverType, ", opts ...", routerOptionType(gen, g, service), ") ", sdkPackage.Ident("ServiceDefinition"), " {")
+	g.P("func New", service.GoName, "Server(srv ", serverType, ", opts ...", sdkPackage.Ident("ServiceDefinitionOption"), ") ", sdkPackage.Ident("ServiceDefinition"), " {")
 	g.P("// If the following call panics, it indicates Unimplemented", serverType, " was")
 	g.P("// embedded by pointer and is nil.  This will cause panics if an")
 	g.P("// unimplemented method is ever invoked, so we test this at initialization")
@@ -249,7 +249,7 @@ func genService(gen *protogen.Plugin, g *protogen.GeneratedFile, service *protog
 	g.P("if t, ok := srv.(interface { testEmbeddedByValue() }); ok {")
 	g.P("t.testEmbeddedByValue()")
 	g.P("}")
-	g.P("sOpts := append([]", routerOptionType(gen, g, service), "{", sdkPackage.Ident("WithProtoJSON"), "}, opts...)")
+	g.P("sOpts := append([]", sdkPackage.Ident("ServiceDefinitionOption"), "{", sdkPackage.Ident("WithProtoJSON"), "}, opts...)")
 	g.P("router := ", newRouterType(gen, g, service), `("`, service.GoName, `", sOpts...)`)
 	for _, method := range service.Methods {
 		g.P(`router = router.Handler("`, method.GoName, `",`, newHandlerType(gen, g, method), "(srv.", method.GoName, "))")
@@ -341,19 +341,6 @@ func newRouterType(gen *protogen.Plugin, g *protogen.GeneratedFile, service *pro
 		return g.QualifiedGoIdent(sdkPackage.Ident("NewService"))
 	case sdk.ServiceType_VIRTUAL_OBJECT:
 		return g.QualifiedGoIdent(sdkPackage.Ident("NewObject"))
-	default:
-		gen.Error(fmt.Errorf("Unexpected service type: %s", serviceType.String()))
-		return ""
-	}
-}
-
-func routerOptionType(gen *protogen.Plugin, g *protogen.GeneratedFile, service *protogen.Service) string {
-	serviceType := proto.GetExtension(service.Desc.Options().(*descriptorpb.ServiceOptions), sdk.E_ServiceType).(sdk.ServiceType)
-	switch serviceType {
-	case sdk.ServiceType_SERVICE:
-		return g.QualifiedGoIdent(sdkPackage.Ident("ServiceOption"))
-	case sdk.ServiceType_VIRTUAL_OBJECT:
-		return g.QualifiedGoIdent(sdkPackage.Ident("ObjectOption"))
 	default:
 		gen.Error(fmt.Errorf("Unexpected service type: %s", serviceType.String()))
 		return ""

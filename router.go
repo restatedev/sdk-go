@@ -14,34 +14,52 @@ type ServiceDefinition interface {
 	Handlers() map[string]Handler
 }
 
-// service stores a list of handlers under a named Service
-type service struct {
+// serviceDefinition stores a list of handlers under a named service
+type serviceDefinition struct {
 	name     string
 	handlers map[string]Handler
-	options  options.ServiceOptions
+	options  options.ServiceDefinitionOptions
+	typ      internal.ServiceType
 }
 
-var _ ServiceDefinition = &service{}
+var _ ServiceDefinition = &serviceDefinition{}
+
+// Name returns the name of the service described in this definition
+func (r *serviceDefinition) Name() string {
+	return r.name
+}
+
+// Handlers returns the list of handlers in this service definition
+func (r *serviceDefinition) Handlers() map[string]Handler {
+	return r.handlers
+}
+
+// Type returns the type of this service definition (Service or Virtual Object)
+func (r *serviceDefinition) Type() internal.ServiceType {
+	return r.typ
+}
+
+type service struct {
+	serviceDefinition
+}
 
 // NewService creates a new named Service
-func NewService(name string, opts ...options.ServiceOption) *service {
-	o := options.ServiceOptions{}
+func NewService(name string, opts ...options.ServiceDefinitionOption) *service {
+	o := options.ServiceDefinitionOptions{}
 	for _, opt := range opts {
-		opt.BeforeService(&o)
+		opt.BeforeServiceDefinition(&o)
 	}
 	if o.DefaultCodec == nil {
 		o.DefaultCodec = encoding.JSONCodec
 	}
 	return &service{
-		name:     name,
-		handlers: make(map[string]Handler),
-		options:  o,
+		serviceDefinition: serviceDefinition{
+			name:     name,
+			handlers: make(map[string]Handler),
+			options:  o,
+			typ:      internal.ServiceType_SERVICE,
+		},
 	}
-}
-
-// Name returns the name of this Service
-func (r *service) Name() string {
-	return r.name
 }
 
 // Handler registers a new Service handler by name
@@ -53,44 +71,27 @@ func (r *service) Handler(name string, handler ServiceHandler) *service {
 	return r
 }
 
-// Handlers returns the list of handlers in this Service
-func (r *service) Handlers() map[string]Handler {
-	return r.handlers
-}
-
-// Type implements [ServiceDefinition] by returning [internal.ServiceType_SERVICE]
-func (r *service) Type() internal.ServiceType {
-	return internal.ServiceType_SERVICE
-}
-
-// object stores a list of handlers under a named Virtual Object
 type object struct {
-	name     string
-	handlers map[string]Handler
-	options  options.ObjectOptions
+	serviceDefinition
 }
-
-var _ ServiceDefinition = &object{}
 
 // NewObject creates a new named Virtual Object
-func NewObject(name string, opts ...options.ObjectOption) *object {
-	o := options.ObjectOptions{}
+func NewObject(name string, opts ...options.ServiceDefinitionOption) *object {
+	o := options.ServiceDefinitionOptions{}
 	for _, opt := range opts {
-		opt.BeforeObject(&o)
+		opt.BeforeServiceDefinition(&o)
 	}
 	if o.DefaultCodec == nil {
 		o.DefaultCodec = encoding.JSONCodec
 	}
 	return &object{
-		name:     name,
-		handlers: make(map[string]Handler),
-		options:  o,
+		serviceDefinition: serviceDefinition{
+			name:     name,
+			handlers: make(map[string]Handler),
+			options:  o,
+			typ:      internal.ServiceType_VIRTUAL_OBJECT,
+		},
 	}
-}
-
-// Name returns the name of this Virtual Object
-func (r *object) Name() string {
-	return r.name
 }
 
 // Handler registers a new Virtual Object handler by name
@@ -100,14 +101,4 @@ func (r *object) Handler(name string, handler ObjectHandler) *object {
 	}
 	r.handlers[name] = handler
 	return r
-}
-
-// Handlers returns the list of handlers in this Virtual Object
-func (r *object) Handlers() map[string]Handler {
-	return r.handlers
-}
-
-// Type implements [ServiceDefinition] by returning [internal.ServiceType_VIRTUAL_OBJECT]
-func (r *object) Type() internal.ServiceType {
-	return internal.ServiceType_VIRTUAL_OBJECT
 }
