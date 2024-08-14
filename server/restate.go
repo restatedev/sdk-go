@@ -18,6 +18,8 @@ import (
 	"github.com/restatedev/sdk-go/internal/identity"
 	"github.com/restatedev/sdk-go/internal/log"
 	"github.com/restatedev/sdk-go/internal/state"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/propagation"
 	"golang.org/x/net/http2"
 )
 
@@ -283,6 +285,9 @@ func (r *Restate) callHandler(serviceProtocolVersion protocol.ServiceProtocolVer
 }
 
 func (r *Restate) handler(writer http.ResponseWriter, request *http.Request) {
+	ctx := otel.GetTextMapPropagator().Extract(request.Context(), propagation.HeaderCarrier(request.Header))
+	request = request.WithContext(ctx)
+
 	if r.keySet != nil {
 		if err := identity.ValidateRequestIdentity(r.keySet, request.RequestURI, request.Header); err != nil {
 			r.systemLog.LogAttrs(request.Context(), slog.LevelError, "Rejecting request as its JWT did not validate", log.Error(err))
