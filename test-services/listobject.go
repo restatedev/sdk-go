@@ -1,8 +1,6 @@
 package main
 
 import (
-	"errors"
-
 	restate "github.com/restatedev/sdk-go"
 )
 
@@ -14,7 +12,7 @@ func init() {
 			Handler("append", restate.NewObjectHandler(
 				func(ctx restate.ObjectContext, value string) (restate.Void, error) {
 					list, err := restate.GetAs[[]string](ctx, LIST_KEY)
-					if err != nil && !errors.Is(err, restate.ErrKeyNotFound) {
+					if err != nil {
 						return restate.Void{}, err
 					}
 					list = append(list, value)
@@ -24,7 +22,7 @@ func init() {
 			Handler("get", restate.NewObjectHandler(
 				func(ctx restate.ObjectContext, _ restate.Void) ([]string, error) {
 					list, err := restate.GetAs[[]string](ctx, LIST_KEY)
-					if err != nil && !errors.Is(err, restate.ErrKeyNotFound) {
+					if err != nil {
 						return nil, err
 					}
 					if list == nil {
@@ -37,7 +35,7 @@ func init() {
 			Handler("clear", restate.NewObjectHandler(
 				func(ctx restate.ObjectContext, _ restate.Void) ([]string, error) {
 					list, err := restate.GetAs[[]string](ctx, LIST_KEY)
-					if err != nil && !errors.Is(err, restate.ErrKeyNotFound) {
+					if err != nil {
 						return nil, err
 					}
 					if list == nil {

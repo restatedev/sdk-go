@@ -1,7 +1,6 @@
 package main
 
 import (
-	"errors"
 	"slices"
 	"time"
 
@@ -30,7 +29,7 @@ func (u *userSession) AddTicket(ctx restate.ObjectContext, ticketId string) (boo
 
 	// add ticket to list of tickets
 	tickets, err := restate.GetAs[[]string](ctx, "tickets")
-	if err != nil && !errors.Is(err, restate.ErrKeyNotFound) {
+	if err != nil {
 		return false, err
 	}
 
@@ -44,7 +43,7 @@ func (u *userSession) AddTicket(ctx restate.ObjectContext, ticketId string) (boo
 
 func (u *userSession) ExpireTicket(ctx restate.ObjectContext, ticketId string) (void restate.Void, err error) {
 	tickets, err := restate.GetAs[[]string](ctx, "tickets")
-	if err != nil && !errors.Is(err, restate.ErrKeyNotFound) {
+	if err != nil {
 		return void, err
 	}
 
@@ -69,7 +68,7 @@ func (u *userSession) ExpireTicket(ctx restate.ObjectContext, ticketId string) (
 func (u *userSession) Checkout(ctx restate.ObjectContext, _ restate.Void) (bool, error) {
 	userId := ctx.Key()
 	tickets, err := restate.GetAs[[]string](ctx, "tickets")
-	if err != nil && !errors.Is(err, restate.ErrKeyNotFound) {
+	if err != nil {
 		return false, err
 	}
 

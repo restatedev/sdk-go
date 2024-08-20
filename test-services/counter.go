@@ -1,7 +1,6 @@
 package main
 
 import (
-	"errors"
 	"fmt"
 
 	restate "github.com/restatedev/sdk-go"
@@ -29,7 +28,7 @@ func init() {
 			Handler("add", restate.NewObjectHandler(
 				func(ctx restate.ObjectContext, addend int64) (CounterUpdateResponse, error) {
 					oldValue, err := restate.GetAs[int64](ctx, COUNTER_KEY)
-					if err != nil && !errors.Is(err, restate.ErrKeyNotFound) {
+					if err != nil {
 						return CounterUpdateResponse{}, err
 					}
 
@@ -44,7 +43,7 @@ func init() {
 			Handler("addThenFail", restate.NewObjectHandler(
 				func(ctx restate.ObjectContext, addend int64) (restate.Void, error) {
 					oldValue, err := restate.GetAs[int64](ctx, COUNTER_KEY)
-					if err != nil && !errors.Is(err, restate.ErrKeyNotFound) {
+					if err != nil {
 						return restate.Void{}, err
 					}
 

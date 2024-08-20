@@ -1,8 +1,6 @@
 package main
 
 import (
-	"errors"
-
 	restate "github.com/restatedev/sdk-go"
 )
 
@@ -22,7 +20,7 @@ func (t *ticketService) ServiceName() string { return TicketServiceName }
 
 func (t *ticketService) Reserve(ctx restate.ObjectContext, _ restate.Void) (bool, error) {
 	status, err := restate.GetAs[TicketStatus](ctx, "status")
-	if err != nil && !errors.Is(err, restate.ErrKeyNotFound) {
+	if err != nil {
 		return false, err
 	}
 
@@ -38,7 +36,7 @@ func (t *ticketService) Unreserve(ctx restate.ObjectContext, _ restate.Void) (vo
 	ticketId := ctx.Key()
 	ctx.Log().Info("un-reserving ticket", "ticket", ticketId)
 	status, err := restate.GetAs[TicketStatus](ctx, "status")
-	if err != nil && !errors.Is(err, restate.ErrKeyNotFound) {
+	if err != nil {
 		return void, err
 	}
 
@@ -55,7 +53,7 @@ func (t *ticketService) MarkAsSold(ctx restate.ObjectContext, _ restate.Void) (v
 	ctx.Log().Info("mark ticket as sold", "ticket", ticketId)
 
 	status, err := restate.GetAs[TicketStatus](ctx, "status")
-	if err != nil && !errors.Is(err, restate.ErrKeyNotFound) {
+	if err != nil {
 		return void, err
 	}
 

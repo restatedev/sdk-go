@@ -1,18 +1,22 @@
 package restate
 
 import (
+	"errors"
 	"time"
 
 	"github.com/restatedev/sdk-go/internal/options"
 )
 
-// GetAs get the value for a key, returning a typed response instead of accepting a pointer.
-// If there is no associated value with key, [ErrKeyNotFound] is returned
+// GetAs gets the value for a key, returning a typed response instead of accepting a pointer.
+// If there is no associated value with key, the zero value is returned - to check explicitly for this case use ctx.Get directly.
 // If the invocation was cancelled while obtaining the state (only possible if eager state is disabled),
-// a cancellation error is returned. If eager state is enabled (the default), err will always be ErrKeyNotFound or nil.
+// a cancellation error is returned. If eager state is enabled (the default), err will always be nil and can be ignored.
 func GetAs[T any](ctx ObjectSharedContext, key string, options ...options.GetOption) (output T, err error) {
-	err = ctx.Get(key, &output, options...)
-	return
+	if err := ctx.Get(key, &output, options...); !errors.Is(err, ErrKeyNotFound) {
+		return output, err
+	} else {
+		return output, nil
+	}
 }
 
 // RunAs executes a Run function on a [Context], returning a typed response instead of accepting a pointer
