@@ -26,9 +26,17 @@ var (
 // Reflect converts a struct with methods into a service definition where each correctly-typed
 // and exported method of the struct will become a handler in the definition. The service name
 // defaults to the name of the struct, but this can be overidden by providing a `ServiceName() string` method.
-// The handler name is the name of the method. Handler methods should be of the type `ServiceHandlerFn[I,O]`,
-// `ObjectHandlerFn[I, O]` or `ObjectSharedHandlerFn[I, O]`. This function will panic if a mixture of
-// object and service method signatures or opts are provided.
+// The handler name is the name of the method. Handler methods should have one of the following signatures:
+// - (ctx, I) (O, error)
+// - (ctx, I) (O)
+// - (ctx, I) (error)
+// - (ctx, I)
+// - (ctx)
+// - (ctx) (error)
+// - (ctx) (O)
+// - (ctx) (O, error)
+// Where ctx is [ObjectContext], [ObjectSharedContext] or [Context]. Other signatures are ignored.
+// This function will panic if a mixture of object and service method signatures or opts are provided.
 //
 // Input types will be deserialised with the provided codec (defaults to JSON) except when they are restate.Void,
 // in which case no input bytes or content type may be sent.
@@ -54,8 +62,9 @@ func Reflect(rcvr any, opts ...options.ServiceDefinitionOption) ServiceDefinitio
 		if !method.IsExported() {
 			continue
 		}
-		// Method needs three ins: receiver, Context, I
-		if mtype.NumIn() != 3 {
+		// Method needs 2-3 ins: receiver, Context, optionally I
+		numIn := mtype.NumIn()
+		if numIn < 2 || numIn > 3 {
 			continue
 		}
 
@@ -87,42 +96,61 @@ func Reflect(rcvr any, opts ...options.ServiceDefinitionOption) ServiceDefinitio
 			continue
 		}
 
-		// Method needs two outs: O, and error
-		if mtype.NumOut() != 2 {
+		// Method needs 0-2 outs: (), (O), (error), (O, error) are all valid
+		var output reflect.Type
+		var hasError bool
+		switch mtype.NumOut() {
+		case 0:
+			// ()
+			output = nil
+			hasError = false
+		case 1:
+			if returnType := mtype.Out(0); returnType == typeOfError {
+				// (error)
+				output = nil
+				hasError = true
+			} else {
+				output = returnType
+				hasError = false
+			}
+		case 2:
+			if returnType := mtype.Out(1); returnType != typeOfError {
+				continue
+			}
+			output = mtype.Out(0)
+			hasError = true
+		default:
 			continue
 		}
 
-		// The second return type of the method must be error.
-		if returnType := mtype.Out(1); returnType != typeOfError {
-			continue
+		var input reflect.Type
+		if numIn > 2 {
+			input = mtype.In(2)
 		}
-
-		input := mtype.In(2)
-		output := mtype.Out(0)
 
 		switch def := definition.(type) {
 		case *service:
-			def.Handler(mname, &serviceReflectHandler{
-				reflectHandler{
-					fn:          method.Func,
-					receiver:    val,
-					input:       input,
-					output:      output,
-					options:     options.HandlerOptions{},
-					handlerType: nil,
-				},
-			})
+			def.Handler(mname, &reflectHandler{
+				fn:          method.Func,
+				receiver:    val,
+				input:       input,
+				output:      output,
+				hasError:    hasError,
+				options:     options.HandlerOptions{},
+				handlerType: nil,
+			},
+			)
 		case *object:
-			def.Handler(mname, &objectReflectHandler{
-				reflectHandler{
-					fn:          method.Func,
-					receiver:    val,
-					input:       input,
-					output:      input,
-					options:     options.HandlerOptions{},
-					handlerType: &handlerType,
-				},
-			})
+			def.Handler(mname, &reflectHandler{
+				fn:          method.Func,
+				receiver:    val,
+				input:       input,
+				output:      input,
+				hasError:    hasError,
+				options:     options.HandlerOptions{},
+				handlerType: &handlerType,
+			},
+			)
 		}
 	}
 
@@ -138,6 +166,7 @@ type reflectHandler struct {
 	receiver    reflect.Value
 	input       reflect.Type
 	output      reflect.Type
+	hasError    bool
 	options     options.HandlerOptions
 	handlerType *internal.ServiceHandlerType
 }
@@ -158,65 +187,44 @@ func (h *reflectHandler) HandlerType() *internal.ServiceHandlerType {
 	return h.handlerType
 }
 
-type objectReflectHandler struct {
-	reflectHandler
-}
+func (h *reflectHandler) Call(ctx *state.Context, bytes []byte) ([]byte, error) {
+	var args []reflect.Value
+	if h.input != nil {
+		input := reflect.New(h.input)
 
-var _ state.Handler = (*objectReflectHandler)(nil)
+		if err := encoding.Unmarshal(h.options.Codec, bytes, input.Interface()); err != nil {
+			return nil, TerminalError(fmt.Errorf("request could not be decoded into handler input type: %w", err), http.StatusBadRequest)
+		}
 
-func (h *objectReflectHandler) Call(ctx *state.Context, bytes []byte) ([]byte, error) {
-	input := reflect.New(h.input)
-
-	if err := encoding.Unmarshal(h.options.Codec, bytes, input.Interface()); err != nil {
-		return nil, TerminalError(fmt.Errorf("request could not be decoded into handler input type: %w", err), http.StatusBadRequest)
+		args = []reflect.Value{h.receiver, reflect.ValueOf(ctxWrapper{ctx}), input.Elem()}
+	} else {
+		args = []reflect.Value{h.receiver, reflect.ValueOf(ctxWrapper{ctx})}
 	}
 
-	// we are sure about the fn signature so it's safe to do this
-	output := h.fn.Call([]reflect.Value{
-		h.receiver,
-		reflect.ValueOf(ctxWrapper{ctx}),
-		input.Elem(),
-	})
+	output := h.fn.Call(args)
+	var outI any
 
-	outI := output[0].Interface()
-	errI := output[1].Interface()
-	if errI != nil {
-		return nil, errI.(error)
-	}
-
-	bytes, err := encoding.Marshal(h.options.Codec, outI)
-	if err != nil {
-		// we don't use a terminal error here as this is hot-fixable by changing the return type
-		return nil, fmt.Errorf("failed to serialize output: %w", err)
-	}
-
-	return bytes, nil
-}
-
-type serviceReflectHandler struct {
-	reflectHandler
-}
-
-var _ state.Handler = (*serviceReflectHandler)(nil)
-
-func (h *serviceReflectHandler) Call(ctx *state.Context, bytes []byte) ([]byte, error) {
-	input := reflect.New(h.input)
-
-	if err := encoding.Unmarshal(h.options.Codec, bytes, input.Interface()); err != nil {
-		return nil, TerminalError(fmt.Errorf("request could not be decoded into handler input type: %w", err), http.StatusBadRequest)
-	}
-
-	// we are sure about the fn signature so it's safe to do this
-	output := h.fn.Call([]reflect.Value{
-		h.receiver,
-		reflect.ValueOf(ctxWrapper{ctx}),
-		input.Elem(),
-	})
-
-	outI := output[0].Interface()
-	errI := output[1].Interface()
-	if errI != nil {
-		return nil, errI.(error)
+	switch [2]bool{h.output != nil, h.hasError} {
+	case [2]bool{false, false}:
+		// ()
+		return nil, nil
+	case [2]bool{false, true}:
+		// (error)
+		errI := output[0].Interface()
+		if errI != nil {
+			return nil, errI.(error)
+		}
+		return nil, nil
+	case [2]bool{true, false}:
+		// (O)
+		outI = output[0].Interface()
+	case [2]bool{true, true}:
+		// (O, error)
+		errI := output[1].Interface()
+		if errI != nil {
+			return nil, errI.(error)
+		}
+		outI = output[0].Interface()
 	}
 
 	bytes, err := encoding.Marshal(h.options.Codec, outI)
@@ -227,3 +235,5 @@ func (h *serviceReflectHandler) Call(ctx *state.Context, bytes []byte) ([]byte, 
 
 	return bytes, nil
 }
+
+var _ state.Handler = (*reflectHandler)(nil)
