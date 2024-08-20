@@ -24,45 +24,32 @@ func init() {
 				})).
 			Handler("get", restate.NewObjectSharedHandler(
 				func(ctx restate.ObjectSharedContext, _ restate.Void) (int64, error) {
-					c, err := restate.GetAs[int64](ctx, COUNTER_KEY)
-					if errors.Is(err, restate.ErrKeyNotFound) {
-						c = 0
-					} else if err != nil {
-						return 0, err
-					}
-					return c, nil
+					return restate.GetAs[int64](ctx, COUNTER_KEY)
 				})).
 			Handler("add", restate.NewObjectHandler(
 				func(ctx restate.ObjectContext, addend int64) (CounterUpdateResponse, error) {
 					oldValue, err := restate.GetAs[int64](ctx, COUNTER_KEY)
-					if errors.Is(err, restate.ErrKeyNotFound) {
-						oldValue = 0
-					} else if err != nil {
+					if err != nil && !errors.Is(err, restate.ErrKeyNotFound) {
 						return CounterUpdateResponse{}, err
 					}
 
 					newValue := oldValue + addend
-					err = ctx.Set(COUNTER_KEY, newValue)
+					ctx.Set(COUNTER_KEY, newValue)
 
 					return CounterUpdateResponse{
 						OldValue: oldValue,
 						NewValue: newValue,
-					}, err
+					}, nil
 				})).
 			Handler("addThenFail", restate.NewObjectHandler(
 				func(ctx restate.ObjectContext, addend int64) (restate.Void, error) {
 					oldValue, err := restate.GetAs[int64](ctx, COUNTER_KEY)
-					if errors.Is(err, restate.ErrKeyNotFound) {
-						oldValue = 0
-					} else if err != nil {
+					if err != nil && !errors.Is(err, restate.ErrKeyNotFound) {
 						return restate.Void{}, err
 					}
 
 					newValue := oldValue + addend
-					err = ctx.Set(COUNTER_KEY, newValue)
-					if err != nil {
-						return restate.Void{}, err
-					}
+					ctx.Set(COUNTER_KEY, newValue)
 
 					return restate.Void{}, restate.TerminalError(fmt.Errorf("%s", ctx.Key()))
 				})))

@@ -283,10 +283,7 @@ func TestInvocationCanceled(t *testing.T) {
 		{
 			name: "call should return cancelled error",
 			fn: func(ctx restate.Context) error {
-				fut, err := ctx.Service("foo", "bar").RequestFuture(restate.Void{})
-				if err != nil {
-					return err
-				}
+				fut := ctx.Service("foo", "bar").RequestFuture(restate.Void{})
 				return fut.Response(restate.Void{})
 			},
 		},

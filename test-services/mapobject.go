@@ -14,15 +14,12 @@ func init() {
 		restate.NewObject("MapObject").
 			Handler("set", restate.NewObjectHandler(
 				func(ctx restate.ObjectContext, value Entry) (restate.Void, error) {
-					return restate.Void{}, ctx.Set(value.Key, value.Value)
+					ctx.Set(value.Key, value.Value)
+					return restate.Void{}, nil
 				})).
 			Handler("get", restate.NewObjectHandler(
 				func(ctx restate.ObjectContext, key string) (string, error) {
-					value, err := restate.GetAs[string](ctx, key)
-					if err != nil && err != restate.ErrKeyNotFound {
-						return "", err
-					}
-					return value, nil
+					return restate.GetAs[string](ctx, key)
 				})).
 			Handler("clearAll", restate.NewObjectHandler(
 				func(ctx restate.ObjectContext, _ restate.Void) ([]Entry, error) {

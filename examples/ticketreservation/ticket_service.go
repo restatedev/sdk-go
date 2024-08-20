@@ -27,7 +27,8 @@ func (t *ticketService) Reserve(ctx restate.ObjectContext, _ restate.Void) (bool
 	}
 
 	if status == TicketAvailable {
-		return true, ctx.Set("status", TicketReserved)
+		ctx.Set("status", TicketReserved)
+		return true, nil
 	}
 
 	return false, nil
@@ -59,7 +60,8 @@ func (t *ticketService) MarkAsSold(ctx restate.ObjectContext, _ restate.Void) (v
 	}
 
 	if status == TicketReserved {
-		return void, ctx.Set("status", TicketSold)
+		ctx.Set("status", TicketSold)
+		return void, nil
 	}
 
 	return void, nil
@@ -69,10 +71,5 @@ func (t *ticketService) Status(ctx restate.ObjectSharedContext, _ restate.Void) 
 	ticketId := ctx.Key()
 	ctx.Log().Info("mark ticket as sold", "ticket", ticketId)
 
-	status, err := restate.GetAs[TicketStatus](ctx, "status")
-	if err != nil && !errors.Is(err, restate.ErrKeyNotFound) {
-		return status, err
-	}
-
-	return status, nil
+	return restate.GetAs[TicketStatus](ctx, "status")
 }

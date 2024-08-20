@@ -125,7 +125,7 @@ func (m *Machine) _clearAll() {
 	)
 }
 
-func (m *Machine) get(key string) []byte {
+func (m *Machine) get(key string) ([]byte, error) {
 	entry, entryIndex := replayOrNew(
 		m,
 		func(entry *wire.GetStateEntryMessage) *wire.GetStateEntryMessage {
@@ -145,10 +145,12 @@ func (m *Machine) get(key string) []byte {
 
 	switch value := entry.Result.(type) {
 	case *protocol.GetStateEntryMessage_Empty:
-		return nil
+		return nil, restate.ErrKeyNotFound
 	case *protocol.GetStateEntryMessage_Value:
 		m.current[key] = value.Value
-		return value.Value
+		return value.Value, nil
+	case *protocol.GetStateEntryMessage_Failure:
+		return nil, errors.ErrorFromFailure(value.Failure)
 	default:
 		panic(m.newProtocolViolation(entry, fmt.Errorf("get state entry had invalid result: %v", entry.Result)))
 	}
@@ -356,4 +358,15 @@ func (m *Machine) newRunFailure(err error) *runFailure {
 	s := &runFailure{m.entryIndex, err}
 	m.failure = s
 	return s
+}
+
+type codecFailure struct {
+	entryIndex uint32
+	err        error
+}
+
+func (m *Machine) newCodecFailure(err error) *codecFailure {
+	c := &codecFailure{m.entryIndex, err}
+	m.failure = c
+	return c
 }

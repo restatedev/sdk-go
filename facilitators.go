@@ -8,6 +8,9 @@ import (
 
 // GetAs get the value for a key, returning a typed response instead of accepting a pointer.
 // If there is no associated value with key, [ErrKeyNotFound] is returned
+// If the invocation was cancelled while obtaining the state, a cancellation error is returned, however this
+// can currently only occur if RESTATE_WORKER__INVOKER__DISABLE_EAGER_STATE is set to true (default false).
+// If this flag is not true, err will always be ErrKeyNotFound or nil.
 func GetAs[T any](ctx ObjectSharedContext, key string, options ...options.GetOption) (output T, err error) {
 	err = ctx.Get(key, &output, options...)
 	return
@@ -51,11 +54,11 @@ func AwakeableAs[T any](ctx Context, options ...options.AwakeableOption) TypedAw
 // TypedCallClient is an extension of [CallClient] which deals in typed values
 type TypedCallClient[I any, O any] interface {
 	// RequestFuture makes a call and returns a handle on a future response
-	RequestFuture(input I) (TypedResponseFuture[O], error)
+	RequestFuture(input I) TypedResponseFuture[O]
 	// Request makes a call and blocks on getting the response
 	Request(input I) (O, error)
 	// Send makes a one-way call which is executed in the background
-	Send(input I, delay time.Duration) error
+	Send(input I, delay time.Duration)
 }
 
 type typedCallClient[I any, O any] struct {
@@ -70,24 +73,16 @@ func NewTypedCallClient[I any, O any](client CallClient) TypedCallClient[I, O] {
 }
 
 func (t typedCallClient[I, O]) Request(input I) (output O, err error) {
-	fut, err := t.inner.RequestFuture(input)
-	if err != nil {
-		return output, err
-	}
-	err = fut.Response(&output)
+	err = t.inner.RequestFuture(input).Response(&output)
 	return
 }
 
-func (t typedCallClient[I, O]) RequestFuture(input I) (TypedResponseFuture[O], error) {
-	fut, err := t.inner.RequestFuture(input)
-	if err != nil {
-		return nil, err
-	}
-	return typedResponseFuture[O]{fut}, nil
+func (t typedCallClient[I, O]) RequestFuture(input I) TypedResponseFuture[O] {
+	return typedResponseFuture[O]{t.inner.RequestFuture(input)}
 }
 
-func (t typedCallClient[I, O]) Send(input I, delay time.Duration) error {
-	return t.inner.Send(input, delay)
+func (t typedCallClient[I, O]) Send(input I, delay time.Duration) {
+	t.inner.Send(input, delay)
 }
 
 // TypedResponseFuture is an extension of [ResponseFuture] which returns typed responses instead of accepting a pointer

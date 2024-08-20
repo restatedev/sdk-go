@@ -22,8 +22,8 @@ func init() {
 		invocationCounts[countKey] += 1
 		return invocationCounts[countKey]%2 == 1
 	}
-	incrementCounter := func(ctx restate.ObjectContext) error {
-		return ctx.Object("Counter", ctx.Key(), "add").Send(int64(1), 0)
+	incrementCounter := func(ctx restate.ObjectContext) {
+		ctx.Object("Counter", ctx.Key(), "add").Send(int64(1), 0)
 	}
 
 	REGISTRY.AddDefinition(
@@ -40,7 +40,8 @@ func init() {
 
 					// This is required to cause a suspension after the non-deterministic operation
 					ctx.Sleep(100 * time.Millisecond)
-					return restate.Void{}, incrementCounter(ctx)
+					incrementCounter(ctx)
+					return restate.Void{}, nil
 				})).
 			Handler("callDifferentMethod", restate.NewObjectHandler(
 				func(ctx restate.ObjectContext, _ restate.Void) (restate.Void, error) {
@@ -56,38 +57,33 @@ func init() {
 
 					// This is required to cause a suspension after the non-deterministic operation
 					ctx.Sleep(100 * time.Millisecond)
-					return restate.Void{}, incrementCounter(ctx)
+					incrementCounter(ctx)
+					return restate.Void{}, nil
 				})).
 			Handler("backgroundInvokeWithDifferentTargets", restate.NewObjectHandler(
 				func(ctx restate.ObjectContext, _ restate.Void) (restate.Void, error) {
 					if doLeftAction(ctx) {
-						if err := ctx.Object("Counter", "abc", "get").Send(restate.Void{}, 0); err != nil {
-							return restate.Void{}, err
-						}
+						ctx.Object("Counter", "abc", "get").Send(restate.Void{}, 0)
 					} else {
-						if err := ctx.Object("Counter", "abc", "reset").Send(restate.Void{}, 0); err != nil {
-							return restate.Void{}, err
-						}
+						ctx.Object("Counter", "abc", "reset").Send(restate.Void{}, 0)
 					}
 
 					// This is required to cause a suspension after the non-deterministic operation
 					ctx.Sleep(100 * time.Millisecond)
-					return restate.Void{}, incrementCounter(ctx)
+					incrementCounter(ctx)
+					return restate.Void{}, nil
 				})).
 			Handler("setDifferentKey", restate.NewObjectHandler(
 				func(ctx restate.ObjectContext, _ restate.Void) (restate.Void, error) {
 					if doLeftAction(ctx) {
-						if err := ctx.Set(STATE_A, "my-state"); err != nil {
-							return restate.Void{}, err
-						}
+						ctx.Set(STATE_A, "my-state")
 					} else {
-						if err := ctx.Set(STATE_B, "my-state"); err != nil {
-							return restate.Void{}, err
-						}
+						ctx.Set(STATE_B, "my-state")
 					}
 
 					// This is required to cause a suspension after the non-deterministic operation
 					ctx.Sleep(100 * time.Millisecond)
-					return restate.Void{}, incrementCounter(ctx)
+					incrementCounter(ctx)
+					return restate.Void{}, nil
 				})))
 }

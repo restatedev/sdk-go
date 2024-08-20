@@ -45,14 +45,10 @@ func (c counter) Add(ctx restate.ObjectContext, req *helloworld.AddRequest) (*he
 	}
 
 	count += req.Delta
-	if err := ctx.Set("counter", count); err != nil {
-		return nil, err
-	}
+	ctx.Set("counter", count)
 
 	for _, awakeableID := range watchers {
-		if err := ctx.ResolveAwakeable(awakeableID, count); err != nil {
-			return nil, err
-		}
+		ctx.ResolveAwakeable(awakeableID, count)
 	}
 	ctx.Clear("watchers")
 
@@ -74,9 +70,7 @@ func (c counter) AddWatcher(ctx restate.ObjectContext, req *helloworld.AddWatche
 		return nil, err
 	}
 	watchers = append(watchers, req.AwakeableId)
-	if err := ctx.Set("watchers", watchers); err != nil {
-		return nil, err
-	}
+	ctx.Set("watchers", watchers)
 	return &helloworld.AddWatcherResponse{}, nil
 }
 

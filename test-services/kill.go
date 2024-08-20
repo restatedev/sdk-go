@@ -14,9 +14,7 @@ func init() {
 			Handler("recursiveCall", restate.NewObjectHandler(
 				func(ctx restate.ObjectContext, _ restate.Void) (restate.Void, error) {
 					awakeable := ctx.Awakeable()
-					if err := ctx.Object("AwakeableHolder", "kill", "hold").Send(awakeable.Id(), 0); err != nil {
-						return restate.Void{}, err
-					}
+					ctx.Object("AwakeableHolder", "kill", "hold").Send(awakeable.Id(), 0)
 					if err := awakeable.Result(restate.Void{}); err != nil {
 						return restate.Void{}, err
 					}
