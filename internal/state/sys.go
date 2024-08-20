@@ -193,7 +193,7 @@ func (m *Machine) _get(key string) *wire.GetStateEntryMessage {
 	return msg
 }
 
-func (m *Machine) keys() []string {
+func (m *Machine) keys() ([]string, error) {
 	entry, entryIndex := replayOrNew(
 		m,
 		func(entry *wire.GetStateKeysEntryMessage) *wire.GetStateKeysEntryMessage {
@@ -211,7 +211,9 @@ func (m *Machine) keys() []string {
 			values = append(values, string(key))
 		}
 
-		return values
+		return values, nil
+	case *protocol.GetStateKeysEntryMessage_Failure:
+		return nil, errors.ErrorFromFailure(value.Failure)
 	default:
 		panic(m.newProtocolViolation(entry, fmt.Errorf("get state keys entry had invalid result: %v", entry.Result)))
 	}

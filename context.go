@@ -167,11 +167,14 @@ type ObjectSharedContext interface {
 type KeyValueReader interface {
 	// Get gets value associated with key and stores it in value
 	// If key does not exist, this function returns [ErrKeyNotFound]
-	// If the invocation was cancelled while obtaining the state, a cancellation error is returned
+	// If the invocation was cancelled while obtaining the state (only possible if eager state is disabled),
+	// a cancellation error is returned. If eager state is enabled (the default), err will always be ErrKeyNotFound or nil.
 	// Note: Use GetAs generic helper function to avoid passing in a value pointer
 	Get(key string, value any, options ...options.GetOption) error
 	// Keys returns a list of all associated key
-	Keys() []string
+	// If the invocation was cancelled while obtaining the state (only possible if eager state is disabled),
+	// a cancellation error is returned. If eager state is enabled (the default), err will always be nil.
+	Keys() ([]string, error)
 	// Key retrieves the key for this virtual object invocation. This is a no-op and is
 	// always safe to call.
 	Key() string

@@ -8,9 +8,8 @@ import (
 
 // GetAs get the value for a key, returning a typed response instead of accepting a pointer.
 // If there is no associated value with key, [ErrKeyNotFound] is returned
-// If the invocation was cancelled while obtaining the state, a cancellation error is returned, however this
-// can currently only occur if RESTATE_WORKER__INVOKER__DISABLE_EAGER_STATE is set to true (default false).
-// If this flag is not true, err will always be ErrKeyNotFound or nil.
+// If the invocation was cancelled while obtaining the state (only possible if eager state is disabled),
+// a cancellation error is returned. If eager state is enabled (the default), err will always be ErrKeyNotFound or nil.
 func GetAs[T any](ctx ObjectSharedContext, key string, options ...options.GetOption) (output T, err error) {
 	err = ctx.Get(key, &output, options...)
 	return

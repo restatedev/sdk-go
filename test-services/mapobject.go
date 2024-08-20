@@ -23,7 +23,10 @@ func init() {
 				})).
 			Handler("clearAll", restate.NewObjectHandler(
 				func(ctx restate.ObjectContext, _ restate.Void) ([]Entry, error) {
-					keys := ctx.Keys()
+					keys, err := ctx.Keys()
+					if err != nil {
+						return nil, err
+					}
 					out := make([]Entry, 0, len(keys))
 					for _, k := range keys {
 						value, err := restate.GetAs[string](ctx, k)

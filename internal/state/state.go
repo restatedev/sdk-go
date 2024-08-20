@@ -105,7 +105,7 @@ func (c *Context) Get(key string, output any, opts ...options.GetOption) error {
 	return nil
 }
 
-func (c *Context) Keys() []string {
+func (c *Context) Keys() ([]string, error) {
 	return c.machine.keys()
 }
 
