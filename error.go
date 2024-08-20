@@ -2,6 +2,7 @@ package restate
 
 import (
 	stderrors "errors"
+	"fmt"
 
 	"github.com/restatedev/sdk-go/internal/errors"
 )
@@ -30,6 +31,11 @@ func WithErrorCode(err error, code Code) error {
 // By default, restate will retry the invocation or Run function forever unless a terminal error is returned
 func TerminalError(err error, code ...errors.Code) error {
 	return errors.NewTerminalError(err, code...)
+}
+
+// TerminalErrorf is a shorthand for combining fmt.Errorf with TerminalError
+func TerminalErrorf(format string, a ...any) error {
+	return TerminalError(fmt.Errorf(format, a...))
 }
 
 // IsTerminalError checks if err is terminal - ie, that returning it in a handler or Run function will finish
