@@ -62,7 +62,50 @@ const (
 type Type uint16
 
 func (t Type) String() string {
-	return fmt.Sprintf("0x%04X", uint16(t))
+	switch t {
+	case StartMessageType:
+		return "StartMessage"
+	case CompletionMessageType:
+		return "CompletionMessage"
+	case SuspensionMessageType:
+		return "SuspensionMessage"
+	case ErrorMessageType:
+		return "ErrorMessage"
+	case EntryAckMessageType:
+		return "EntryAckMessage"
+	case EndMessageType:
+		return "EndMessage"
+	case InputEntryMessageType:
+		return "InputEntryMessage"
+	case OutputEntryMessageType:
+		return "OutputEntryMessage"
+	case GetStateEntryMessageType:
+		return "GetStateEntryMessage"
+	case SetStateEntryMessageType:
+		return "SetStateEntryMessage"
+	case ClearStateEntryMessageType:
+		return "ClearStateEntryMessage"
+	case ClearAllStateEntryMessageType:
+		return "ClearAllStateEntryMessage"
+	case GetStateKeysEntryMessageType:
+		return "GetStateKeysEntryMessage"
+	case SleepEntryMessageType:
+		return "SleepEntryMessage"
+	case CallEntryMessageType:
+		return "CallEntryMessage"
+	case OneWayCallEntryMessageType:
+		return "OneWayCallEntryMessage"
+	case AwakeableEntryMessageType:
+		return "AwakeableEntryMessage"
+	case CompleteAwakeableEntryMessageType:
+		return "CompleteAwakeableEntryMessage"
+	case RunEntryMessageType:
+		return "RunEntryMessage"
+	case SelectorEntryMessageType:
+		return "SelectorEntryMessage"
+	default:
+		return fmt.Sprintf("0x%04X", uint16(t))
+	}
 }
 
 func (t Type) UInt32() *uint32 {

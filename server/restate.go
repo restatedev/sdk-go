@@ -238,7 +238,9 @@ type serviceMethod struct {
 
 // takes care of function call
 func (r *Restate) callHandler(serviceProtocolVersion protocol.ServiceProtocolVersion, service, method string, writer http.ResponseWriter, request *http.Request) {
-	logger := r.systemLog.With("method", slog.StringValue(fmt.Sprintf("%s/%s", service, method)))
+	serviceMethod := fmt.Sprintf("%s/%s", service, method)
+
+	logger := r.systemLog.With("method", slog.StringValue(serviceMethod))
 
 	writer.Header().Add("x-restate-server", xRestateServer)
 	writer.Header().Add("content-type", serviceProtocolVersionToHeaderValue(serviceProtocolVersion))
@@ -263,7 +265,11 @@ func (r *Restate) callHandler(serviceProtocolVersion protocol.ServiceProtocolVer
 
 	machine := state.NewMachine(handler, conn, request.Header)
 
-	if err := machine.Start(request.Context(), r.dropReplayLogs, r.logHandler); err != nil {
+	logHandler := r.logHandler.WithAttrs([]slog.Attr{
+		slog.String("method", serviceMethod),
+	})
+
+	if err := machine.Start(request.Context(), r.dropReplayLogs, logHandler); err != nil {
 		r.systemLog.LogAttrs(request.Context(), slog.LevelError, "Failed to handle invocation", log.Error(err))
 	}
 }
