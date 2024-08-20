@@ -81,11 +81,11 @@ type Awakeable interface {
 // CallClient represents all the different ways you can invoke a particular service/key/method tuple.
 type CallClient interface {
 	// RequestFuture makes a call and returns a handle on a future response
-	RequestFuture(input any) ResponseFuture
+	RequestFuture(input any, opts ...options.RequestOption) ResponseFuture
 	// Request makes a call and blocks on getting the response which is stored in output
-	Request(input any, output any) error
+	Request(input any, output any, opts ...options.RequestOption) error
 	// Send makes a one-way call which is executed in the background
-	Send(input any, delay time.Duration)
+	Send(input any, opts ...options.SendOption)
 }
 
 // ResponseFuture is a handle on a potentially not-yet completed outbound call.

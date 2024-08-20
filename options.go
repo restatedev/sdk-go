@@ -1,6 +1,8 @@
 package restate
 
 import (
+	"time"
+
 	"github.com/restatedev/sdk-go/encoding"
 	"github.com/restatedev/sdk-go/internal/options"
 )
@@ -77,13 +79,33 @@ type withHeaders struct {
 	headers map[string]string
 }
 
-var _ options.CallOption = withHeaders{}
+var _ options.RequestOption = withHeaders{}
+var _ options.SendOption = withHeaders{}
 
-func (w withHeaders) BeforeCall(opts *options.CallOptions) {
+func (w withHeaders) BeforeRequest(opts *options.RequestOptions) {
+	opts.Headers = w.headers
+}
+
+func (w withHeaders) BeforeSend(opts *options.SendOptions) {
 	opts.Headers = w.headers
 }
 
 // WithHeaders is an option to specify outgoing headers when making a call
 func WithHeaders(headers map[string]string) withHeaders {
 	return withHeaders{headers}
+}
+
+type withDelay struct {
+	delay time.Duration
+}
+
+var _ options.SendOption = withDelay{}
+
+func (w withDelay) BeforeSend(opts *options.SendOptions) {
+	opts.Delay = w.delay
+}
+
+// WithDelay is an [SendOption] to specify the duration to delay the request
+func WithDelay(delay time.Duration) withDelay {
+	return withDelay{delay}
 }
