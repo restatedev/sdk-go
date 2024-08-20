@@ -1,7 +1,6 @@
 package main
 
 import (
-	"fmt"
 	"strings"
 	"sync/atomic"
 	"time"
@@ -83,7 +82,7 @@ func init() {
 						i++
 					}
 					if i != len(timers) {
-						return restate.Void{}, restate.TerminalError(fmt.Errorf("unexpected number of timers fired: %d", i))
+						return restate.Void{}, restate.TerminalErrorf("unexpected number of timers fired: %d", i)
 					}
 					return restate.Void{}, nil
 				})).
