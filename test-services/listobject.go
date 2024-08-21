@@ -11,17 +11,17 @@ func init() {
 		restate.NewObject("ListObject").
 			Handler("append", restate.NewObjectHandler(
 				func(ctx restate.ObjectContext, value string) (restate.Void, error) {
-					list, err := restate.GetAs[[]string](ctx, LIST_KEY)
+					list, err := restate.Get[[]string](ctx, LIST_KEY)
 					if err != nil {
 						return restate.Void{}, err
 					}
 					list = append(list, value)
-					ctx.Set(LIST_KEY, list)
+					restate.Set(ctx, LIST_KEY, list)
 					return restate.Void{}, nil
 				})).
 			Handler("get", restate.NewObjectHandler(
 				func(ctx restate.ObjectContext, _ restate.Void) ([]string, error) {
-					list, err := restate.GetAs[[]string](ctx, LIST_KEY)
+					list, err := restate.Get[[]string](ctx, LIST_KEY)
 					if err != nil {
 						return nil, err
 					}
@@ -34,7 +34,7 @@ func init() {
 				})).
 			Handler("clear", restate.NewObjectHandler(
 				func(ctx restate.ObjectContext, _ restate.Void) ([]string, error) {
-					list, err := restate.GetAs[[]string](ctx, LIST_KEY)
+					list, err := restate.Get[[]string](ctx, LIST_KEY)
 					if err != nil {
 						return nil, err
 					}
@@ -42,7 +42,7 @@ func init() {
 						// or go would encode this as JSON null
 						list = []string{}
 					}
-					ctx.Clear(LIST_KEY)
+					restate.Clear(ctx, LIST_KEY)
 					return list, nil
 				})))
 }

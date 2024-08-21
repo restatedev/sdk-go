@@ -15,6 +15,7 @@ import (
 	restate "github.com/restatedev/sdk-go"
 	"github.com/restatedev/sdk-go/encoding"
 	protocol "github.com/restatedev/sdk-go/generated/dev/restate/service"
+	"github.com/restatedev/sdk-go/interfaces"
 	"github.com/restatedev/sdk-go/internal/errors"
 	"github.com/restatedev/sdk-go/internal/futures"
 	"github.com/restatedev/sdk-go/internal/log"
@@ -113,11 +114,11 @@ func (c *Context) Sleep(d time.Duration) error {
 	return c.machine.sleep(d)
 }
 
-func (c *Context) After(d time.Duration) restate.After {
+func (c *Context) After(d time.Duration) interfaces.After {
 	return c.machine.after(d)
 }
 
-func (c *Context) Service(service, method string, opts ...options.ClientOption) restate.CallClient {
+func (c *Context) Service(service, method string, opts ...options.ClientOption) interfaces.Client {
 	o := options.ClientOptions{}
 	for _, opt := range opts {
 		opt.BeforeClient(&o)
@@ -134,7 +135,7 @@ func (c *Context) Service(service, method string, opts ...options.ClientOption) 
 	}
 }
 
-func (c *Context) Object(service, key, method string, opts ...options.ClientOption) restate.CallClient {
+func (c *Context) Object(service, key, method string, opts ...options.ClientOption) interfaces.Client {
 	o := options.ClientOptions{}
 	for _, opt := range opts {
 		opt.BeforeClient(&o)
@@ -193,7 +194,7 @@ type AwakeableOption interface {
 	beforeAwakeable(*awakeableOptions)
 }
 
-func (c *Context) Awakeable(opts ...options.AwakeableOption) restate.Awakeable {
+func (c *Context) Awakeable(opts ...options.AwakeableOption) interfaces.Awakeable {
 	o := options.AwakeableOptions{}
 	for _, opt := range opts {
 		opt.BeforeAwakeable(&o)
@@ -241,7 +242,7 @@ func (c *Context) RejectAwakeable(id string, reason error) {
 	c.machine.rejectAwakeable(id, reason)
 }
 
-func (c *Context) Select(futs ...restate.Selectable) restate.Selector {
+func (c *Context) Select(futs ...futures.Selectable) interfaces.Selector {
 	return c.machine.selector(futs...)
 }
 

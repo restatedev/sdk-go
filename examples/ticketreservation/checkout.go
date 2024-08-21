@@ -26,7 +26,7 @@ func (c *checkout) ServiceName() string {
 const CheckoutServiceName = "Checkout"
 
 func (c *checkout) Payment(ctx restate.Context, request PaymentRequest) (response PaymentResponse, err error) {
-	uuid := ctx.Rand().UUID().String()
+	uuid := restate.Rand(ctx).UUID().String()
 
 	response.ID = uuid
 
@@ -35,7 +35,7 @@ func (c *checkout) Payment(ctx restate.Context, request PaymentRequest) (respons
 	price := len(request.Tickets) * 30
 
 	response.Price = price
-	_, err = restate.RunAs(ctx, func(ctx restate.RunContext) (bool, error) {
+	_, err = restate.Run(ctx, func(ctx restate.RunContext) (bool, error) {
 		log := ctx.Log().With("uuid", uuid, "price", price)
 		if rand.Float64() < 0.5 {
 			log.Info("payment succeeded")

@@ -10,6 +10,7 @@ import (
 	restate "github.com/restatedev/sdk-go"
 	"github.com/restatedev/sdk-go/encoding"
 	protocol "github.com/restatedev/sdk-go/generated/dev/restate/service"
+	"github.com/restatedev/sdk-go/interfaces"
 	"github.com/restatedev/sdk-go/internal/futures"
 	"github.com/restatedev/sdk-go/internal/options"
 	"github.com/restatedev/sdk-go/internal/wire"
@@ -24,7 +25,7 @@ type serviceCall struct {
 }
 
 // RequestFuture makes a call and returns a handle on the response
-func (c *serviceCall) RequestFuture(input any, opts ...options.RequestOption) restate.ResponseFuture {
+func (c *serviceCall) RequestFuture(input any, opts ...options.RequestOption) interfaces.ResponseFuture {
 	o := options.RequestOptions{}
 	for _, opt := range opts {
 		opt.BeforeRequest(&o)

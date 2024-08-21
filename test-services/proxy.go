@@ -2,6 +2,7 @@ package main
 
 import (
 	restate "github.com/restatedev/sdk-go"
+	"github.com/restatedev/sdk-go/interfaces"
 )
 
 type ProxyRequest struct {
@@ -12,15 +13,15 @@ type ProxyRequest struct {
 	Message []int `json:"message"`
 }
 
-func (req *ProxyRequest) ToTarget(ctx restate.Context) restate.TypedCallClient[[]byte, []byte] {
+func (req *ProxyRequest) ToTarget(ctx restate.Context) restate.TypedClient[[]byte, []byte] {
 	if req.VirtualObjectKey != nil {
-		return restate.NewTypedCallClient[[]byte, []byte](ctx.Object(
+		return restate.NewTypedClient[[]byte, []byte](ctx.Object(
 			req.ServiceName,
 			*req.VirtualObjectKey,
 			req.HandlerName,
 			restate.WithBinary))
 	} else {
-		return restate.NewTypedCallClient[[]byte, []byte](ctx.Service(
+		return restate.NewTypedClient[[]byte, []byte](ctx.Service(
 			req.ServiceName,
 			req.HandlerName,
 			restate.WithBinary))
@@ -53,7 +54,7 @@ func init() {
 			Handler("manyCalls", restate.NewServiceHandler(
 				// We need to use []int because Golang takes the opinionated choice of treating []byte as Base64
 				func(ctx restate.Context, requests []ManyCallRequest) (restate.Void, error) {
-					var toAwait []restate.Selectable
+					var toAwait []interfaces.Selectable
 
 					for _, req := range requests {
 						input := intArrayToByteArray(req.ProxyRequest.Message)
@@ -67,7 +68,7 @@ func init() {
 						}
 					}
 
-					selector := ctx.Select(toAwait...)
+					selector := restate.Select(ctx, toAwait...)
 					for selector.Remaining() {
 						result := selector.Select()
 						if _, err := result.(restate.TypedResponseFuture[[]byte]).Response(); err != nil {

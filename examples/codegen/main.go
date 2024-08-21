@@ -33,29 +33,29 @@ type counter struct {
 }
 
 func (c counter) Add(ctx restate.ObjectContext, req *helloworld.AddRequest) (*helloworld.GetResponse, error) {
-	count, err := restate.GetAs[int64](ctx, "counter")
+	count, err := restate.Get[int64](ctx, "counter")
 	if err != nil {
 		return nil, err
 	}
 
-	watchers, err := restate.GetAs[[]string](ctx, "watchers")
+	watchers, err := restate.Get[[]string](ctx, "watchers")
 	if err != nil {
 		return nil, err
 	}
 
 	count += req.Delta
-	ctx.Set("counter", count)
+	restate.Set(ctx, "counter", count)
 
 	for _, awakeableID := range watchers {
-		ctx.ResolveAwakeable(awakeableID, count)
+		restate.ResolveAwakeable(ctx, awakeableID, count)
 	}
-	ctx.Clear("watchers")
+	restate.Clear(ctx, "watchers")
 
 	return &helloworld.GetResponse{Value: count}, nil
 }
 
 func (c counter) Get(ctx restate.ObjectSharedContext, _ *helloworld.GetRequest) (*helloworld.GetResponse, error) {
-	count, err := restate.GetAs[int64](ctx, "counter")
+	count, err := restate.Get[int64](ctx, "counter")
 	if err != nil {
 		return nil, err
 	}
@@ -64,22 +64,22 @@ func (c counter) Get(ctx restate.ObjectSharedContext, _ *helloworld.GetRequest) 
 }
 
 func (c counter) AddWatcher(ctx restate.ObjectContext, req *helloworld.AddWatcherRequest) (*helloworld.AddWatcherResponse, error) {
-	watchers, err := restate.GetAs[[]string](ctx, "watchers")
+	watchers, err := restate.Get[[]string](ctx, "watchers")
 	if err != nil {
 		return nil, err
 	}
 	watchers = append(watchers, req.AwakeableId)
-	ctx.Set("watchers", watchers)
+	restate.Set(ctx, "watchers", watchers)
 	return &helloworld.AddWatcherResponse{}, nil
 }
 
 func (c counter) Watch(ctx restate.ObjectSharedContext, req *helloworld.WatchRequest) (*helloworld.GetResponse, error) {
-	awakeable := restate.AwakeableAs[int64](ctx)
+	awakeable := restate.Awakeable[int64](ctx)
 
 	// since this is a shared handler, we need to use a separate exclusive handler to store the awakeable ID
 	// if there is an in-flight Add call, this will take effect after it completes
 	// we could add a version counter check here to detect changes that happen mid-request and return immediately
-	if _, err := helloworld.NewCounterClient(ctx, ctx.Key()).
+	if _, err := helloworld.NewCounterClient(ctx, restate.Key(ctx)).
 		AddWatcher().
 		Request(&helloworld.AddWatcherRequest{AwakeableId: awakeable.Id()}); err != nil {
 		return nil, err
@@ -96,10 +96,10 @@ func (c counter) Watch(ctx restate.ObjectSharedContext, req *helloworld.WatchReq
 		return &helloworld.GetResponse{Value: next}, nil
 	}
 
-	after := ctx.After(timeout)
+	after := restate.After(ctx, timeout)
 
 	// this is the safe way to race two results
-	selector := ctx.Select(after, awakeable)
+	selector := restate.Select(ctx, after, awakeable)
 
 	if selector.Select() == after {
 		// the timeout won

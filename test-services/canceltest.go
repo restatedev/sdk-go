@@ -22,9 +22,9 @@ func init() {
 		restate.NewObject("CancelTestRunner").
 			Handler("startTest", restate.NewObjectHandler(
 				func(ctx restate.ObjectContext, operation BlockingOperation) (restate.Void, error) {
-					if err := ctx.Object("CancelTestBlockingService", "", "block").Request(operation, restate.Void{}); err != nil {
+					if _, err := restate.Object[restate.Void](ctx, "CancelTestBlockingService", "", "block").Request(operation); err != nil {
 						if restate.ErrorCode(err) == 409 {
-							ctx.Set(CANCELED_STATE, true)
+							restate.Set(ctx, CANCELED_STATE, true)
 							return restate.Void{}, nil
 						}
 						return restate.Void{}, err
@@ -33,26 +33,26 @@ func init() {
 				})).
 			Handler("verifyTest", restate.NewObjectHandler(
 				func(ctx restate.ObjectContext, _ restate.Void) (bool, error) {
-					return restate.GetAs[bool](ctx, CANCELED_STATE)
+					return restate.Get[bool](ctx, CANCELED_STATE)
 				})))
 	REGISTRY.AddDefinition(
 		restate.NewObject("CancelTestBlockingService").
 			Handler("block", restate.NewObjectHandler(
 				func(ctx restate.ObjectContext, operation BlockingOperation) (restate.Void, error) {
-					awakeable := ctx.Awakeable()
-					if err := ctx.Object("AwakeableHolder", "cancel", "hold").Request(awakeable.Id(), restate.Void{}); err != nil {
+					awakeable := restate.Awakeable[restate.Void](ctx)
+					if _, err := restate.Object[restate.Void](ctx, "AwakeableHolder", "cancel", "hold").Request(awakeable.Id()); err != nil {
 						return restate.Void{}, err
 					}
-					if err := awakeable.Result(restate.Void{}); err != nil {
+					if _, err := awakeable.Result(); err != nil {
 						return restate.Void{}, err
 					}
 					switch operation {
 					case CALL:
-						return restate.Void{}, ctx.Object("CancelTestBlockingService", "", "block").Request(operation, restate.Void{})
+						return restate.Object[restate.Void](ctx, "CancelTestBlockingService", "", "block").Request(operation)
 					case SLEEP:
-						return restate.Void{}, ctx.Sleep(1024 * time.Hour * 24)
+						return restate.Void{}, restate.Sleep(ctx, 1024*time.Hour*24)
 					case AWAKEABLE:
-						return restate.Void{}, ctx.Awakeable().Result(restate.Void{})
+						return restate.Awakeable[restate.Void](ctx).Result()
 					default:
 						return restate.Void{}, restate.TerminalError(fmt.Errorf("unexpected operation %s", operation), 400)
 					}
