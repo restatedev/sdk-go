@@ -133,6 +133,8 @@ type ctxWrapper struct {
 func (o ctxWrapper) inner() *state.Context {
 	return o.Context
 }
+func (o ctxWrapper) object()          {}
+func (o ctxWrapper) exclusiveObject() {}
 
 func (h *objectHandler[I, O]) Call(ctx *state.Context, bytes []byte) ([]byte, error) {
 	var input I

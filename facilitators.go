@@ -204,7 +204,7 @@ func Run[T any](ctx Context, fn func(ctx RunContext) (T, error), options ...opti
 }
 
 // Get gets the value for a key. If there is no associated value with key, the zero value is returned.
-// To check explicitly for this case use ctx.Get directly or pass a pointer eg *string as T.
+// To check explicitly for this case pass a pointer eg *string as T.
 // If the invocation was cancelled while obtaining the state (only possible if eager state is disabled),
 // a cancellation error is returned.
 func Get[T any](ctx ObjectSharedContext, key string, options ...options.GetOption) (output T, err error) {
