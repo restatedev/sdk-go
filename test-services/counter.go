@@ -1,8 +1,6 @@
 package main
 
 import (
-	"fmt"
-
 	restate "github.com/restatedev/sdk-go"
 )
 
@@ -50,6 +48,6 @@ func init() {
 					newValue := oldValue + addend
 					ctx.Set(COUNTER_KEY, newValue)
 
-					return restate.Void{}, restate.TerminalError(fmt.Errorf("%s", ctx.Key()))
+					return restate.Void{}, restate.TerminalErrorf("%s", ctx.Key())
 				})))
 }

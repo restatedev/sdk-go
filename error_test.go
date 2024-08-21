@@ -11,7 +11,7 @@ import (
 func TestTerminal(t *testing.T) {
 	require.False(t, IsTerminalError(fmt.Errorf("not terminal")))
 
-	err := TerminalError(fmt.Errorf("failed terminally"))
+	err := TerminalErrorf("failed terminally")
 	require.True(t, IsTerminalError(err))
 
 	//terminal with code
