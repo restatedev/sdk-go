@@ -1,4 +1,4 @@
-package state
+package state_test
 
 import (
 	"context"
@@ -10,8 +10,8 @@ import (
 
 	restate "github.com/restatedev/sdk-go"
 	protocol "github.com/restatedev/sdk-go/generated/dev/restate/service"
-	"github.com/restatedev/sdk-go/interfaces"
 	"github.com/restatedev/sdk-go/internal/errors"
+	"github.com/restatedev/sdk-go/internal/state"
 	"github.com/restatedev/sdk-go/internal/wire"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/sync/errgroup"
@@ -26,12 +26,12 @@ type testParams struct {
 
 var clientDisconnectError = fmt.Errorf("client disconnected")
 
-func testHandler(handler restate.Handler) testParams {
-	machine := NewMachine(handler, nil, nil)
+func testHandler(handler state.Handler) testParams {
+	machine := state.NewMachine(handler, nil, nil)
 	inputC := make(chan wire.Message)
 	outputC := make(chan wire.Message)
 	ctx, cancel := context.WithCancelCause(context.Background())
-	machine.protocol = mockProtocol{input: inputC, output: outputC}
+	machine.Protocol = mockProtocol{input: inputC, output: outputC}
 
 	eg := errgroup.Group{}
 	eg.Go(func() error {
@@ -103,7 +103,7 @@ func TestResponseClosed(t *testing.T) {
 			afterCancel: func(ctx restate.Context, _ any) {
 				restate.Awakeable[restate.Void](ctx)
 			},
-			expectedPanic: &clientGoneAway{},
+			expectedPanic: &state.ClientGoneAway{},
 		},
 		{
 			name: "starting run should lead to client gone away panic",
@@ -112,7 +112,7 @@ func TestResponseClosed(t *testing.T) {
 					panic("run should not be executed")
 				})
 			},
-			expectedPanic: &clientGoneAway{},
+			expectedPanic: &state.ClientGoneAway{},
 		},
 		{
 			name: "awaiting sleep should lead to suspension panic",
@@ -120,7 +120,7 @@ func TestResponseClosed(t *testing.T) {
 				return restate.After(ctx, time.Minute)
 			},
 			afterCancel: func(ctx restate.Context, setupState any) {
-				setupState.(interfaces.After).Done()
+				setupState.(restate.AfterFuture).Done()
 			},
 			producedEntries: 1,
 			expectedPanic:   &wire.SuspensionPanic{},
@@ -212,7 +212,7 @@ func TestInFlightRunDisconnect(t *testing.T) {
 	require.NoError(t, tp.wait())
 	require.Nil(t, beforeCancelErr, "run context should not be cancelled early")
 	require.Equal(t, context.Canceled, afterCancelErr, "run context should be cancelled")
-	require.IsType(t, &clientGoneAway{}, seenPanic, "after the run should lead to a client gone away panic")
+	require.IsType(t, &state.ClientGoneAway{}, seenPanic, "after the run should lead to a client gone away panic")
 }
 
 // suspension mid-run should commit the run result to the runtime, but then panic with suspension when

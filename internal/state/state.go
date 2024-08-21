@@ -12,10 +12,8 @@ import (
 	"sync/atomic"
 	"time"
 
-	restate "github.com/restatedev/sdk-go"
 	"github.com/restatedev/sdk-go/encoding"
 	protocol "github.com/restatedev/sdk-go/generated/dev/restate/service"
-	"github.com/restatedev/sdk-go/interfaces"
 	"github.com/restatedev/sdk-go/internal/errors"
 	"github.com/restatedev/sdk-go/internal/futures"
 	"github.com/restatedev/sdk-go/internal/log"
@@ -39,16 +37,11 @@ type Context struct {
 	machine    *Machine
 }
 
-var _ restate.ObjectContext = &Context{}
-var _ restate.ObjectSharedContext = &Context{}
-var _ restate.Context = &Context{}
-var _ restate.RunContext = &Context{}
-
 func (c *Context) Log() *slog.Logger {
 	return c.machine.userLog
 }
 
-func (c *Context) Request() *restate.Request {
+func (c *Context) Request() *Request {
 	return &c.machine.request
 }
 
@@ -114,11 +107,11 @@ func (c *Context) Sleep(d time.Duration) error {
 	return c.machine.sleep(d)
 }
 
-func (c *Context) After(d time.Duration) interfaces.After {
+func (c *Context) After(d time.Duration) *futures.After {
 	return c.machine.after(d)
 }
 
-func (c *Context) Service(service, method string, opts ...options.ClientOption) interfaces.Client {
+func (c *Context) Service(service, method string, opts ...options.ClientOption) *Client {
 	o := options.ClientOptions{}
 	for _, opt := range opts {
 		opt.BeforeClient(&o)
@@ -127,7 +120,7 @@ func (c *Context) Service(service, method string, opts ...options.ClientOption) 
 		o.Codec = encoding.JSONCodec
 	}
 
-	return &serviceCall{
+	return &Client{
 		options: o,
 		machine: c.machine,
 		service: service,
@@ -135,7 +128,7 @@ func (c *Context) Service(service, method string, opts ...options.ClientOption) 
 	}
 }
 
-func (c *Context) Object(service, key, method string, opts ...options.ClientOption) interfaces.Client {
+func (c *Context) Object(service, key, method string, opts ...options.ClientOption) *Client {
 	o := options.ClientOptions{}
 	for _, opt := range opts {
 		opt.BeforeClient(&o)
@@ -144,7 +137,7 @@ func (c *Context) Object(service, key, method string, opts ...options.ClientOpti
 		o.Codec = encoding.JSONCodec
 	}
 
-	return &serviceCall{
+	return &Client{
 		options: o,
 		machine: c.machine,
 		service: service,
@@ -153,7 +146,7 @@ func (c *Context) Object(service, key, method string, opts ...options.ClientOpti
 	}
 }
 
-func (c *Context) Run(fn func(ctx restate.RunContext) (any, error), output any, opts ...options.RunOption) error {
+func (c *Context) Run(fn func(ctx RunContext) (any, error), output any, opts ...options.RunOption) error {
 	o := options.RunOptions{}
 	for _, opt := range opts {
 		opt.BeforeRun(&o)
@@ -162,7 +155,7 @@ func (c *Context) Run(fn func(ctx restate.RunContext) (any, error), output any, 
 		o.Codec = encoding.JSONCodec
 	}
 
-	bytes, err := c.machine.run(func(ctx restate.RunContext) ([]byte, error) {
+	bytes, err := c.machine.run(func(ctx RunContext) ([]byte, error) {
 		output, err := fn(ctx)
 		if err != nil {
 			return nil, err
@@ -194,7 +187,7 @@ type AwakeableOption interface {
 	beforeAwakeable(*awakeableOptions)
 }
 
-func (c *Context) Awakeable(opts ...options.AwakeableOption) interfaces.Awakeable {
+func (c *Context) Awakeable(opts ...options.AwakeableOption) DecodingAwakeable {
 	o := options.AwakeableOptions{}
 	for _, opt := range opts {
 		opt.BeforeAwakeable(&o)
@@ -202,17 +195,17 @@ func (c *Context) Awakeable(opts ...options.AwakeableOption) interfaces.Awakeabl
 	if o.Codec == nil {
 		o.Codec = encoding.JSONCodec
 	}
-	return decodingAwakeable{c.machine.awakeable(), c.machine, o.Codec}
+	return DecodingAwakeable{c.machine.awakeable(), c.machine, o.Codec}
 }
 
-type decodingAwakeable struct {
+type DecodingAwakeable struct {
 	*futures.Awakeable
 	machine *Machine
 	codec   encoding.Codec
 }
 
-func (d decodingAwakeable) Id() string { return d.Awakeable.Id() }
-func (d decodingAwakeable) Result(output any) (err error) {
+func (d DecodingAwakeable) Id() string { return d.Awakeable.Id() }
+func (d DecodingAwakeable) Result(output any) (err error) {
 	bytes, err := d.Awakeable.Result()
 	if err != nil {
 		return err
@@ -242,7 +235,7 @@ func (c *Context) RejectAwakeable(id string, reason error) {
 	c.machine.rejectAwakeable(id, reason)
 }
 
-func (c *Context) Select(futs ...futures.Selectable) interfaces.Selector {
+func (c *Context) Select(futs ...futures.Selectable) *selector {
 	return c.machine.selector(futs...)
 }
 
@@ -267,12 +260,12 @@ type Machine struct {
 	suspensionCtx context.Context
 	suspend       func(error)
 
-	handler  restate.Handler
-	protocol wire.Protocol
+	handler  Handler
+	Protocol wire.Protocol
 
 	// state
 	key     string
-	request restate.Request
+	request Request
 
 	partial bool
 	current map[string][]byte
@@ -294,17 +287,17 @@ type Machine struct {
 	failure any
 }
 
-func NewMachine(handler restate.Handler, conn io.ReadWriter, attemptHeaders map[string][]string) *Machine {
+func NewMachine(handler Handler, conn io.ReadWriter, attemptHeaders map[string][]string) *Machine {
 	m := &Machine{
 		handler:            handler,
 		current:            make(map[string][]byte),
 		pendingAcks:        map[uint32]wire.AckableMessage{},
 		pendingCompletions: map[uint32]wire.CompleteableMessage{},
-		request: restate.Request{
+		request: Request{
 			AttemptHeaders: attemptHeaders,
 		},
 	}
-	m.protocol = wire.NewProtocol(conn)
+	m.Protocol = wire.NewProtocol(conn)
 	return m
 }
 
@@ -312,7 +305,7 @@ func (m *Machine) Log() *slog.Logger { return m.log }
 
 // Start starts the state machine
 func (m *Machine) Start(inner context.Context, dropReplayLogs bool, logHandler slog.Handler) error {
-	msg, _, err := m.protocol.Read()
+	msg, _, err := m.Protocol.Read()
 	if err != nil {
 		return err
 	}
@@ -357,7 +350,7 @@ func (m *Machine) invoke(ctx *Context, outputSeen bool) error {
 		case *protocolViolation:
 			m.log.LogAttrs(m.ctx, slog.LevelError, "Protocol violation", log.Error(typ.err))
 
-			if err := m.protocol.Write(wire.ErrorMessageType, &wire.ErrorMessage{
+			if err := m.Protocol.Write(wire.ErrorMessageType, &wire.ErrorMessage{
 				ErrorMessage: protocol.ErrorMessage{
 					Code:              uint32(errors.ErrProtocolViolation),
 					Message:           fmt.Sprintf("Protocol violation: %v", typ.err),
@@ -370,7 +363,7 @@ func (m *Machine) invoke(ctx *Context, outputSeen bool) error {
 		case *concurrentContextUse:
 			m.log.LogAttrs(m.ctx, slog.LevelError, "Concurrent context use detected; either a Context method was used while a Run() is in progress, or Context methods are being called from multiple goroutines. Failing invocation.", slog.Uint64("entryType", uint64(typ.entryType)))
 
-			if err := m.protocol.Write(wire.ErrorMessageType, &wire.ErrorMessage{
+			if err := m.Protocol.Write(wire.ErrorMessageType, &wire.ErrorMessage{
 				ErrorMessage: protocol.ErrorMessage{
 					Code:             uint32(errors.ErrProtocolViolation),
 					Message:          "Concurrent context use detected; either a Context method was used while a Run() is in progress, or Context methods are being called from multiple goroutines.",
@@ -390,7 +383,7 @@ func (m *Machine) invoke(ctx *Context, outputSeen bool) error {
 				slog.String("actualMessage", string(actual)))
 
 			// journal entry mismatch
-			if err := m.protocol.Write(wire.ErrorMessageType, &wire.ErrorMessage{
+			if err := m.Protocol.Write(wire.ErrorMessageType, &wire.ErrorMessage{
 				ErrorMessage: protocol.ErrorMessage{
 					Code: uint32(errors.ErrJournalMismatch),
 					Message: fmt.Sprintf(`Journal mismatch: Replayed journal entries did not correspond to the user code. The user code has to be deterministic!
@@ -409,7 +402,7 @@ The journal entry at position %d was:
 		case *writeError:
 			m.log.LogAttrs(m.ctx, slog.LevelError, "Failed to write entry to Restate, shutting down state machine", log.Error(typ.err))
 			// don't even check for failure here because most likely the http2 conn is closed anyhow
-			_ = m.protocol.Write(wire.ErrorMessageType, &wire.ErrorMessage{
+			_ = m.Protocol.Write(wire.ErrorMessageType, &wire.ErrorMessage{
 				ErrorMessage: protocol.ErrorMessage{
 					Code:              uint32(errors.ErrProtocolViolation),
 					Message:           typ.err.Error(),
@@ -422,9 +415,9 @@ The journal entry at position %d was:
 		case *runFailure:
 			m.log.LogAttrs(m.ctx, slog.LevelError, "Run returned a failure, returning error to Restate", log.Error(typ.err))
 
-			if err := m.protocol.Write(wire.ErrorMessageType, &wire.ErrorMessage{
+			if err := m.Protocol.Write(wire.ErrorMessageType, &wire.ErrorMessage{
 				ErrorMessage: protocol.ErrorMessage{
-					Code:              uint32(restate.ErrorCode(typ.err)),
+					Code:              uint32(errors.ErrorCode(typ.err)),
 					Message:           typ.err.Error(),
 					RelatedEntryIndex: &typ.entryIndex,
 					RelatedEntryType:  wire.AwakeableEntryMessageType.UInt32(),
@@ -437,9 +430,9 @@ The journal entry at position %d was:
 		case *codecFailure:
 			m.log.LogAttrs(m.ctx, slog.LevelError, "Encoding failed, returning error to Restate", log.Error(typ.err))
 
-			if err := m.protocol.Write(wire.ErrorMessageType, &wire.ErrorMessage{
+			if err := m.Protocol.Write(wire.ErrorMessageType, &wire.ErrorMessage{
 				ErrorMessage: protocol.ErrorMessage{
-					Code:              uint32(restate.ErrorCode(typ.err)),
+					Code:              uint32(errors.ErrorCode(typ.err)),
 					Message:           typ.err.Error(),
 					RelatedEntryIndex: &typ.entryIndex,
 					RelatedEntryType:  wire.AwakeableEntryMessageType.UInt32(),
@@ -449,7 +442,7 @@ The journal entry at position %d was:
 			}
 
 			return
-		case *clientGoneAway:
+		case *ClientGoneAway:
 			m.log.LogAttrs(m.ctx, slog.LevelWarn, "Cancelling invocation as the incoming request context was cancelled", log.Error(typ.err))
 			return
 		case *wire.SuspensionPanic:
@@ -464,7 +457,7 @@ The journal entry at position %d was:
 			if stderrors.Is(typ.Err, io.EOF) {
 				m.log.LogAttrs(m.ctx, slog.LevelInfo, "Suspending invocation", slog.Any("entryIndexes", typ.EntryIndexes))
 
-				if err := m.protocol.Write(wire.SuspensionMessageType, &wire.SuspensionMessage{
+				if err := m.Protocol.Write(wire.SuspensionMessageType, &wire.SuspensionMessage{
 					SuspensionMessage: protocol.SuspensionMessage{
 						EntryIndexes: typ.EntryIndexes,
 					},
@@ -475,9 +468,9 @@ The journal entry at position %d was:
 				m.log.LogAttrs(m.ctx, slog.LevelError, "Unexpected error reading completions; shutting down state machine", log.Error(typ.Err), slog.Any("entryIndexes", typ.EntryIndexes))
 
 				// don't check for error here, most likely we will fail to send if we are in such a bad state
-				_ = m.protocol.Write(wire.ErrorMessageType, &wire.ErrorMessage{
+				_ = m.Protocol.Write(wire.ErrorMessageType, &wire.ErrorMessage{
 					ErrorMessage: protocol.ErrorMessage{
-						Code:    uint32(restate.ErrorCode(typ.Err)),
+						Code:    uint32(errors.ErrorCode(typ.Err)),
 						Message: fmt.Sprintf("problem reading completions: %v", typ.Err),
 					},
 				})
@@ -489,7 +482,7 @@ The journal entry at position %d was:
 
 			// unknown panic!
 			// send an error message (retryable)
-			if err := m.protocol.Write(wire.ErrorMessageType, &wire.ErrorMessage{
+			if err := m.Protocol.Write(wire.ErrorMessageType, &wire.ErrorMessage{
 				ErrorMessage: protocol.ErrorMessage{
 					Code:        500,
 					Message:     fmt.Sprint(typ),
@@ -508,27 +501,22 @@ The journal entry at position %d was:
 	if outputSeen {
 		m.log.WarnContext(m.ctx, "Invocation already completed; ending immediately")
 
-		return m.protocol.Write(wire.EndMessageType, &wire.EndMessage{})
+		return m.Protocol.Write(wire.EndMessageType, &wire.EndMessage{})
 	}
 
 	var bytes []byte
 	var err error
-	switch handler := m.handler.(type) {
-	case restate.ObjectHandler:
-		bytes, err = handler.Call(ctx, m.request.Body)
-	case restate.ServiceHandler:
-		bytes, err = handler.Call(ctx, m.request.Body)
-	}
+	bytes, err = m.handler.Call(ctx, m.request.Body)
 
-	if err != nil && restate.IsTerminalError(err) {
+	if err != nil && errors.IsTerminalError(err) {
 		m.log.LogAttrs(m.ctx, slog.LevelError, "Invocation returned a terminal failure", log.Error(err))
 
 		// terminal errors.
-		if err := m.protocol.Write(wire.OutputEntryMessageType, &wire.OutputEntryMessage{
+		if err := m.Protocol.Write(wire.OutputEntryMessageType, &wire.OutputEntryMessage{
 			OutputEntryMessage: protocol.OutputEntryMessage{
 				Result: &protocol.OutputEntryMessage_Failure{
 					Failure: &protocol.Failure{
-						Code:    uint32(restate.ErrorCode(err)),
+						Code:    uint32(errors.ErrorCode(err)),
 						Message: err.Error(),
 					},
 				},
@@ -536,21 +524,21 @@ The journal entry at position %d was:
 		}); err != nil {
 			return err
 		}
-		return m.protocol.Write(wire.EndMessageType, &wire.EndMessage{})
+		return m.Protocol.Write(wire.EndMessageType, &wire.EndMessage{})
 	} else if err != nil {
 		m.log.LogAttrs(m.ctx, slog.LevelError, "Invocation returned a non-terminal failure", log.Error(err))
 
 		// non terminal error - no end message
-		return m.protocol.Write(wire.ErrorMessageType, &wire.ErrorMessage{
+		return m.Protocol.Write(wire.ErrorMessageType, &wire.ErrorMessage{
 			ErrorMessage: protocol.ErrorMessage{
-				Code:    uint32(restate.ErrorCode(err)),
+				Code:    uint32(errors.ErrorCode(err)),
 				Message: err.Error(),
 			},
 		})
 	} else {
 		m.log.InfoContext(m.ctx, "Invocation completed successfully")
 
-		if err := m.protocol.Write(wire.OutputEntryMessageType, &wire.OutputEntryMessage{
+		if err := m.Protocol.Write(wire.OutputEntryMessageType, &wire.OutputEntryMessage{
 			OutputEntryMessage: protocol.OutputEntryMessage{
 				Result: &protocol.OutputEntryMessage_Value{
 					Value: bytes,
@@ -560,7 +548,7 @@ The journal entry at position %d was:
 			return err
 		}
 
-		return m.protocol.Write(wire.EndMessageType, &wire.EndMessage{})
+		return m.Protocol.Write(wire.EndMessageType, &wire.EndMessage{})
 	}
 }
 
@@ -571,7 +559,7 @@ func (m *Machine) process(ctx *Context, start *wire.StartMessage) error {
 	m.partial = start.PartialState
 
 	// expect input message
-	msg, _, err := m.protocol.Read()
+	msg, _, err := m.Protocol.Read()
 	if err != nil {
 		return err
 	}
@@ -595,7 +583,7 @@ func (m *Machine) process(ctx *Context, start *wire.StartMessage) error {
 
 	// we don't track the poll input entry
 	for i := uint32(1); i < start.KnownEntries; i++ {
-		msg, typ, err := m.protocol.Read()
+		msg, typ, err := m.Protocol.Read()
 		if err != nil {
 			return fmt.Errorf("failed to read entry: %w", err)
 		}
@@ -706,12 +694,12 @@ func (m *Machine) newConcurrentContextUse(entry wire.Type) *concurrentContextUse
 	return c
 }
 
-type clientGoneAway struct {
+type ClientGoneAway struct {
 	err error
 }
 
-func (m *Machine) newClientGoneAway(err error) *clientGoneAway {
-	c := &clientGoneAway{err}
+func (m *Machine) newClientGoneAway(err error) *ClientGoneAway {
+	c := &ClientGoneAway{err}
 	m.failure = c
 	return c
 }

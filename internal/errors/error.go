@@ -1,6 +1,7 @@
 package errors
 
 import (
+	"errors"
 	"fmt"
 
 	protocol "github.com/restatedev/sdk-go/generated/dev/restate/service"
@@ -30,6 +31,15 @@ func (e *CodeError) Unwrap() error {
 	return e.Inner
 }
 
+func ErrorCode(err error) Code {
+	var e *CodeError
+	if errors.As(err, &e) {
+		return e.Code
+	}
+
+	return 500
+}
+
 type TerminalError struct {
 	Inner error
 }
@@ -40,6 +50,14 @@ func (e *TerminalError) Error() string {
 
 func (e *TerminalError) Unwrap() error {
 	return e.Inner
+}
+
+func IsTerminalError(err error) bool {
+	if err == nil {
+		return false
+	}
+	var t *TerminalError
+	return errors.As(err, &t)
 }
 
 func ErrorFromFailure(failure *protocol.Failure) error {

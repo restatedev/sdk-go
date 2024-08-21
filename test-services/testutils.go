@@ -6,7 +6,6 @@ import (
 	"time"
 
 	restate "github.com/restatedev/sdk-go"
-	"github.com/restatedev/sdk-go/interfaces"
 )
 
 type CreateAwakeableAndAwaitItRequest struct {
@@ -72,7 +71,7 @@ func init() {
 				})).
 			Handler("sleepConcurrently", restate.NewServiceHandler(
 				func(ctx restate.Context, millisDuration []int64) (restate.Void, error) {
-					timers := make([]interfaces.Selectable, 0, len(millisDuration))
+					timers := make([]restate.Selectable, 0, len(millisDuration))
 					for _, d := range millisDuration {
 						timers = append(timers, restate.After(ctx, time.Duration(d)*time.Millisecond))
 					}

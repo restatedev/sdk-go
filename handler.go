@@ -7,6 +7,7 @@ import (
 	"github.com/restatedev/sdk-go/encoding"
 	"github.com/restatedev/sdk-go/internal"
 	"github.com/restatedev/sdk-go/internal/options"
+	"github.com/restatedev/sdk-go/internal/state"
 )
 
 // Void is a placeholder to signify 'no value' where a type is otherwise needed. It can be used in several contexts:
@@ -17,26 +18,6 @@ import (
 //  4. The output type for an outgoing Request - the response body will be ignored. A pointer is also accepted.
 //  5. The output type for an awakeable - the result body will be ignored. A pointer is also accepted.
 type Void = encoding.Void
-
-// ObjectHandler is the required set of methods for a Virtual Object handler.
-type ObjectHandler interface {
-	Call(ctx ObjectContext, request []byte) (output []byte, err error)
-	Handler
-}
-
-// ServiceHandler is the required set of methods for a Service handler.
-type ServiceHandler interface {
-	Call(ctx Context, request []byte) (output []byte, err error)
-	Handler
-}
-
-// Handler is implemented by all Restate handlers
-type Handler interface {
-	getOptions() *options.HandlerOptions
-	InputPayload() *encoding.InputPayload
-	OutputPayload() *encoding.OutputPayload
-	HandlerType() *internal.ServiceHandlerType
-}
 
 // ServiceHandlerFn is the signature for a Service handler function
 type ServiceHandlerFn[I any, O any] func(ctx Context, input I) (O, error)
@@ -52,7 +33,7 @@ type serviceHandler[I any, O any] struct {
 	options options.HandlerOptions
 }
 
-var _ ServiceHandler = (*serviceHandler[struct{}, struct{}])(nil)
+var _ state.Handler = (*serviceHandler[struct{}, struct{}])(nil)
 
 // NewServiceHandler converts a function of signature [ServiceHandlerFn] into a handler on a Restate service.
 func NewServiceHandler[I any, O any](fn ServiceHandlerFn[I, O], opts ...options.HandlerOption) *serviceHandler[I, O] {
@@ -66,14 +47,14 @@ func NewServiceHandler[I any, O any](fn ServiceHandlerFn[I, O], opts ...options.
 	}
 }
 
-func (h *serviceHandler[I, O]) Call(ctx Context, bytes []byte) ([]byte, error) {
+func (h *serviceHandler[I, O]) Call(ctx *state.Context, bytes []byte) ([]byte, error) {
 	var input I
 	if err := encoding.Unmarshal(h.options.Codec, bytes, &input); err != nil {
 		return nil, TerminalError(fmt.Errorf("request could not be decoded into handler input type: %w", err), http.StatusBadRequest)
 	}
 
 	output, err := h.fn(
-		ctx,
+		ctxWrapper{ctx},
 		input,
 	)
 	if err != nil {
@@ -103,7 +84,7 @@ func (h *serviceHandler[I, O]) HandlerType() *internal.ServiceHandlerType {
 	return nil
 }
 
-func (h *serviceHandler[I, O]) getOptions() *options.HandlerOptions {
+func (h *serviceHandler[I, O]) GetOptions() *options.HandlerOptions {
 	return &h.options
 }
 
@@ -115,7 +96,7 @@ type objectHandler[I any, O any] struct {
 	handlerType internal.ServiceHandlerType
 }
 
-var _ ObjectHandler = (*objectHandler[struct{}, struct{}])(nil)
+var _ state.Handler = (*objectHandler[struct{}, struct{}])(nil)
 
 // NewObjectHandler converts a function of signature [ObjectHandlerFn] into an exclusive-mode handler on a Virtual Object.
 // The handler will have access to a full [ObjectContext] which may mutate state.
@@ -145,7 +126,15 @@ func NewObjectSharedHandler[I any, O any](fn ObjectSharedHandlerFn[I, O], opts .
 	}
 }
 
-func (h *objectHandler[I, O]) Call(ctx ObjectContext, bytes []byte) ([]byte, error) {
+type ctxWrapper struct {
+	*state.Context
+}
+
+func (o ctxWrapper) inner() *state.Context {
+	return o.Context
+}
+
+func (h *objectHandler[I, O]) Call(ctx *state.Context, bytes []byte) ([]byte, error) {
 	var input I
 	if err := encoding.Unmarshal(h.options.Codec, bytes, &input); err != nil {
 		return nil, TerminalError(fmt.Errorf("request could not be decoded into handler input type: %w", err), http.StatusBadRequest)
@@ -156,12 +145,12 @@ func (h *objectHandler[I, O]) Call(ctx ObjectContext, bytes []byte) ([]byte, err
 	switch h.handlerType {
 	case internal.ServiceHandlerType_EXCLUSIVE:
 		output, err = h.exclusiveFn(
-			ctx,
+			ctxWrapper{ctx},
 			input,
 		)
 	case internal.ServiceHandlerType_SHARED:
 		output, err = h.sharedFn(
-			ctx,
+			ctxWrapper{ctx},
 			input,
 		)
 	}
@@ -188,7 +177,7 @@ func (h *objectHandler[I, O]) OutputPayload() *encoding.OutputPayload {
 	return encoding.OutputPayloadFor(h.options.Codec, o)
 }
 
-func (h *objectHandler[I, O]) getOptions() *options.HandlerOptions {
+func (h *objectHandler[I, O]) GetOptions() *options.HandlerOptions {
 	return &h.options
 }
 

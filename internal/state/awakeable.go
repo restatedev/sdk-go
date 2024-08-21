@@ -3,8 +3,9 @@ package state
 import (
 	"bytes"
 
-	restate "github.com/restatedev/sdk-go"
+	"github.com/restatedev/sdk-go/encoding"
 	protocol "github.com/restatedev/sdk-go/generated/dev/restate/service"
+	"github.com/restatedev/sdk-go/internal/errors"
 	"github.com/restatedev/sdk-go/internal/futures"
 	"github.com/restatedev/sdk-go/internal/wire"
 )
@@ -30,7 +31,7 @@ func (c *Machine) _awakeable() *wire.AwakeableEntryMessage {
 func (m *Machine) resolveAwakeable(id string, value []byte) {
 	_, _ = replayOrNew(
 		m,
-		func(entry *wire.CompleteAwakeableEntryMessage) restate.Void {
+		func(entry *wire.CompleteAwakeableEntryMessage) encoding.Void {
 			messageValue, ok := entry.Result.(*protocol.CompleteAwakeableEntryMessage_Value)
 			if entry.Id != id || !ok || !bytes.Equal(messageValue.Value, value) {
 				panic(m.newEntryMismatch(&wire.CompleteAwakeableEntryMessage{
@@ -40,11 +41,11 @@ func (m *Machine) resolveAwakeable(id string, value []byte) {
 					},
 				}, entry))
 			}
-			return restate.Void{}
+			return encoding.Void{}
 		},
-		func() restate.Void {
+		func() encoding.Void {
 			m._resolveAwakeable(id, value)
-			return restate.Void{}
+			return encoding.Void{}
 		},
 	)
 }
@@ -61,24 +62,24 @@ func (c *Machine) _resolveAwakeable(id string, value []byte) {
 func (m *Machine) rejectAwakeable(id string, reason error) {
 	_, _ = replayOrNew(
 		m,
-		func(entry *wire.CompleteAwakeableEntryMessage) restate.Void {
+		func(entry *wire.CompleteAwakeableEntryMessage) encoding.Void {
 			messageFailure, ok := entry.Result.(*protocol.CompleteAwakeableEntryMessage_Failure)
-			if entry.Id != id || !ok || messageFailure.Failure.Code != uint32(restate.ErrorCode(reason)) || messageFailure.Failure.Message != reason.Error() {
+			if entry.Id != id || !ok || messageFailure.Failure.Code != uint32(errors.ErrorCode(reason)) || messageFailure.Failure.Message != reason.Error() {
 				panic(m.newEntryMismatch(&wire.CompleteAwakeableEntryMessage{
 					CompleteAwakeableEntryMessage: protocol.CompleteAwakeableEntryMessage{
 						Id: id,
 						Result: &protocol.CompleteAwakeableEntryMessage_Failure{Failure: &protocol.Failure{
-							Code:    uint32(restate.ErrorCode(reason)),
+							Code:    uint32(errors.ErrorCode(reason)),
 							Message: reason.Error(),
 						}},
 					},
 				}, entry))
 			}
-			return restate.Void{}
+			return encoding.Void{}
 		},
-		func() restate.Void {
+		func() encoding.Void {
 			m._rejectAwakeable(id, reason)
-			return restate.Void{}
+			return encoding.Void{}
 		},
 	)
 }
@@ -88,7 +89,7 @@ func (c *Machine) _rejectAwakeable(id string, reason error) {
 		CompleteAwakeableEntryMessage: protocol.CompleteAwakeableEntryMessage{
 			Id: id,
 			Result: &protocol.CompleteAwakeableEntryMessage_Failure{Failure: &protocol.Failure{
-				Code:    uint32(restate.ErrorCode(reason)),
+				Code:    uint32(errors.ErrorCode(reason)),
 				Message: reason.Error(),
 			}},
 		},
