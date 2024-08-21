@@ -12,17 +12,17 @@ func init() {
 			Handler("append", restate.NewObjectHandler(
 				func(ctx restate.ObjectContext, value string) (restate.Void, error) {
 					list, err := restate.GetAs[[]string](ctx, LIST_KEY)
-					if err != nil && err != restate.ErrKeyNotFound {
+					if err != nil {
 						return restate.Void{}, err
 					}
-
 					list = append(list, value)
-					return restate.Void{}, ctx.Set(LIST_KEY, list)
+					ctx.Set(LIST_KEY, list)
+					return restate.Void{}, nil
 				})).
 			Handler("get", restate.NewObjectHandler(
 				func(ctx restate.ObjectContext, _ restate.Void) ([]string, error) {
 					list, err := restate.GetAs[[]string](ctx, LIST_KEY)
-					if err != nil && err != restate.ErrKeyNotFound {
+					if err != nil {
 						return nil, err
 					}
 					if list == nil {
@@ -35,7 +35,7 @@ func init() {
 			Handler("clear", restate.NewObjectHandler(
 				func(ctx restate.ObjectContext, _ restate.Void) ([]string, error) {
 					list, err := restate.GetAs[[]string](ctx, LIST_KEY)
-					if err != nil && err != restate.ErrKeyNotFound {
+					if err != nil {
 						return nil, err
 					}
 					if list == nil {

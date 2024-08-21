@@ -1,16 +1,23 @@
 package restate
 
 import (
+	"errors"
 	"time"
 
 	"github.com/restatedev/sdk-go/internal/options"
 )
 
-// GetAs get the value for a key, returning a typed response instead of accepting a pointer.
-// If there is no associated value with key, [ErrKeyNotFound] is returned
+// GetAs gets the value for a key, returning a typed response instead of accepting a pointer.
+// If there is no associated value with key, the zero value is returned - to check explicitly for this case use ctx.Get directly
+// or pass a pointer eg *string as T.
+// If the invocation was cancelled while obtaining the state (only possible if eager state is disabled),
+// a cancellation error is returned.
 func GetAs[T any](ctx ObjectSharedContext, key string, options ...options.GetOption) (output T, err error) {
-	err = ctx.Get(key, &output, options...)
-	return
+	if err := ctx.Get(key, &output, options...); !errors.Is(err, ErrKeyNotFound) {
+		return output, err
+	} else {
+		return output, nil
+	}
 }
 
 // RunAs executes a Run function on a [Context], returning a typed response instead of accepting a pointer
@@ -51,11 +58,11 @@ func AwakeableAs[T any](ctx Context, options ...options.AwakeableOption) TypedAw
 // TypedCallClient is an extension of [CallClient] which deals in typed values
 type TypedCallClient[I any, O any] interface {
 	// RequestFuture makes a call and returns a handle on a future response
-	RequestFuture(input I) (TypedResponseFuture[O], error)
+	RequestFuture(input I) TypedResponseFuture[O]
 	// Request makes a call and blocks on getting the response
 	Request(input I) (O, error)
 	// Send makes a one-way call which is executed in the background
-	Send(input I, delay time.Duration) error
+	Send(input I, delay time.Duration)
 }
 
 type typedCallClient[I any, O any] struct {
@@ -70,24 +77,16 @@ func NewTypedCallClient[I any, O any](client CallClient) TypedCallClient[I, O] {
 }
 
 func (t typedCallClient[I, O]) Request(input I) (output O, err error) {
-	fut, err := t.inner.RequestFuture(input)
-	if err != nil {
-		return output, err
-	}
-	err = fut.Response(&output)
+	err = t.inner.RequestFuture(input).Response(&output)
 	return
 }
 
-func (t typedCallClient[I, O]) RequestFuture(input I) (TypedResponseFuture[O], error) {
-	fut, err := t.inner.RequestFuture(input)
-	if err != nil {
-		return nil, err
-	}
-	return typedResponseFuture[O]{fut}, nil
+func (t typedCallClient[I, O]) RequestFuture(input I) TypedResponseFuture[O] {
+	return typedResponseFuture[O]{t.inner.RequestFuture(input)}
 }
 
-func (t typedCallClient[I, O]) Send(input I, delay time.Duration) error {
-	return t.inner.Send(input, delay)
+func (t typedCallClient[I, O]) Send(input I, delay time.Duration) {
+	t.inner.Send(input, delay)
 }
 
 // TypedResponseFuture is an extension of [ResponseFuture] which returns typed responses instead of accepting a pointer

@@ -1,7 +1,6 @@
 package main
 
 import (
-	"errors"
 	"slices"
 	"time"
 
@@ -30,27 +29,21 @@ func (u *userSession) AddTicket(ctx restate.ObjectContext, ticketId string) (boo
 
 	// add ticket to list of tickets
 	tickets, err := restate.GetAs[[]string](ctx, "tickets")
-
-	if err != nil && !errors.Is(err, restate.ErrKeyNotFound) {
+	if err != nil {
 		return false, err
 	}
 
 	tickets = append(tickets, ticketId)
 
-	if err := ctx.Set("tickets", tickets); err != nil {
-		return false, err
-	}
-
-	if err := ctx.Object(UserSessionServiceName, userId, "ExpireTicket").Send(ticketId, 15*time.Minute); err != nil {
-		return false, err
-	}
+	ctx.Set("tickets", tickets)
+	ctx.Object(UserSessionServiceName, userId, "ExpireTicket").Send(ticketId, 15*time.Minute)
 
 	return true, nil
 }
 
 func (u *userSession) ExpireTicket(ctx restate.ObjectContext, ticketId string) (void restate.Void, err error) {
 	tickets, err := restate.GetAs[[]string](ctx, "tickets")
-	if err != nil && !errors.Is(err, restate.ErrKeyNotFound) {
+	if err != nil {
 		return void, err
 	}
 
@@ -66,17 +59,16 @@ func (u *userSession) ExpireTicket(ctx restate.ObjectContext, ticketId string) (
 		return void, nil
 	}
 
-	if err := ctx.Set("tickets", tickets); err != nil {
-		return void, err
-	}
+	ctx.Set("tickets", tickets)
+	ctx.Object(TicketServiceName, ticketId, "Unreserve").Send(nil, 0)
 
-	return void, ctx.Object(TicketServiceName, ticketId, "Unreserve").Send(nil, 0)
+	return void, nil
 }
 
 func (u *userSession) Checkout(ctx restate.ObjectContext, _ restate.Void) (bool, error) {
 	userId := ctx.Key()
 	tickets, err := restate.GetAs[[]string](ctx, "tickets")
-	if err != nil && !errors.Is(err, restate.ErrKeyNotFound) {
+	if err != nil {
 		return false, err
 	}
 
@@ -88,11 +80,8 @@ func (u *userSession) Checkout(ctx restate.ObjectContext, _ restate.Void) (bool,
 
 	timeout := ctx.After(time.Minute)
 
-	request, err := restate.CallAs[PaymentResponse](ctx.Object(CheckoutServiceName, "", "Payment")).
+	request := restate.CallAs[PaymentResponse](ctx.Object(CheckoutServiceName, "", "Payment")).
 		RequestFuture(PaymentRequest{UserID: userId, Tickets: tickets})
-	if err != nil {
-		return false, err
-	}
 
 	// race between the request and the timeout
 	switch ctx.Select(timeout, request).Select() {
@@ -113,9 +102,7 @@ func (u *userSession) Checkout(ctx restate.ObjectContext, _ restate.Void) (bool,
 
 	for _, ticket := range tickets {
 		call := ctx.Object(TicketServiceName, ticket, "MarkAsSold")
-		if err := call.Send(nil, 0); err != nil {
-			return false, err
-		}
+		call.Send(nil, 0)
 	}
 
 	ctx.Clear("tickets")

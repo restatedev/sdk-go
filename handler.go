@@ -82,7 +82,8 @@ func (h *serviceHandler[I, O]) Call(ctx Context, bytes []byte) ([]byte, error) {
 
 	bytes, err = encoding.Marshal(h.options.Codec, output)
 	if err != nil {
-		return nil, TerminalError(fmt.Errorf("failed to serialize output: %w", err))
+		// we don't use a terminal error here as this is hot-fixable by changing the return type
+		return nil, fmt.Errorf("failed to serialize output: %w", err)
 	}
 
 	return bytes, nil
@@ -170,7 +171,8 @@ func (h *objectHandler[I, O]) Call(ctx ObjectContext, bytes []byte) ([]byte, err
 
 	bytes, err = encoding.Marshal(h.options.Codec, output)
 	if err != nil {
-		return nil, TerminalError(fmt.Errorf("failed to serialize output: %w", err))
+		// we don't use a terminal error here as this is hot-fixable by changing the return type
+		return nil, fmt.Errorf("failed to serialize output: %w", err)
 	}
 
 	return bytes, nil

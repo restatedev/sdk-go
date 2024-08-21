@@ -55,7 +55,7 @@ func (c *Context) Rand() *rand.Rand {
 	return c.machine.rand
 }
 
-func (c *Context) Set(key string, value any, opts ...options.SetOption) error {
+func (c *Context) Set(key string, value any, opts ...options.SetOption) {
 	o := options.SetOptions{}
 	for _, opt := range opts {
 		opt.BeforeSet(&o)
@@ -66,11 +66,11 @@ func (c *Context) Set(key string, value any, opts ...options.SetOption) error {
 
 	bytes, err := encoding.Marshal(o.Codec, value)
 	if err != nil {
-		return errors.NewTerminalError(fmt.Errorf("failed to marshal Set value: %w", err))
+		panic(c.machine.newCodecFailure(fmt.Errorf("failed to marshal Set value: %w", err)))
 	}
 
 	c.machine.set(key, bytes)
-	return nil
+	return
 }
 
 func (c *Context) Clear(key string) {
@@ -93,19 +93,19 @@ func (c *Context) Get(key string, output any, opts ...options.GetOption) error {
 		o.Codec = encoding.JSONCodec
 	}
 
-	bytes := c.machine.get(key)
-	if len(bytes) == 0 {
-		return errors.ErrKeyNotFound
+	bytes, err := c.machine.get(key)
+	if err != nil {
+		return err
 	}
 
 	if err := encoding.Unmarshal(o.Codec, bytes, output); err != nil {
-		return errors.NewTerminalError(fmt.Errorf("failed to unmarshal Get state into output: %w", err))
+		panic(c.machine.newCodecFailure(fmt.Errorf("failed to unmarshal Get state into output: %w", err)))
 	}
 
 	return nil
 }
 
-func (c *Context) Keys() []string {
+func (c *Context) Keys() ([]string, error) {
 	return c.machine.keys()
 }
 
@@ -169,7 +169,7 @@ func (c *Context) Run(fn func(ctx restate.RunContext) (any, error), output any, 
 
 		bytes, err := encoding.Marshal(o.Codec, output)
 		if err != nil {
-			return nil, errors.NewTerminalError(fmt.Errorf("failed to marshal Run output: %w", err))
+			panic(c.machine.newCodecFailure(fmt.Errorf("failed to marshal Run output: %w", err)))
 		}
 
 		return bytes, nil
@@ -179,7 +179,7 @@ func (c *Context) Run(fn func(ctx restate.RunContext) (any, error), output any, 
 	}
 
 	if err := encoding.Unmarshal(o.Codec, bytes, output); err != nil {
-		return errors.NewTerminalError(fmt.Errorf("failed to unmarshal Run output: %w", err))
+		panic(c.machine.newCodecFailure(fmt.Errorf("failed to unmarshal Run output: %w", err)))
 	}
 
 	return nil
@@ -201,12 +201,13 @@ func (c *Context) Awakeable(opts ...options.AwakeableOption) restate.Awakeable {
 	if o.Codec == nil {
 		o.Codec = encoding.JSONCodec
 	}
-	return decodingAwakeable{c.machine.awakeable(), o.Codec}
+	return decodingAwakeable{c.machine.awakeable(), c.machine, o.Codec}
 }
 
 type decodingAwakeable struct {
 	*futures.Awakeable
-	codec encoding.Codec
+	machine *Machine
+	codec   encoding.Codec
 }
 
 func (d decodingAwakeable) Id() string { return d.Awakeable.Id() }
@@ -216,12 +217,12 @@ func (d decodingAwakeable) Result(output any) (err error) {
 		return err
 	}
 	if err := encoding.Unmarshal(d.codec, bytes, output); err != nil {
-		return errors.NewTerminalError(fmt.Errorf("failed to unmarshal Awakeable result into output: %w", err))
+		panic(d.machine.newCodecFailure(fmt.Errorf("failed to unmarshal Awakeable result into output: %w", err)))
 	}
 	return
 }
 
-func (c *Context) ResolveAwakeable(id string, value any, opts ...options.ResolveAwakeableOption) error {
+func (c *Context) ResolveAwakeable(id string, value any, opts ...options.ResolveAwakeableOption) {
 	o := options.ResolveAwakeableOptions{}
 	for _, opt := range opts {
 		opt.BeforeResolveAwakeable(&o)
@@ -231,10 +232,9 @@ func (c *Context) ResolveAwakeable(id string, value any, opts ...options.Resolve
 	}
 	bytes, err := encoding.Marshal(o.Codec, value)
 	if err != nil {
-		return errors.NewTerminalError(fmt.Errorf("failed to marshal ResolveAwakeable value: %w", err))
+		panic(c.machine.newCodecFailure(fmt.Errorf("failed to marshal ResolveAwakeable value: %w", err)))
 	}
 	c.machine.resolveAwakeable(id, bytes)
-	return nil
 }
 
 func (c *Context) RejectAwakeable(id string, reason error) {
@@ -420,6 +420,21 @@ The journal entry at position %d was:
 			return
 		case *runFailure:
 			m.log.LogAttrs(m.ctx, slog.LevelError, "Run returned a failure, returning error to Restate", log.Error(typ.err))
+
+			if err := m.protocol.Write(wire.ErrorMessageType, &wire.ErrorMessage{
+				ErrorMessage: protocol.ErrorMessage{
+					Code:              uint32(restate.ErrorCode(typ.err)),
+					Message:           typ.err.Error(),
+					RelatedEntryIndex: &typ.entryIndex,
+					RelatedEntryType:  wire.AwakeableEntryMessageType.UInt32(),
+				},
+			}); err != nil {
+				m.log.LogAttrs(m.ctx, slog.LevelError, "Error sending failure message", log.Error(typ.err))
+			}
+
+			return
+		case *codecFailure:
+			m.log.LogAttrs(m.ctx, slog.LevelError, "Encoding failed, returning error to Restate", log.Error(typ.err))
 
 			if err := m.protocol.Write(wire.ErrorMessageType, &wire.ErrorMessage{
 				ErrorMessage: protocol.ErrorMessage{

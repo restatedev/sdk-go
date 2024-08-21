@@ -24,7 +24,8 @@ func init() {
 				func(ctx restate.ObjectContext, operation BlockingOperation) (restate.Void, error) {
 					if err := ctx.Object("CancelTestBlockingService", "", "block").Request(operation, restate.Void{}); err != nil {
 						if restate.ErrorCode(err) == 409 {
-							return restate.Void{}, ctx.Set(CANCELED_STATE, true)
+							ctx.Set(CANCELED_STATE, true)
+							return restate.Void{}, nil
 						}
 						return restate.Void{}, err
 					}
@@ -32,11 +33,7 @@ func init() {
 				})).
 			Handler("verifyTest", restate.NewObjectHandler(
 				func(ctx restate.ObjectContext, _ restate.Void) (bool, error) {
-					canceled, err := restate.GetAs[bool](ctx, CANCELED_STATE)
-					if err != nil && err != restate.ErrKeyNotFound {
-						return false, err
-					}
-					return canceled, nil
+					return restate.GetAs[bool](ctx, CANCELED_STATE)
 				})))
 	REGISTRY.AddDefinition(
 		restate.NewObject("CancelTestBlockingService").

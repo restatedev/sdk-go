@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"log/slog"
 	"os"
@@ -35,24 +34,20 @@ type counter struct {
 
 func (c counter) Add(ctx restate.ObjectContext, req *helloworld.AddRequest) (*helloworld.GetResponse, error) {
 	count, err := restate.GetAs[int64](ctx, "counter")
-	if err != nil && !errors.Is(err, restate.ErrKeyNotFound) {
+	if err != nil {
 		return nil, err
 	}
 
 	watchers, err := restate.GetAs[[]string](ctx, "watchers")
-	if err != nil && !errors.Is(err, restate.ErrKeyNotFound) {
+	if err != nil {
 		return nil, err
 	}
 
 	count += req.Delta
-	if err := ctx.Set("counter", count); err != nil {
-		return nil, err
-	}
+	ctx.Set("counter", count)
 
 	for _, awakeableID := range watchers {
-		if err := ctx.ResolveAwakeable(awakeableID, count); err != nil {
-			return nil, err
-		}
+		ctx.ResolveAwakeable(awakeableID, count)
 	}
 	ctx.Clear("watchers")
 
@@ -61,7 +56,7 @@ func (c counter) Add(ctx restate.ObjectContext, req *helloworld.AddRequest) (*he
 
 func (c counter) Get(ctx restate.ObjectSharedContext, _ *helloworld.GetRequest) (*helloworld.GetResponse, error) {
 	count, err := restate.GetAs[int64](ctx, "counter")
-	if err != nil && !errors.Is(err, restate.ErrKeyNotFound) {
+	if err != nil {
 		return nil, err
 	}
 
@@ -70,13 +65,11 @@ func (c counter) Get(ctx restate.ObjectSharedContext, _ *helloworld.GetRequest) 
 
 func (c counter) AddWatcher(ctx restate.ObjectContext, req *helloworld.AddWatcherRequest) (*helloworld.AddWatcherResponse, error) {
 	watchers, err := restate.GetAs[[]string](ctx, "watchers")
-	if err != nil && !errors.Is(err, restate.ErrKeyNotFound) {
+	if err != nil {
 		return nil, err
 	}
 	watchers = append(watchers, req.AwakeableId)
-	if err := ctx.Set("watchers", watchers); err != nil {
-		return nil, err
-	}
+	ctx.Set("watchers", watchers)
 	return &helloworld.AddWatcherResponse{}, nil
 }
 

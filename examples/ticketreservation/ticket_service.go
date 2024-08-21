@@ -1,8 +1,6 @@
 package main
 
 import (
-	"errors"
-
 	restate "github.com/restatedev/sdk-go"
 )
 
@@ -22,12 +20,13 @@ func (t *ticketService) ServiceName() string { return TicketServiceName }
 
 func (t *ticketService) Reserve(ctx restate.ObjectContext, _ restate.Void) (bool, error) {
 	status, err := restate.GetAs[TicketStatus](ctx, "status")
-	if err != nil && !errors.Is(err, restate.ErrKeyNotFound) {
+	if err != nil {
 		return false, err
 	}
 
 	if status == TicketAvailable {
-		return true, ctx.Set("status", TicketReserved)
+		ctx.Set("status", TicketReserved)
+		return true, nil
 	}
 
 	return false, nil
@@ -37,7 +36,7 @@ func (t *ticketService) Unreserve(ctx restate.ObjectContext, _ restate.Void) (vo
 	ticketId := ctx.Key()
 	ctx.Log().Info("un-reserving ticket", "ticket", ticketId)
 	status, err := restate.GetAs[TicketStatus](ctx, "status")
-	if err != nil && !errors.Is(err, restate.ErrKeyNotFound) {
+	if err != nil {
 		return void, err
 	}
 
@@ -54,12 +53,13 @@ func (t *ticketService) MarkAsSold(ctx restate.ObjectContext, _ restate.Void) (v
 	ctx.Log().Info("mark ticket as sold", "ticket", ticketId)
 
 	status, err := restate.GetAs[TicketStatus](ctx, "status")
-	if err != nil && !errors.Is(err, restate.ErrKeyNotFound) {
+	if err != nil {
 		return void, err
 	}
 
 	if status == TicketReserved {
-		return void, ctx.Set("status", TicketSold)
+		ctx.Set("status", TicketSold)
+		return void, nil
 	}
 
 	return void, nil
@@ -69,10 +69,5 @@ func (t *ticketService) Status(ctx restate.ObjectSharedContext, _ restate.Void) 
 	ticketId := ctx.Key()
 	ctx.Log().Info("mark ticket as sold", "ticket", ticketId)
 
-	status, err := restate.GetAs[TicketStatus](ctx, "status")
-	if err != nil && !errors.Is(err, restate.ErrKeyNotFound) {
-		return status, err
-	}
-
-	return status, nil
+	return restate.GetAs[TicketStatus](ctx, "status")
 }

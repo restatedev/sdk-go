@@ -48,7 +48,7 @@ type Context interface {
 	Awakeable(options ...options.AwakeableOption) Awakeable
 	// ResolveAwakeable allows an awakeable (not necessarily from this service) to be
 	// resolved with a particular value.
-	ResolveAwakeable(id string, value any, options ...options.ResolveAwakeableOption) error
+	ResolveAwakeable(id string, value any, options ...options.ResolveAwakeableOption)
 	// ResolveAwakeable allows an awakeable (not necessarily from this service) to be
 	// rejected with a particular error.
 	RejectAwakeable(id string, reason error)
@@ -81,11 +81,11 @@ type Awakeable interface {
 // CallClient represents all the different ways you can invoke a particular service/key/method tuple.
 type CallClient interface {
 	// RequestFuture makes a call and returns a handle on a future response
-	RequestFuture(input any) (ResponseFuture, error)
+	RequestFuture(input any) ResponseFuture
 	// Request makes a call and blocks on getting the response which is stored in output
 	Request(input any, output any) error
 	// Send makes a one-way call which is executed in the background
-	Send(input any, delay time.Duration) error
+	Send(input any, delay time.Duration)
 }
 
 // ResponseFuture is a handle on a potentially not-yet completed outbound call.
@@ -166,11 +166,15 @@ type ObjectSharedContext interface {
 // KeyValueReader is the set of read-only methods which can be used in all Virtual Object handlers.
 type KeyValueReader interface {
 	// Get gets value associated with key and stores it in value
-	// If key does not exist, this function returns ErrKeyNotFound
+	// If key does not exist, this function returns [ErrKeyNotFound]
+	// If the invocation was cancelled while obtaining the state (only possible if eager state is disabled),
+	// a cancellation error is returned.
 	// Note: Use GetAs generic helper function to avoid passing in a value pointer
 	Get(key string, value any, options ...options.GetOption) error
 	// Keys returns a list of all associated key
-	Keys() []string
+	// If the invocation was cancelled while obtaining the state (only possible if eager state is disabled),
+	// a cancellation error is returned. If eager state is enabled (the default), err will always be nil.
+	Keys() ([]string, error)
 	// Key retrieves the key for this virtual object invocation. This is a no-op and is
 	// always safe to call.
 	Key() string
@@ -179,7 +183,7 @@ type KeyValueReader interface {
 // KeyValueWriter is the set of mutating methods which can be used in exclusive-mode Virtual Object handlers.
 type KeyValueWriter interface {
 	// Set sets a value against a key, using the provided codec (defaults to JSON)
-	Set(key string, value any, options ...options.SetOption) error
+	Set(key string, value any, options ...options.SetOption)
 	// Clear deletes a key
 	Clear(key string)
 	// ClearAll drops all stored state associated with key
