@@ -9,11 +9,6 @@ import (
 	"google.golang.org/protobuf/proto"
 )
 
-// Void is a placeholder to signify 'no value' where a type is otherwise needed
-// It implements [RestateMarshaler] and [RestateUnmarshaler] to ensure that no marshaling or unmarshaling ever happens
-// on this type.
-type Void struct{}
-
 var (
 	// BinaryCodec marshals []byte and unmarshals into *[]byte
 	// In handlers, it uses a content type of application/octet-stream
@@ -33,6 +28,11 @@ var (
 	_ RestateUnmarshaler = Void{}
 	_ RestateUnmarshaler = &Void{}
 )
+
+// Void is a placeholder to signify 'no value' where a type is otherwise needed
+// It implements [RestateMarshaler] and [RestateUnmarshaler] to ensure that no marshaling or unmarshaling ever happens
+// on this type.
+type Void struct{}
 
 func (v Void) RestateUnmarshal(codec Codec, data []byte) error {
 	return nil

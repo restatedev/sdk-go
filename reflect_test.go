@@ -6,6 +6,7 @@ import (
 
 	restate "github.com/restatedev/sdk-go"
 	"github.com/restatedev/sdk-go/internal"
+	"github.com/restatedev/sdk-go/internal/state"
 	"github.com/stretchr/testify/require"
 )
 
@@ -62,7 +63,14 @@ func TestReflect(t *testing.T) {
 			def := restate.Reflect(test.rcvr, test.opts...)
 			foundMethods := make(map[string]*internal.ServiceHandlerType, len(def.Handlers()))
 			for k, foundHandler := range def.Handlers() {
-				foundMethods[k] = foundHandler.HandlerType()
+				t.Run(k, func(t *testing.T) {
+					foundMethods[k] = foundHandler.HandlerType()
+					// check for panics
+					_ = foundHandler.InputPayload()
+					_ = foundHandler.OutputPayload()
+					_, err := foundHandler.Call(&state.Context{}, []byte(`""`))
+					require.NoError(t, err)
+				})
 			}
 			require.Equal(t, test.expectedMethods, foundMethods)
 			require.Equal(t, test.serviceName, def.Name())

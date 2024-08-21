@@ -19,7 +19,6 @@ var (
 	typeOfContext             = reflect.TypeOf((*Context)(nil)).Elem()
 	typeOfObjectContext       = reflect.TypeOf((*ObjectContext)(nil)).Elem()
 	typeOfSharedObjectContext = reflect.TypeOf((*ObjectSharedContext)(nil)).Elem()
-	typeOfVoid                = reflect.TypeOf((*Void)(nil)).Elem()
 	typeOfError               = reflect.TypeOf((*error)(nil)).Elem()
 )
 
@@ -36,11 +35,12 @@ var (
 // - (ctx) (O)
 // - (ctx) (O, error)
 // Where ctx is [ObjectContext], [ObjectSharedContext] or [Context]. Other signatures are ignored.
+// Signatures without an I or O type will be treated as if [Void] was provided.
 // This function will panic if a mixture of object and service method signatures or opts are provided.
 //
-// Input types will be deserialised with the provided codec (defaults to JSON) except when they are restate.Void,
+// Input types will be deserialised with the provided codec (defaults to JSON) except when they are [Void],
 // in which case no input bytes or content type may be sent.
-// Output types will be serialised with the provided codec (defaults to JSON) except when they are restate.Void,
+// Output types will be serialised with the provided codec (defaults to JSON) except when they are [Void],
 // in which case no data will be sent and no content type set.
 func Reflect(rcvr any, opts ...options.ServiceDefinitionOption) ServiceDefinition {
 	typ := reflect.TypeOf(rcvr)
@@ -63,8 +63,15 @@ func Reflect(rcvr any, opts ...options.ServiceDefinitionOption) ServiceDefinitio
 			continue
 		}
 		// Method needs 2-3 ins: receiver, Context, optionally I
-		numIn := mtype.NumIn()
-		if numIn < 2 || numIn > 3 {
+		var input reflect.Type
+		switch mtype.NumIn() {
+		case 2:
+			// (ctx)
+			input = nil
+		case 3:
+			// (ctx, I)
+			input = mtype.In(2)
+		default:
 			continue
 		}
 
@@ -110,6 +117,7 @@ func Reflect(rcvr any, opts ...options.ServiceDefinitionOption) ServiceDefinitio
 				output = nil
 				hasError = true
 			} else {
+				// (O)
 				output = returnType
 				hasError = false
 			}
@@ -117,15 +125,11 @@ func Reflect(rcvr any, opts ...options.ServiceDefinitionOption) ServiceDefinitio
 			if returnType := mtype.Out(1); returnType != typeOfError {
 				continue
 			}
+			// (O, error)
 			output = mtype.Out(0)
 			hasError = true
 		default:
 			continue
-		}
-
-		var input reflect.Type
-		if numIn > 2 {
-			input = mtype.In(2)
 		}
 
 		switch def := definition.(type) {
@@ -145,7 +149,7 @@ func Reflect(rcvr any, opts ...options.ServiceDefinitionOption) ServiceDefinitio
 				fn:          method.Func,
 				receiver:    val,
 				input:       input,
-				output:      input,
+				output:      output,
 				hasError:    hasError,
 				options:     options.HandlerOptions{},
 				handlerType: &handlerType,
@@ -176,10 +180,16 @@ func (h *reflectHandler) GetOptions() *options.HandlerOptions {
 }
 
 func (h *reflectHandler) InputPayload() *encoding.InputPayload {
+	if h.input == nil {
+		return encoding.InputPayloadFor(h.options.Codec, Void{})
+	}
 	return encoding.InputPayloadFor(h.options.Codec, reflect.Zero(h.input).Interface())
 }
 
 func (h *reflectHandler) OutputPayload() *encoding.OutputPayload {
+	if h.output == nil {
+		return encoding.OutputPayloadFor(h.options.Codec, Void{})
+	}
 	return encoding.OutputPayloadFor(h.options.Codec, reflect.Zero(h.output).Interface())
 }
 
