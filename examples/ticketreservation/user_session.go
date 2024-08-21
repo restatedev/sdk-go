@@ -16,9 +16,9 @@ func (u *userSession) ServiceName() string {
 }
 
 func (u *userSession) AddTicket(ctx restate.ObjectContext, ticketId string) (bool, error) {
-	userId := ctx.Key()
+	userId := restate.Key(ctx)
 
-	success, err := restate.CallAs[bool](ctx.Object(TicketServiceName, ticketId, "Reserve")).Request(userId)
+	success, err := restate.Object[bool](ctx, TicketServiceName, ticketId, "Reserve").Request(userId)
 	if err != nil {
 		return false, err
 	}
@@ -28,21 +28,21 @@ func (u *userSession) AddTicket(ctx restate.ObjectContext, ticketId string) (boo
 	}
 
 	// add ticket to list of tickets
-	tickets, err := restate.GetAs[[]string](ctx, "tickets")
+	tickets, err := restate.Get[[]string](ctx, "tickets")
 	if err != nil {
 		return false, err
 	}
 
 	tickets = append(tickets, ticketId)
 
-	ctx.Set("tickets", tickets)
-	ctx.Object(UserSessionServiceName, userId, "ExpireTicket").Send(ticketId, restate.WithDelay(15*time.Minute))
+	restate.Set(ctx, "tickets", tickets)
+	restate.ObjectSend(ctx, UserSessionServiceName, userId, "ExpireTicket").Send(ticketId, restate.WithDelay(15*time.Minute))
 
 	return true, nil
 }
 
 func (u *userSession) ExpireTicket(ctx restate.ObjectContext, ticketId string) (void restate.Void, err error) {
-	tickets, err := restate.GetAs[[]string](ctx, "tickets")
+	tickets, err := restate.Get[[]string](ctx, "tickets")
 	if err != nil {
 		return void, err
 	}
@@ -59,15 +59,15 @@ func (u *userSession) ExpireTicket(ctx restate.ObjectContext, ticketId string) (
 		return void, nil
 	}
 
-	ctx.Set("tickets", tickets)
-	ctx.Object(TicketServiceName, ticketId, "Unreserve").Send(restate.Void{})
+	restate.Set(ctx, "tickets", tickets)
+	restate.ObjectSend(ctx, TicketServiceName, ticketId, "Unreserve").Send(restate.Void{})
 
 	return void, nil
 }
 
 func (u *userSession) Checkout(ctx restate.ObjectContext, _ restate.Void) (bool, error) {
-	userId := ctx.Key()
-	tickets, err := restate.GetAs[[]string](ctx, "tickets")
+	userId := restate.Key(ctx)
+	tickets, err := restate.Get[[]string](ctx, "tickets")
 	if err != nil {
 		return false, err
 	}
@@ -78,13 +78,13 @@ func (u *userSession) Checkout(ctx restate.ObjectContext, _ restate.Void) (bool,
 		return false, nil
 	}
 
-	timeout := ctx.After(time.Minute)
+	timeout := restate.After(ctx, time.Minute)
 
-	request := restate.CallAs[PaymentResponse](ctx.Object(CheckoutServiceName, "", "Payment")).
+	request := restate.Object[PaymentResponse](ctx, CheckoutServiceName, "", "Payment").
 		RequestFuture(PaymentRequest{UserID: userId, Tickets: tickets})
 
 	// race between the request and the timeout
-	switch ctx.Select(timeout, request).Select() {
+	switch restate.Select(ctx, timeout, request).Select() {
 	case request:
 		// happy path
 	case timeout:
@@ -101,9 +101,9 @@ func (u *userSession) Checkout(ctx restate.ObjectContext, _ restate.Void) (bool,
 	ctx.Log().Info("payment details", "id", response.ID, "price", response.Price)
 
 	for _, ticket := range tickets {
-		ctx.Object(TicketServiceName, ticket, "MarkAsSold").Send(restate.Void{})
+		restate.ObjectSend(ctx, TicketServiceName, ticket, "MarkAsSold").Send(restate.Void{})
 	}
 
-	ctx.Clear("tickets")
+	restate.Clear(ctx, "tickets")
 	return true, nil
 }

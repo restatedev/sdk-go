@@ -19,7 +19,7 @@ func init() {
 				})).
 			Handler("callTerminallyFailingCall", restate.NewObjectHandler(
 				func(ctx restate.ObjectContext, errorMessage string) (string, error) {
-					if err := ctx.Object("Failing", ctx.Rand().UUID().String(), "terminallyFailingCall").Request(errorMessage, restate.Void{}); err != nil {
+					if _, err := restate.Object[restate.Void](ctx, "Failing", restate.Rand(ctx).UUID().String(), "terminallyFailingCall").Request(errorMessage); err != nil {
 						return "", err
 					}
 
@@ -37,7 +37,7 @@ func init() {
 				})).
 			Handler("failingSideEffectWithEventualSuccess", restate.NewObjectHandler(
 				func(ctx restate.ObjectContext, _ restate.Void) (int32, error) {
-					return restate.RunAs(ctx, func(ctx restate.RunContext) (int32, error) {
+					return restate.Run(ctx, func(ctx restate.RunContext) (int32, error) {
 						currentAttempt := eventualSuccessCalls.Add(1)
 						if currentAttempt >= 4 {
 							eventualSuccessSideEffectCalls.Store(0)
@@ -49,7 +49,7 @@ func init() {
 				})).
 			Handler("terminallyFailingSideEffect", restate.NewObjectHandler(
 				func(ctx restate.ObjectContext, errorMessage string) (restate.Void, error) {
-					return restate.RunAs(ctx, func(ctx restate.RunContext) (restate.Void, error) {
+					return restate.Run(ctx, func(ctx restate.RunContext) (restate.Void, error) {
 						return restate.Void{}, restate.TerminalErrorf(errorMessage)
 					})
 				})))

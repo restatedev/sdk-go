@@ -3,7 +3,6 @@ package state
 import (
 	"slices"
 
-	restate "github.com/restatedev/sdk-go"
 	_go "github.com/restatedev/sdk-go/generated/dev/restate/sdk/go"
 	"github.com/restatedev/sdk-go/internal/futures"
 	"github.com/restatedev/sdk-go/internal/wire"
@@ -14,12 +13,12 @@ type selector struct {
 	inner   *futures.Selector
 }
 
-func (m *Machine) selector(futs ...restate.Selectable) *selector {
+func (m *Machine) selector(futs ...futures.Selectable) *selector {
 	inner := futures.Select(m.suspensionCtx, futs...)
 	return &selector{m, inner}
 }
 
-func (s *selector) Select() restate.Selectable {
+func (s *selector) Select() futures.Selectable {
 	entry, entryIndex := replayOrNew(
 		s.machine,
 		func(entry *wire.SelectorEntryMessage) *wire.SelectorEntryMessage {

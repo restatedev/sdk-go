@@ -12,15 +12,17 @@ type ProxyRequest struct {
 	Message []int `json:"message"`
 }
 
-func (req *ProxyRequest) ToTarget(ctx restate.Context) restate.TypedCallClient[[]byte, []byte] {
+func (req *ProxyRequest) ToTarget(ctx restate.Context) restate.Client[[]byte, []byte] {
 	if req.VirtualObjectKey != nil {
-		return restate.NewTypedCallClient[[]byte, []byte](ctx.Object(
+		return restate.WithRequestType[[]byte](restate.Object[[]byte](
+			ctx,
 			req.ServiceName,
 			*req.VirtualObjectKey,
 			req.HandlerName,
 			restate.WithBinary))
 	} else {
-		return restate.NewTypedCallClient[[]byte, []byte](ctx.Service(
+		return restate.WithRequestType[[]byte](restate.Service[[]byte](
+			ctx,
 			req.ServiceName,
 			req.HandlerName,
 			restate.WithBinary))
@@ -67,10 +69,10 @@ func init() {
 						}
 					}
 
-					selector := ctx.Select(toAwait...)
+					selector := restate.Select(ctx, toAwait...)
 					for selector.Remaining() {
 						result := selector.Select()
-						if _, err := result.(restate.TypedResponseFuture[[]byte]).Response(); err != nil {
+						if _, err := result.(restate.ResponseFuture[[]byte]).Response(); err != nil {
 							return restate.Void{}, err
 						}
 					}

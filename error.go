@@ -1,7 +1,6 @@
 package restate
 
 import (
-	stderrors "errors"
 	"fmt"
 
 	"github.com/restatedev/sdk-go/internal/errors"
@@ -41,19 +40,10 @@ func TerminalErrorf(format string, a ...any) error {
 // IsTerminalError checks if err is terminal - ie, that returning it in a handler or Run function will finish
 // the invocation with the error as a result.
 func IsTerminalError(err error) bool {
-	if err == nil {
-		return false
-	}
-	var t *errors.TerminalError
-	return stderrors.As(err, &t)
+	return errors.IsTerminalError(err)
 }
 
 // ErrorCode returns [Code] associated with error, defaulting to 500
-func ErrorCode(err error) Code {
-	var e *errors.CodeError
-	if stderrors.As(err, &e) {
-		return e.Code
-	}
-
-	return 500
+func ErrorCode(err error) errors.Code {
+	return errors.ErrorCode(err)
 }

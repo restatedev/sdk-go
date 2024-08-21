@@ -48,7 +48,7 @@ func (m *Machine) Write(message wire.Message) {
 	}
 	typ := wire.MessageType(message)
 	m.log.LogAttrs(m.ctx, log.LevelTrace, "Sending message to runtime", log.Stringer("type", typ))
-	if err := m.protocol.Write(typ, message); err != nil {
+	if err := m.Protocol.Write(typ, message); err != nil {
 		panic(m.newWriteError(message, err))
 	}
 }
@@ -67,7 +67,7 @@ func (m *Machine) newWriteError(entry wire.Message, err error) *writeError {
 
 func (m *Machine) handleCompletionsAcks() {
 	for {
-		msg, _, err := m.protocol.Read()
+		msg, _, err := m.Protocol.Read()
 		if err != nil {
 			if m.ctx.Err() == nil {
 				m.log.LogAttrs(m.ctx, log.LevelTrace, "Request body closed; next blocking operation will suspend")

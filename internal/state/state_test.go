@@ -1,4 +1,4 @@
-package state
+package state_test
 
 import (
 	"context"
@@ -11,6 +11,7 @@ import (
 	restate "github.com/restatedev/sdk-go"
 	protocol "github.com/restatedev/sdk-go/generated/dev/restate/service"
 	"github.com/restatedev/sdk-go/internal/errors"
+	"github.com/restatedev/sdk-go/internal/state"
 	"github.com/restatedev/sdk-go/internal/wire"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/sync/errgroup"
@@ -25,12 +26,12 @@ type testParams struct {
 
 var clientDisconnectError = fmt.Errorf("client disconnected")
 
-func testHandler(handler restate.Handler) testParams {
-	machine := NewMachine(handler, nil, nil)
+func testHandler(handler state.Handler) testParams {
+	machine := state.NewMachine(handler, nil, nil)
 	inputC := make(chan wire.Message)
 	outputC := make(chan wire.Message)
 	ctx, cancel := context.WithCancelCause(context.Background())
-	machine.protocol = mockProtocol{input: inputC, output: outputC}
+	machine.Protocol = mockProtocol{input: inputC, output: outputC}
 
 	eg := errgroup.Group{}
 	eg.Go(func() error {
@@ -49,7 +50,7 @@ func TestRequestClosed(t *testing.T) {
 		close(tp.input)
 
 		// writing out journal entries still works - this shouldnt panic
-		after := ctx.After(time.Minute)
+		after := restate.After(ctx, time.Minute)
 
 		ctxErr = ctx.Err()
 
@@ -100,26 +101,26 @@ func TestResponseClosed(t *testing.T) {
 		{
 			name: "awakeable should lead to client gone away panic",
 			afterCancel: func(ctx restate.Context, _ any) {
-				ctx.Awakeable()
+				restate.Awakeable[restate.Void](ctx)
 			},
-			expectedPanic: &clientGoneAway{},
+			expectedPanic: &state.ClientGoneAway{},
 		},
 		{
 			name: "starting run should lead to client gone away panic",
 			afterCancel: func(ctx restate.Context, _ any) {
-				ctx.Run(func(ctx restate.RunContext) (any, error) {
+				restate.Run(ctx, func(ctx restate.RunContext) (restate.Void, error) {
 					panic("run should not be executed")
-				}, restate.Void{})
+				})
 			},
-			expectedPanic: &clientGoneAway{},
+			expectedPanic: &state.ClientGoneAway{},
 		},
 		{
 			name: "awaiting sleep should lead to suspension panic",
 			beforeCancel: func(ctx restate.Context) any {
-				return ctx.After(time.Minute)
+				return restate.After(ctx, time.Minute)
 			},
 			afterCancel: func(ctx restate.Context, setupState any) {
-				setupState.(restate.After).Done()
+				setupState.(restate.AfterFuture).Done()
 			},
 			producedEntries: 1,
 			expectedPanic:   &wire.SuspensionPanic{},
@@ -187,13 +188,13 @@ func TestInFlightRunDisconnect(t *testing.T) {
 				}
 			}()
 
-			_ = ctx.Run(func(ctx restate.RunContext) (any, error) {
+			_, _ = restate.Run(ctx, func(ctx restate.RunContext) (restate.Void, error) {
 				beforeCancelErr = ctx.Err()
 				tp.cancel()
 				afterCancelErr = ctx.Err()
 
-				return nil, nil
-			}, restate.Void{})
+				return restate.Void{}, nil
+			})
 		}()
 
 		return restate.Void{}, nil
@@ -211,7 +212,7 @@ func TestInFlightRunDisconnect(t *testing.T) {
 	require.NoError(t, tp.wait())
 	require.Nil(t, beforeCancelErr, "run context should not be cancelled early")
 	require.Equal(t, context.Canceled, afterCancelErr, "run context should be cancelled")
-	require.IsType(t, &clientGoneAway{}, seenPanic, "after the run should lead to a client gone away panic")
+	require.IsType(t, &state.ClientGoneAway{}, seenPanic, "after the run should lead to a client gone away panic")
 }
 
 // suspension mid-run should commit the run result to the runtime, but then panic with suspension when
@@ -229,13 +230,13 @@ func TestInFlightRunSuspension(t *testing.T) {
 				}
 			}()
 
-			_ = ctx.Run(func(ctx restate.RunContext) (any, error) {
+			_, _ = restate.Run(ctx, func(ctx restate.RunContext) (restate.Void, error) {
 				beforeCancelErr = ctx.Err()
 				close(tp.input)
 				afterCancelErr = ctx.Err()
 
-				return nil, nil
-			}, restate.Void{})
+				return restate.Void{}, nil
+			})
 		}()
 
 		return restate.Void{}, nil
@@ -269,22 +270,24 @@ func TestInvocationCanceled(t *testing.T) {
 		{
 			name: "awakeable should return canceled error",
 			fn: func(ctx restate.Context) error {
-				awakeable := ctx.Awakeable()
-				return awakeable.Result(restate.Void{})
+				awakeable := restate.Awakeable[restate.Void](ctx)
+				_, err := awakeable.Result()
+				return err
 			},
 		},
 		{
 			name: "sleep should return canceled error",
 			fn: func(ctx restate.Context) error {
-				after := ctx.After(time.Minute)
+				after := restate.After(ctx, time.Minute)
 				return after.Done()
 			},
 		},
 		{
 			name: "call should return cancelled error",
 			fn: func(ctx restate.Context) error {
-				fut := ctx.Service("foo", "bar").RequestFuture(restate.Void{})
-				return fut.Response(restate.Void{})
+				fut := restate.Service[restate.Void](ctx, "foo", "bar").RequestFuture(restate.Void{})
+				_, err := fut.Response()
+				return err
 			},
 		},
 	}

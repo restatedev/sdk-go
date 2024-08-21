@@ -262,7 +262,7 @@ func genService(gen *protogen.Plugin, g *protogen.GeneratedFile, service *protog
 func clientSignature(g *protogen.GeneratedFile, method *protogen.Method) string {
 	s := method.GoName + "("
 	s += "opts ..." + g.QualifiedGoIdent(sdkPackage.Ident("ClientOption")) + ") ("
-	s += g.QualifiedGoIdent(sdkPackage.Ident("TypedCallClient")) + "[" + "*" + g.QualifiedGoIdent(method.Input.GoIdent) + ", *" + g.QualifiedGoIdent(method.Output.GoIdent) + "]"
+	s += g.QualifiedGoIdent(sdkPackage.Ident("Client")) + "[" + "*" + g.QualifiedGoIdent(method.Input.GoIdent) + ", *" + g.QualifiedGoIdent(method.Output.GoIdent) + "]"
 	s += ")"
 	return s
 }
@@ -280,18 +280,18 @@ func genClientMethod(gen *protogen.Plugin, g *protogen.GeneratedFile, method *pr
 	g.P("if len(opts) > 0 {")
 	g.P("cOpts = append(append([]sdk_go.ClientOption{}, cOpts...), opts...)")
 	g.P("}")
-	getClient := `c.ctx.`
+	var getClient string
 	switch serviceType {
 	case sdk.ServiceType_SERVICE:
-		getClient += `Service` + `("` + service.GoName + `",`
+		getClient = g.QualifiedGoIdent(sdkPackage.Ident("Service")) + `[*` + g.QualifiedGoIdent(method.Output.GoIdent) + `]` + `(c.ctx, "` + service.GoName + `",`
 	case sdk.ServiceType_VIRTUAL_OBJECT:
-		getClient += `Object` + `("` + service.GoName + `", c.key,`
+		getClient = g.QualifiedGoIdent(sdkPackage.Ident("Object")) + `[*` + g.QualifiedGoIdent(method.Output.GoIdent) + `]` + `(c.ctx, "` + service.GoName + `", c.key,`
 	default:
 		gen.Error(fmt.Errorf("Unexpected service type: %s", serviceType.String()))
 		return
 	}
 	getClient += `"` + method.GoName + `", cOpts...)`
-	g.P("return ", sdkPackage.Ident("NewTypedCallClient"), "[*", method.Input.GoIdent, ", *", method.Output.GoIdent, "]", `(`, getClient, `)`)
+	g.P("return ", sdkPackage.Ident("WithRequestType"), "[*", method.Input.GoIdent, "]", `(`, getClient, `)`)
 	g.P("}")
 	g.P()
 	return

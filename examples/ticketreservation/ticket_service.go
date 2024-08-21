@@ -19,13 +19,13 @@ type ticketService struct{}
 func (t *ticketService) ServiceName() string { return TicketServiceName }
 
 func (t *ticketService) Reserve(ctx restate.ObjectContext, _ restate.Void) (bool, error) {
-	status, err := restate.GetAs[TicketStatus](ctx, "status")
+	status, err := restate.Get[TicketStatus](ctx, "status")
 	if err != nil {
 		return false, err
 	}
 
 	if status == TicketAvailable {
-		ctx.Set("status", TicketReserved)
+		restate.Set(ctx, "status", TicketReserved)
 		return true, nil
 	}
 
@@ -33,15 +33,15 @@ func (t *ticketService) Reserve(ctx restate.ObjectContext, _ restate.Void) (bool
 }
 
 func (t *ticketService) Unreserve(ctx restate.ObjectContext, _ restate.Void) (void restate.Void, err error) {
-	ticketId := ctx.Key()
+	ticketId := restate.Key(ctx)
 	ctx.Log().Info("un-reserving ticket", "ticket", ticketId)
-	status, err := restate.GetAs[TicketStatus](ctx, "status")
+	status, err := restate.Get[TicketStatus](ctx, "status")
 	if err != nil {
 		return void, err
 	}
 
 	if status != TicketSold {
-		ctx.Clear("status")
+		restate.Clear(ctx, "status")
 		return void, nil
 	}
 
@@ -49,16 +49,16 @@ func (t *ticketService) Unreserve(ctx restate.ObjectContext, _ restate.Void) (vo
 }
 
 func (t *ticketService) MarkAsSold(ctx restate.ObjectContext, _ restate.Void) (void restate.Void, err error) {
-	ticketId := ctx.Key()
+	ticketId := restate.Key(ctx)
 	ctx.Log().Info("mark ticket as sold", "ticket", ticketId)
 
-	status, err := restate.GetAs[TicketStatus](ctx, "status")
+	status, err := restate.Get[TicketStatus](ctx, "status")
 	if err != nil {
 		return void, err
 	}
 
 	if status == TicketReserved {
-		ctx.Set("status", TicketSold)
+		restate.Set(ctx, "status", TicketSold)
 		return void, nil
 	}
 
@@ -66,8 +66,8 @@ func (t *ticketService) MarkAsSold(ctx restate.ObjectContext, _ restate.Void) (v
 }
 
 func (t *ticketService) Status(ctx restate.ObjectSharedContext, _ restate.Void) (TicketStatus, error) {
-	ticketId := ctx.Key()
+	ticketId := restate.Key(ctx)
 	ctx.Log().Info("mark ticket as sold", "ticket", ticketId)
 
-	return restate.GetAs[TicketStatus](ctx, "status")
+	return restate.Get[TicketStatus](ctx, "status")
 }

@@ -7,7 +7,6 @@ import (
 	"slices"
 	"time"
 
-	restate "github.com/restatedev/sdk-go"
 	"github.com/restatedev/sdk-go/encoding"
 	protocol "github.com/restatedev/sdk-go/generated/dev/restate/service"
 	"github.com/restatedev/sdk-go/internal/futures"
@@ -15,7 +14,7 @@ import (
 	"github.com/restatedev/sdk-go/internal/wire"
 )
 
-type serviceCall struct {
+type Client struct {
 	options options.ClientOptions
 	machine *Machine
 	service string
@@ -24,7 +23,7 @@ type serviceCall struct {
 }
 
 // RequestFuture makes a call and returns a handle on the response
-func (c *serviceCall) RequestFuture(input any, opts ...options.RequestOption) restate.ResponseFuture {
+func (c *Client) RequestFuture(input any, opts ...options.RequestOption) DecodingResponseFuture {
 	o := options.RequestOptions{}
 	for _, opt := range opts {
 		opt.BeforeRequest(&o)
@@ -37,20 +36,20 @@ func (c *serviceCall) RequestFuture(input any, opts ...options.RequestOption) re
 
 	entry, entryIndex := c.machine.doCall(c.service, c.key, c.method, o.Headers, bytes)
 
-	return decodingResponseFuture{
+	return DecodingResponseFuture{
 		futures.NewResponseFuture(c.machine.suspensionCtx, entry, entryIndex, func(err error) any { return c.machine.newProtocolViolation(entry, err) }),
 		c.machine,
 		c.options,
 	}
 }
 
-type decodingResponseFuture struct {
+type DecodingResponseFuture struct {
 	*futures.ResponseFuture
 	machine *Machine
 	options options.ClientOptions
 }
 
-func (d decodingResponseFuture) Response(output any) (err error) {
+func (d DecodingResponseFuture) Response(output any) (err error) {
 	bytes, err := d.ResponseFuture.Response()
 	if err != nil {
 		return err
@@ -64,12 +63,12 @@ func (d decodingResponseFuture) Response(output any) (err error) {
 }
 
 // Request makes a call and blocks on the response
-func (c *serviceCall) Request(input any, output any, opts ...options.RequestOption) error {
+func (c *Client) Request(input any, output any, opts ...options.RequestOption) error {
 	return c.RequestFuture(input, opts...).Response(output)
 }
 
 // Send runs a call in the background after delay duration
-func (c *serviceCall) Send(input any, opts ...options.SendOption) {
+func (c *Client) Send(input any, opts ...options.SendOption) {
 	o := options.SendOptions{}
 	for _, opt := range opts {
 		opt.BeforeSend(&o)
@@ -161,7 +160,7 @@ func (m *Machine) sendCall(service, key, method string, headersMap map[string]st
 
 	_, _ = replayOrNew(
 		m,
-		func(entry *wire.OneWayCallEntryMessage) restate.Void {
+		func(entry *wire.OneWayCallEntryMessage) encoding.Void {
 			if entry.ServiceName != service ||
 				entry.Key != key ||
 				entry.HandlerName != method ||
@@ -178,11 +177,11 @@ func (m *Machine) sendCall(service, key, method string, headersMap map[string]st
 				}, entry))
 			}
 
-			return restate.Void{}
+			return encoding.Void{}
 		},
-		func() restate.Void {
+		func() encoding.Void {
 			m._sendCall(service, key, method, headers, body, delay)
-			return restate.Void{}
+			return encoding.Void{}
 		},
 	)
 }

@@ -8,6 +8,7 @@ import (
 	"github.com/restatedev/sdk-go/encoding"
 	"github.com/restatedev/sdk-go/internal"
 	"github.com/restatedev/sdk-go/internal/options"
+	"github.com/restatedev/sdk-go/internal/state"
 )
 
 type serviceNamer interface {
@@ -141,7 +142,7 @@ type reflectHandler struct {
 	handlerType *internal.ServiceHandlerType
 }
 
-func (h *reflectHandler) getOptions() *options.HandlerOptions {
+func (h *reflectHandler) GetOptions() *options.HandlerOptions {
 	return &h.options
 }
 
@@ -161,9 +162,9 @@ type objectReflectHandler struct {
 	reflectHandler
 }
 
-var _ ObjectHandler = (*objectReflectHandler)(nil)
+var _ state.Handler = (*objectReflectHandler)(nil)
 
-func (h *objectReflectHandler) Call(ctx ObjectContext, bytes []byte) ([]byte, error) {
+func (h *objectReflectHandler) Call(ctx *state.Context, bytes []byte) ([]byte, error) {
 	input := reflect.New(h.input)
 
 	if err := encoding.Unmarshal(h.options.Codec, bytes, input.Interface()); err != nil {
@@ -173,7 +174,7 @@ func (h *objectReflectHandler) Call(ctx ObjectContext, bytes []byte) ([]byte, er
 	// we are sure about the fn signature so it's safe to do this
 	output := h.fn.Call([]reflect.Value{
 		h.receiver,
-		reflect.ValueOf(ctx),
+		reflect.ValueOf(ctxWrapper{ctx}),
 		input.Elem(),
 	})
 
@@ -196,9 +197,9 @@ type serviceReflectHandler struct {
 	reflectHandler
 }
 
-var _ ServiceHandler = (*serviceReflectHandler)(nil)
+var _ state.Handler = (*serviceReflectHandler)(nil)
 
-func (h *serviceReflectHandler) Call(ctx Context, bytes []byte) ([]byte, error) {
+func (h *serviceReflectHandler) Call(ctx *state.Context, bytes []byte) ([]byte, error) {
 	input := reflect.New(h.input)
 
 	if err := encoding.Unmarshal(h.options.Codec, bytes, input.Interface()); err != nil {
@@ -208,7 +209,7 @@ func (h *serviceReflectHandler) Call(ctx Context, bytes []byte) ([]byte, error) 
 	// we are sure about the fn signature so it's safe to do this
 	output := h.fn.Call([]reflect.Value{
 		h.receiver,
-		reflect.ValueOf(ctx),
+		reflect.ValueOf(ctxWrapper{ctx}),
 		input.Elem(),
 	})
 

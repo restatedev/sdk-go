@@ -4,6 +4,7 @@ import (
 	"github.com/restatedev/sdk-go/encoding"
 	"github.com/restatedev/sdk-go/internal"
 	"github.com/restatedev/sdk-go/internal/options"
+	"github.com/restatedev/sdk-go/internal/state"
 )
 
 // ServiceDefinition is the set of methods implemented by both services and virtual objects
@@ -11,13 +12,13 @@ type ServiceDefinition interface {
 	Name() string
 	Type() internal.ServiceType
 	// Set of handlers associated with this service definition
-	Handlers() map[string]Handler
+	Handlers() map[string]state.Handler
 }
 
 // serviceDefinition stores a list of handlers under a named service
 type serviceDefinition struct {
 	name     string
-	handlers map[string]Handler
+	handlers map[string]state.Handler
 	options  options.ServiceDefinitionOptions
 	typ      internal.ServiceType
 }
@@ -30,7 +31,7 @@ func (r *serviceDefinition) Name() string {
 }
 
 // Handlers returns the list of handlers in this service definition
-func (r *serviceDefinition) Handlers() map[string]Handler {
+func (r *serviceDefinition) Handlers() map[string]state.Handler {
 	return r.handlers
 }
 
@@ -55,7 +56,7 @@ func NewService(name string, opts ...options.ServiceDefinitionOption) *service {
 	return &service{
 		serviceDefinition: serviceDefinition{
 			name:     name,
-			handlers: make(map[string]Handler),
+			handlers: make(map[string]state.Handler),
 			options:  o,
 			typ:      internal.ServiceType_SERVICE,
 		},
@@ -63,9 +64,9 @@ func NewService(name string, opts ...options.ServiceDefinitionOption) *service {
 }
 
 // Handler registers a new Service handler by name
-func (r *service) Handler(name string, handler ServiceHandler) *service {
-	if handler.getOptions().Codec == nil {
-		handler.getOptions().Codec = r.options.DefaultCodec
+func (r *service) Handler(name string, handler state.Handler) *service {
+	if handler.GetOptions().Codec == nil {
+		handler.GetOptions().Codec = r.options.DefaultCodec
 	}
 	r.handlers[name] = handler
 	return r
@@ -87,7 +88,7 @@ func NewObject(name string, opts ...options.ServiceDefinitionOption) *object {
 	return &object{
 		serviceDefinition: serviceDefinition{
 			name:     name,
-			handlers: make(map[string]Handler),
+			handlers: make(map[string]state.Handler),
 			options:  o,
 			typ:      internal.ServiceType_VIRTUAL_OBJECT,
 		},
@@ -95,9 +96,9 @@ func NewObject(name string, opts ...options.ServiceDefinitionOption) *object {
 }
 
 // Handler registers a new Virtual Object handler by name
-func (r *object) Handler(name string, handler ObjectHandler) *object {
-	if handler.getOptions().Codec == nil {
-		handler.getOptions().Codec = r.options.DefaultCodec
+func (r *object) Handler(name string, handler state.Handler) *object {
+	if handler.GetOptions().Codec == nil {
+		handler.GetOptions().Codec = r.options.DefaultCodec
 	}
 	r.handlers[name] = handler
 	return r
