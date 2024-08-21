@@ -28,11 +28,11 @@ type Context interface {
 
 	// Service gets a Service accessor by service and method name
 	// Note: use the CallAs helper function to deserialise return values
-	Service(service, method string, opts ...options.CallOption) CallClient
+	Service(service, method string, opts ...options.ClientOption) CallClient
 
 	// Object gets a Object accessor by name, key and method name
 	// Note: use the CallAs helper function to receive serialised values
-	Object(object, key, method string, opts ...options.CallOption) CallClient
+	Object(object, key, method string, opts ...options.ClientOption) CallClient
 
 	// Run runs the function (fn), storing final results (including terminal errors)
 	// durably in the journal, or otherwise for transient errors stopping execution
@@ -81,11 +81,11 @@ type Awakeable interface {
 // CallClient represents all the different ways you can invoke a particular service/key/method tuple.
 type CallClient interface {
 	// RequestFuture makes a call and returns a handle on a future response
-	RequestFuture(input any) ResponseFuture
+	RequestFuture(input any, opts ...options.RequestOption) ResponseFuture
 	// Request makes a call and blocks on getting the response which is stored in output
-	Request(input any, output any) error
+	Request(input any, output any, opts ...options.RequestOption) error
 	// Send makes a one-way call which is executed in the background
-	Send(input any, delay time.Duration)
+	Send(input any, opts ...options.SendOption)
 }
 
 // ResponseFuture is a handle on a potentially not-yet completed outbound call.

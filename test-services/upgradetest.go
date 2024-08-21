@@ -24,11 +24,11 @@ func init() {
 						return "", fmt.Errorf("executeComplex should not be invoked with version different from 1!")
 					}
 					awakeable := restate.AwakeableAs[string](ctx)
-					ctx.Object("AwakeableHolder", "upgrade", "hold").Send(awakeable.Id(), 0)
+					ctx.Object("AwakeableHolder", "upgrade", "hold").Send(awakeable.Id())
 					if _, err := awakeable.Result(); err != nil {
 						return "", err
 					}
-					ctx.Object("ListObject", "upgrade-test", "append").Send(version(), 0)
+					ctx.Object("ListObject", "upgrade-test", "append").Send(version())
 					return version(), nil
 				})))
 }

@@ -36,7 +36,7 @@ func (u *userSession) AddTicket(ctx restate.ObjectContext, ticketId string) (boo
 	tickets = append(tickets, ticketId)
 
 	ctx.Set("tickets", tickets)
-	ctx.Object(UserSessionServiceName, userId, "ExpireTicket").Send(ticketId, 15*time.Minute)
+	ctx.Object(UserSessionServiceName, userId, "ExpireTicket").Send(ticketId, restate.WithDelay(15*time.Minute))
 
 	return true, nil
 }
@@ -60,7 +60,7 @@ func (u *userSession) ExpireTicket(ctx restate.ObjectContext, ticketId string) (
 	}
 
 	ctx.Set("tickets", tickets)
-	ctx.Object(TicketServiceName, ticketId, "Unreserve").Send(nil, 0)
+	ctx.Object(TicketServiceName, ticketId, "Unreserve").Send(restate.Void{})
 
 	return void, nil
 }
@@ -101,8 +101,7 @@ func (u *userSession) Checkout(ctx restate.ObjectContext, _ restate.Void) (bool,
 	ctx.Log().Info("payment details", "id", response.ID, "price", response.Price)
 
 	for _, ticket := range tickets {
-		call := ctx.Object(TicketServiceName, ticket, "MarkAsSold")
-		call.Send(nil, 0)
+		ctx.Object(TicketServiceName, ticket, "MarkAsSold").Send(restate.Void{})
 	}
 
 	ctx.Clear("tickets")

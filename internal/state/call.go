@@ -16,7 +16,7 @@ import (
 )
 
 type serviceCall struct {
-	options options.CallOptions
+	options options.ClientOptions
 	machine *Machine
 	service string
 	key     string
@@ -24,13 +24,18 @@ type serviceCall struct {
 }
 
 // RequestFuture makes a call and returns a handle on the response
-func (c *serviceCall) RequestFuture(input any) restate.ResponseFuture {
+func (c *serviceCall) RequestFuture(input any, opts ...options.RequestOption) restate.ResponseFuture {
+	o := options.RequestOptions{}
+	for _, opt := range opts {
+		opt.BeforeRequest(&o)
+	}
+
 	bytes, err := encoding.Marshal(c.options.Codec, input)
 	if err != nil {
 		panic(c.machine.newCodecFailure(fmt.Errorf("failed to marshal RequestFuture input: %w", err)))
 	}
 
-	entry, entryIndex := c.machine.doCall(c.service, c.key, c.method, c.options.Headers, bytes)
+	entry, entryIndex := c.machine.doCall(c.service, c.key, c.method, o.Headers, bytes)
 
 	return decodingResponseFuture{
 		futures.NewResponseFuture(c.machine.suspensionCtx, entry, entryIndex, func(err error) any { return c.machine.newProtocolViolation(entry, err) }),
@@ -42,7 +47,7 @@ func (c *serviceCall) RequestFuture(input any) restate.ResponseFuture {
 type decodingResponseFuture struct {
 	*futures.ResponseFuture
 	machine *Machine
-	options options.CallOptions
+	options options.ClientOptions
 }
 
 func (d decodingResponseFuture) Response(output any) (err error) {
@@ -59,17 +64,22 @@ func (d decodingResponseFuture) Response(output any) (err error) {
 }
 
 // Request makes a call and blocks on the response
-func (c *serviceCall) Request(input any, output any) error {
-	return c.RequestFuture(input).Response(output)
+func (c *serviceCall) Request(input any, output any, opts ...options.RequestOption) error {
+	return c.RequestFuture(input, opts...).Response(output)
 }
 
 // Send runs a call in the background after delay duration
-func (c *serviceCall) Send(input any, delay time.Duration) {
+func (c *serviceCall) Send(input any, opts ...options.SendOption) {
+	o := options.SendOptions{}
+	for _, opt := range opts {
+		opt.BeforeSend(&o)
+	}
+
 	bytes, err := encoding.Marshal(c.options.Codec, input)
 	if err != nil {
 		panic(c.machine.newCodecFailure(fmt.Errorf("failed to marshal Send input: %w", err)))
 	}
-	c.machine.sendCall(c.service, c.key, c.method, c.options.Headers, bytes, delay)
+	c.machine.sendCall(c.service, c.key, c.method, o.Headers, bytes, o.Delay)
 	return
 }
 

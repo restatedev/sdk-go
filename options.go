@@ -1,12 +1,14 @@
 package restate
 
 import (
+	"time"
+
 	"github.com/restatedev/sdk-go/encoding"
 	"github.com/restatedev/sdk-go/internal/options"
 )
 
 // re-export for use in generated code
-type CallOption = options.CallOption
+type ClientOption = options.ClientOption
 type ServiceDefinitionOption = options.ServiceDefinitionOption
 
 type withCodec struct {
@@ -18,7 +20,7 @@ var _ options.SetOption = withCodec{}
 var _ options.RunOption = withCodec{}
 var _ options.AwakeableOption = withCodec{}
 var _ options.ResolveAwakeableOption = withCodec{}
-var _ options.CallOption = withCodec{}
+var _ options.ClientOption = withCodec{}
 
 func (w withCodec) BeforeGet(opts *options.GetOptions)             { opts.Codec = w.codec }
 func (w withCodec) BeforeSet(opts *options.SetOptions)             { opts.Codec = w.codec }
@@ -27,7 +29,7 @@ func (w withCodec) BeforeAwakeable(opts *options.AwakeableOptions) { opts.Codec 
 func (w withCodec) BeforeResolveAwakeable(opts *options.ResolveAwakeableOptions) {
 	opts.Codec = w.codec
 }
-func (w withCodec) BeforeCall(opts *options.CallOptions) { opts.Codec = w.codec }
+func (w withCodec) BeforeClient(opts *options.ClientOptions) { opts.Codec = w.codec }
 
 // WithCodec is an option that can be provided to many different functions that perform (de)serialisation
 // in order to specify a custom codec with which to (de)serialise instead of the default of JSON.
@@ -77,13 +79,33 @@ type withHeaders struct {
 	headers map[string]string
 }
 
-var _ options.CallOption = withHeaders{}
+var _ options.RequestOption = withHeaders{}
+var _ options.SendOption = withHeaders{}
 
-func (w withHeaders) BeforeCall(opts *options.CallOptions) {
+func (w withHeaders) BeforeRequest(opts *options.RequestOptions) {
+	opts.Headers = w.headers
+}
+
+func (w withHeaders) BeforeSend(opts *options.SendOptions) {
 	opts.Headers = w.headers
 }
 
 // WithHeaders is an option to specify outgoing headers when making a call
 func WithHeaders(headers map[string]string) withHeaders {
 	return withHeaders{headers}
+}
+
+type withDelay struct {
+	delay time.Duration
+}
+
+var _ options.SendOption = withDelay{}
+
+func (w withDelay) BeforeSend(opts *options.SendOptions) {
+	opts.Delay = w.delay
+}
+
+// WithDelay is an [SendOption] to specify the duration to delay the request
+func WithDelay(delay time.Duration) withDelay {
+	return withDelay{delay}
 }

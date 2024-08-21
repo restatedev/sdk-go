@@ -47,7 +47,7 @@ func init() {
 				// We need to use []int because Golang takes the opinionated choice of treating []byte as Base64
 				func(ctx restate.Context, req ProxyRequest) (restate.Void, error) {
 					input := intArrayToByteArray(req.Message)
-					req.ToTarget(ctx).Send(input, 0)
+					req.ToTarget(ctx).Send(input)
 					return restate.Void{}, nil
 				})).
 			Handler("manyCalls", restate.NewServiceHandler(
@@ -58,7 +58,7 @@ func init() {
 					for _, req := range requests {
 						input := intArrayToByteArray(req.ProxyRequest.Message)
 						if req.OneWayCall {
-							req.ProxyRequest.ToTarget(ctx).Send(input, 0)
+							req.ProxyRequest.ToTarget(ctx).Send(input)
 						} else {
 							fut := req.ProxyRequest.ToTarget(ctx).RequestFuture(input)
 							if req.AwaitAtTheEnd {

@@ -23,7 +23,7 @@ func init() {
 		return invocationCounts[countKey]%2 == 1
 	}
 	incrementCounter := func(ctx restate.ObjectContext) {
-		ctx.Object("Counter", ctx.Key(), "add").Send(int64(1), 0)
+		ctx.Object("Counter", ctx.Key(), "add").Send(int64(1))
 	}
 
 	REGISTRY.AddDefinition(
@@ -63,9 +63,9 @@ func init() {
 			Handler("backgroundInvokeWithDifferentTargets", restate.NewObjectHandler(
 				func(ctx restate.ObjectContext, _ restate.Void) (restate.Void, error) {
 					if doLeftAction(ctx) {
-						ctx.Object("Counter", "abc", "get").Send(restate.Void{}, 0)
+						ctx.Object("Counter", "abc", "get").Send(restate.Void{})
 					} else {
-						ctx.Object("Counter", "abc", "reset").Send(restate.Void{}, 0)
+						ctx.Object("Counter", "abc", "reset").Send(restate.Void{})
 					}
 
 					// This is required to cause a suspension after the non-deterministic operation

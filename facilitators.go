@@ -2,7 +2,6 @@ package restate
 
 import (
 	"errors"
-	"time"
 
 	"github.com/restatedev/sdk-go/internal/options"
 )
@@ -58,11 +57,11 @@ func AwakeableAs[T any](ctx Context, options ...options.AwakeableOption) TypedAw
 // TypedCallClient is an extension of [CallClient] which deals in typed values
 type TypedCallClient[I any, O any] interface {
 	// RequestFuture makes a call and returns a handle on a future response
-	RequestFuture(input I) TypedResponseFuture[O]
+	RequestFuture(input I, opts ...options.RequestOption) TypedResponseFuture[O]
 	// Request makes a call and blocks on getting the response
-	Request(input I) (O, error)
+	Request(input I, opts ...options.RequestOption) (O, error)
 	// Send makes a one-way call which is executed in the background
-	Send(input I, delay time.Duration)
+	Send(input I, opts ...options.SendOption)
 }
 
 type typedCallClient[I any, O any] struct {
@@ -76,17 +75,17 @@ func NewTypedCallClient[I any, O any](client CallClient) TypedCallClient[I, O] {
 	return typedCallClient[I, O]{client}
 }
 
-func (t typedCallClient[I, O]) Request(input I) (output O, err error) {
-	err = t.inner.RequestFuture(input).Response(&output)
+func (t typedCallClient[I, O]) Request(input I, opts ...options.RequestOption) (output O, err error) {
+	err = t.inner.RequestFuture(input, opts...).Response(&output)
 	return
 }
 
-func (t typedCallClient[I, O]) RequestFuture(input I) TypedResponseFuture[O] {
-	return typedResponseFuture[O]{t.inner.RequestFuture(input)}
+func (t typedCallClient[I, O]) RequestFuture(input I, opts ...options.RequestOption) TypedResponseFuture[O] {
+	return typedResponseFuture[O]{t.inner.RequestFuture(input, opts...)}
 }
 
-func (t typedCallClient[I, O]) Send(input I, delay time.Duration) {
-	t.inner.Send(input, delay)
+func (t typedCallClient[I, O]) Send(input I, opts ...options.SendOption) {
+	t.inner.Send(input, opts...)
 }
 
 // TypedResponseFuture is an extension of [ResponseFuture] which returns typed responses instead of accepting a pointer

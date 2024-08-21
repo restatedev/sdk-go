@@ -1,6 +1,10 @@
 package options
 
-import "github.com/restatedev/sdk-go/encoding"
+import (
+	"time"
+
+	"github.com/restatedev/sdk-go/encoding"
+)
 
 type AwakeableOptions struct {
 	Codec encoding.Codec
@@ -34,13 +38,29 @@ type SetOption interface {
 	BeforeSet(*SetOptions)
 }
 
-type CallOptions struct {
-	Codec   encoding.Codec
+type ClientOptions struct {
+	Codec encoding.Codec
+}
+
+type ClientOption interface {
+	BeforeClient(*ClientOptions)
+}
+
+type RequestOptions struct {
 	Headers map[string]string
 }
 
-type CallOption interface {
-	BeforeCall(*CallOptions)
+type RequestOption interface {
+	BeforeRequest(*RequestOptions)
+}
+
+type SendOptions struct {
+	Headers map[string]string
+	Delay   time.Duration
+}
+
+type SendOption interface {
+	BeforeSend(*SendOptions)
 }
 
 type RunOptions struct {

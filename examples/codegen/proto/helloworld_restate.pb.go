@@ -13,25 +13,25 @@ import (
 
 // GreeterClient is the client API for Greeter service.
 type GreeterClient interface {
-	SayHello(opts ...sdk_go.CallOption) sdk_go.TypedCallClient[*HelloRequest, *HelloResponse]
+	SayHello(opts ...sdk_go.ClientOption) sdk_go.TypedCallClient[*HelloRequest, *HelloResponse]
 }
 
 type greeterClient struct {
 	ctx     sdk_go.Context
-	options []sdk_go.CallOption
+	options []sdk_go.ClientOption
 }
 
-func NewGreeterClient(ctx sdk_go.Context, opts ...sdk_go.CallOption) GreeterClient {
-	cOpts := append([]sdk_go.CallOption{sdk_go.WithProtoJSON}, opts...)
+func NewGreeterClient(ctx sdk_go.Context, opts ...sdk_go.ClientOption) GreeterClient {
+	cOpts := append([]sdk_go.ClientOption{sdk_go.WithProtoJSON}, opts...)
 	return &greeterClient{
 		ctx,
 		cOpts,
 	}
 }
-func (c *greeterClient) SayHello(opts ...sdk_go.CallOption) sdk_go.TypedCallClient[*HelloRequest, *HelloResponse] {
+func (c *greeterClient) SayHello(opts ...sdk_go.ClientOption) sdk_go.TypedCallClient[*HelloRequest, *HelloResponse] {
 	cOpts := c.options
 	if len(opts) > 0 {
-		cOpts = append(append([]sdk_go.CallOption{}, cOpts...), opts...)
+		cOpts = append(append([]sdk_go.ClientOption{}, cOpts...), opts...)
 	}
 	return sdk_go.NewTypedCallClient[*HelloRequest, *HelloResponse](c.ctx.Service("Greeter", "SayHello", cOpts...))
 }
@@ -79,57 +79,57 @@ func NewGreeterServer(srv GreeterServer, opts ...sdk_go.ServiceDefinitionOption)
 // CounterClient is the client API for Counter service.
 type CounterClient interface {
 	// Mutate the value
-	Add(opts ...sdk_go.CallOption) sdk_go.TypedCallClient[*AddRequest, *GetResponse]
+	Add(opts ...sdk_go.ClientOption) sdk_go.TypedCallClient[*AddRequest, *GetResponse]
 	// Get the current value
-	Get(opts ...sdk_go.CallOption) sdk_go.TypedCallClient[*GetRequest, *GetResponse]
+	Get(opts ...sdk_go.ClientOption) sdk_go.TypedCallClient[*GetRequest, *GetResponse]
 	// Internal method to store an awakeable ID for the Watch method
-	AddWatcher(opts ...sdk_go.CallOption) sdk_go.TypedCallClient[*AddWatcherRequest, *AddWatcherResponse]
+	AddWatcher(opts ...sdk_go.ClientOption) sdk_go.TypedCallClient[*AddWatcherRequest, *AddWatcherResponse]
 	// Wait for the counter to change and then return the new value
-	Watch(opts ...sdk_go.CallOption) sdk_go.TypedCallClient[*WatchRequest, *GetResponse]
+	Watch(opts ...sdk_go.ClientOption) sdk_go.TypedCallClient[*WatchRequest, *GetResponse]
 }
 
 type counterClient struct {
 	ctx     sdk_go.Context
 	key     string
-	options []sdk_go.CallOption
+	options []sdk_go.ClientOption
 }
 
-func NewCounterClient(ctx sdk_go.Context, key string, opts ...sdk_go.CallOption) CounterClient {
-	cOpts := append([]sdk_go.CallOption{sdk_go.WithProtoJSON}, opts...)
+func NewCounterClient(ctx sdk_go.Context, key string, opts ...sdk_go.ClientOption) CounterClient {
+	cOpts := append([]sdk_go.ClientOption{sdk_go.WithProtoJSON}, opts...)
 	return &counterClient{
 		ctx,
 		key,
 		cOpts,
 	}
 }
-func (c *counterClient) Add(opts ...sdk_go.CallOption) sdk_go.TypedCallClient[*AddRequest, *GetResponse] {
+func (c *counterClient) Add(opts ...sdk_go.ClientOption) sdk_go.TypedCallClient[*AddRequest, *GetResponse] {
 	cOpts := c.options
 	if len(opts) > 0 {
-		cOpts = append(append([]sdk_go.CallOption{}, cOpts...), opts...)
+		cOpts = append(append([]sdk_go.ClientOption{}, cOpts...), opts...)
 	}
 	return sdk_go.NewTypedCallClient[*AddRequest, *GetResponse](c.ctx.Object("Counter", c.key, "Add", cOpts...))
 }
 
-func (c *counterClient) Get(opts ...sdk_go.CallOption) sdk_go.TypedCallClient[*GetRequest, *GetResponse] {
+func (c *counterClient) Get(opts ...sdk_go.ClientOption) sdk_go.TypedCallClient[*GetRequest, *GetResponse] {
 	cOpts := c.options
 	if len(opts) > 0 {
-		cOpts = append(append([]sdk_go.CallOption{}, cOpts...), opts...)
+		cOpts = append(append([]sdk_go.ClientOption{}, cOpts...), opts...)
 	}
 	return sdk_go.NewTypedCallClient[*GetRequest, *GetResponse](c.ctx.Object("Counter", c.key, "Get", cOpts...))
 }
 
-func (c *counterClient) AddWatcher(opts ...sdk_go.CallOption) sdk_go.TypedCallClient[*AddWatcherRequest, *AddWatcherResponse] {
+func (c *counterClient) AddWatcher(opts ...sdk_go.ClientOption) sdk_go.TypedCallClient[*AddWatcherRequest, *AddWatcherResponse] {
 	cOpts := c.options
 	if len(opts) > 0 {
-		cOpts = append(append([]sdk_go.CallOption{}, cOpts...), opts...)
+		cOpts = append(append([]sdk_go.ClientOption{}, cOpts...), opts...)
 	}
 	return sdk_go.NewTypedCallClient[*AddWatcherRequest, *AddWatcherResponse](c.ctx.Object("Counter", c.key, "AddWatcher", cOpts...))
 }
 
-func (c *counterClient) Watch(opts ...sdk_go.CallOption) sdk_go.TypedCallClient[*WatchRequest, *GetResponse] {
+func (c *counterClient) Watch(opts ...sdk_go.ClientOption) sdk_go.TypedCallClient[*WatchRequest, *GetResponse] {
 	cOpts := c.options
 	if len(opts) > 0 {
-		cOpts = append(append([]sdk_go.CallOption{}, cOpts...), opts...)
+		cOpts = append(append([]sdk_go.ClientOption{}, cOpts...), opts...)
 	}
 	return sdk_go.NewTypedCallClient[*WatchRequest, *GetResponse](c.ctx.Object("Counter", c.key, "Watch", cOpts...))
 }

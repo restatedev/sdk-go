@@ -117,10 +117,10 @@ func (c *Context) After(d time.Duration) restate.After {
 	return c.machine.after(d)
 }
 
-func (c *Context) Service(service, method string, opts ...options.CallOption) restate.CallClient {
-	o := options.CallOptions{}
+func (c *Context) Service(service, method string, opts ...options.ClientOption) restate.CallClient {
+	o := options.ClientOptions{}
 	for _, opt := range opts {
-		opt.BeforeCall(&o)
+		opt.BeforeClient(&o)
 	}
 	if o.Codec == nil {
 		o.Codec = encoding.JSONCodec
@@ -134,10 +134,10 @@ func (c *Context) Service(service, method string, opts ...options.CallOption) re
 	}
 }
 
-func (c *Context) Object(service, key, method string, opts ...options.CallOption) restate.CallClient {
-	o := options.CallOptions{}
+func (c *Context) Object(service, key, method string, opts ...options.ClientOption) restate.CallClient {
+	o := options.ClientOptions{}
 	for _, opt := range opts {
-		opt.BeforeCall(&o)
+		opt.BeforeClient(&o)
 	}
 	if o.Codec == nil {
 		o.Codec = encoding.JSONCodec
