@@ -78,7 +78,7 @@ func (c *Context) ClearAll() {
 
 }
 
-func (c *Context) Get(key string, output any, opts ...options.GetOption) error {
+func (c *Context) Get(key string, output any, opts ...options.GetOption) (bool, error) {
 	o := options.GetOptions{}
 	for _, opt := range opts {
 		opt.BeforeGet(&o)
@@ -87,16 +87,16 @@ func (c *Context) Get(key string, output any, opts ...options.GetOption) error {
 		o.Codec = encoding.JSONCodec
 	}
 
-	bytes, err := c.machine.get(key)
-	if err != nil {
-		return err
+	bytes, ok, err := c.machine.get(key)
+	if err != nil || !ok {
+		return ok, err
 	}
 
 	if err := encoding.Unmarshal(o.Codec, bytes, output); err != nil {
 		panic(c.machine.newCodecFailure(fmt.Errorf("failed to unmarshal Get state into output: %w", err)))
 	}
 
-	return nil
+	return true, nil
 }
 
 func (c *Context) Keys() ([]string, error) {

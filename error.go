@@ -6,11 +6,6 @@ import (
 	"github.com/restatedev/sdk-go/internal/errors"
 )
 
-var (
-	// ErrKeyNotFound is returned when there is no state value for a key
-	ErrKeyNotFound = errors.ErrKeyNotFound
-)
-
 // Code is a numeric status code for an error, typically a HTTP status code.
 type Code = errors.Code
 

@@ -1,7 +1,6 @@
 package restate
 
 import (
-	"errors"
 	"time"
 
 	"github.com/restatedev/sdk-go/internal/futures"
@@ -97,7 +96,7 @@ type client[I any, O any] struct {
 }
 
 // WithRequestType is primarily intended to be called from generated code, to provide
-// type safety of input types. In other contexts it's generally less cumbersome to use [CallAs],
+// type safety of input types. In other contexts it's generally less cumbersome to use [Object] and [Service],
 // as the output type can be inferred.
 func WithRequestType[I any, O any](inner Client[any, O]) Client[I, O] {
 	return client[I, O]{inner}
@@ -208,11 +207,8 @@ func Run[T any](ctx Context, fn func(ctx RunContext) (T, error), options ...opti
 // If the invocation was cancelled while obtaining the state (only possible if eager state is disabled),
 // a cancellation error is returned.
 func Get[T any](ctx ObjectSharedContext, key string, options ...options.GetOption) (output T, err error) {
-	if err := ctx.inner().Get(key, &output, options...); !errors.Is(err, ErrKeyNotFound) {
-		return output, err
-	} else {
-		return output, nil
-	}
+	_, err = ctx.inner().Get(key, &output, options...)
+	return output, err
 }
 
 // If the invocation was cancelled while obtaining the state (only possible if eager state is disabled),
