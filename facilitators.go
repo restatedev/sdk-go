@@ -96,7 +96,7 @@ type client[I any, O any] struct {
 }
 
 // WithRequestType is primarily intended to be called from generated code, to provide
-// type safety of input types. In other contexts it's generally less cumbersome to use [CallAs],
+// type safety of input types. In other contexts it's generally less cumbersome to use [Object] and [Service],
 // as the output type can be inferred.
 func WithRequestType[I any, O any](inner Client[any, O]) Client[I, O] {
 	return client[I, O]{inner}
