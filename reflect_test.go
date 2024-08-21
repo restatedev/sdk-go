@@ -6,6 +6,7 @@ import (
 
 	restate "github.com/restatedev/sdk-go"
 	"github.com/restatedev/sdk-go/internal"
+	"github.com/restatedev/sdk-go/internal/state"
 	"github.com/stretchr/testify/require"
 )
 
@@ -25,8 +26,15 @@ var shared = internal.ServiceHandlerType_SHARED
 
 var tests []reflectTestParams = []reflectTestParams{
 	{rcvr: validObject{}, serviceName: "validObject", expectedMethods: expectedMethods{
-		"Greet":       &exclusive,
-		"GreetShared": &shared,
+		"Greet":                  &exclusive,
+		"GreetShared":            &shared,
+		"NoInput":                &exclusive,
+		"NoError":                &exclusive,
+		"NoOutput":               &exclusive,
+		"NoOutputNoError":        &exclusive,
+		"NoInputNoError":         &exclusive,
+		"NoInputNoOutput":        &exclusive,
+		"NoInputNoOutputNoError": &exclusive,
 	}},
 	{rcvr: validService{}, serviceName: "validService", expectedMethods: expectedMethods{
 		"Greet": nil,
@@ -53,17 +61,18 @@ func TestReflect(t *testing.T) {
 				}
 			}()
 			def := restate.Reflect(test.rcvr, test.opts...)
-			foundMethods := make([]string, 0, len(def.Handlers()))
-			for k := range def.Handlers() {
-				foundMethods = append(foundMethods, k)
+			foundMethods := make(map[string]*internal.ServiceHandlerType, len(def.Handlers()))
+			for k, foundHandler := range def.Handlers() {
+				t.Run(k, func(t *testing.T) {
+					foundMethods[k] = foundHandler.HandlerType()
+					// check for panics
+					_ = foundHandler.InputPayload()
+					_ = foundHandler.OutputPayload()
+					_, err := foundHandler.Call(&state.Context{}, []byte(`""`))
+					require.NoError(t, err)
+				})
 			}
-			for k, expectedTyp := range test.expectedMethods {
-				handler, ok := def.Handlers()[k]
-				if !ok {
-					t.Fatalf("missing handler %s", k)
-				}
-				require.Equal(t, expectedTyp, handler.HandlerType(), "mismatched handler type")
-			}
+			require.Equal(t, test.expectedMethods, foundMethods)
 			require.Equal(t, test.serviceName, def.Name())
 		})
 	}
@@ -79,20 +88,38 @@ func (validObject) GreetShared(ctx restate.ObjectSharedContext, _ string) (strin
 	return "", nil
 }
 
-func (validObject) SkipInvalidArgCount(ctx restate.ObjectContext) (string, error) {
+func (validObject) NoInput(ctx restate.ObjectContext) (string, error) {
 	return "", nil
+}
+
+func (validObject) NoError(ctx restate.ObjectContext, _ string) string {
+	return ""
+}
+
+func (validObject) NoOutput(ctx restate.ObjectContext, _ string) error {
+	return nil
+}
+
+func (validObject) NoOutputNoError(ctx restate.ObjectContext, _ string) {
+}
+
+func (validObject) NoInputNoError(ctx restate.ObjectContext) string {
+	return ""
+}
+
+func (validObject) NoInputNoOutput(ctx restate.ObjectContext) error {
+	return nil
+}
+
+func (validObject) NoInputNoOutputNoError(ctx restate.ObjectContext) {
 }
 
 func (validObject) SkipInvalidCtx(ctx context.Context, _ string) (string, error) {
 	return "", nil
 }
 
-func (validObject) SkipInvalidError(ctx restate.ObjectContext, _ string) (string, string) {
-	return "", ""
-}
-
-func (validObject) SkipInvalidRetCount(ctx restate.ObjectContext, _ string) string {
-	return ""
+func (validObject) SkipInvalidError(ctx restate.ObjectContext, _ string) (error, string) {
+	return nil, ""
 }
 
 func (validObject) skipUnexported(_ string) (string, error) {
