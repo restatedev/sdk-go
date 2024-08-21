@@ -28,11 +28,11 @@ type Context interface {
 
 	// Service gets a Service accessor by service and method name
 	// Note: use the CallAs helper function to deserialise return values
-	Service(service, method string, opts ...options.CallOption) CallClient
+	Service(service, method string, opts ...options.ClientOption) CallClient
 
 	// Object gets a Object accessor by name, key and method name
 	// Note: use the CallAs helper function to receive serialised values
-	Object(object, key, method string, opts ...options.CallOption) CallClient
+	Object(object, key, method string, opts ...options.ClientOption) CallClient
 
 	// Run runs the function (fn), storing final results (including terminal errors)
 	// durably in the journal, or otherwise for transient errors stopping execution

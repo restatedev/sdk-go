@@ -25,12 +25,12 @@ func generateClientStruct(g *protogen.GeneratedFile, service *protogen.Service, 
 	if serviceType == sdk.ServiceType_VIRTUAL_OBJECT {
 		g.P("key string")
 	}
-	g.P("options []", sdkPackage.Ident("CallOption"))
+	g.P("options []", sdkPackage.Ident("ClientOption"))
 	g.P("}")
 }
 
 func generateNewClientDefinitions(g *protogen.GeneratedFile, service *protogen.Service, clientName string) {
-	g.P("cOpts := append([]", sdkPackage.Ident("CallOption"), "{", sdkPackage.Ident("WithProtoJSON"), "}, opts...)")
+	g.P("cOpts := append([]", sdkPackage.Ident("ClientOption"), "{", sdkPackage.Ident("WithProtoJSON"), "}, opts...)")
 	g.P("return &", unexport(clientName), "{")
 	g.P("ctx,")
 	serviceType := proto.GetExtension(service.Desc.Options().(*descriptorpb.ServiceOptions), sdk.E_ServiceType).(sdk.ServiceType)
@@ -173,7 +173,7 @@ func genService(gen *protogen.Plugin, g *protogen.GeneratedFile, service *protog
 	if serviceType == sdk.ServiceType_VIRTUAL_OBJECT {
 		newClientSignature += ", key string"
 	}
-	newClientSignature += ", opts..." + g.QualifiedGoIdent(sdkPackage.Ident("CallOption")) + ") " + clientName
+	newClientSignature += ", opts..." + g.QualifiedGoIdent(sdkPackage.Ident("ClientOption")) + ") " + clientName
 
 	g.P("func ", newClientSignature, " {")
 	generateNewClientDefinitions(g, service, clientName)
@@ -261,7 +261,7 @@ func genService(gen *protogen.Plugin, g *protogen.GeneratedFile, service *protog
 
 func clientSignature(g *protogen.GeneratedFile, method *protogen.Method) string {
 	s := method.GoName + "("
-	s += "opts ..." + g.QualifiedGoIdent(sdkPackage.Ident("CallOption")) + ") ("
+	s += "opts ..." + g.QualifiedGoIdent(sdkPackage.Ident("ClientOption")) + ") ("
 	s += g.QualifiedGoIdent(sdkPackage.Ident("TypedCallClient")) + "[" + "*" + g.QualifiedGoIdent(method.Input.GoIdent) + ", *" + g.QualifiedGoIdent(method.Output.GoIdent) + "]"
 	s += ")"
 	return s
@@ -278,7 +278,7 @@ func genClientMethod(gen *protogen.Plugin, g *protogen.GeneratedFile, method *pr
 
 	g.P("cOpts := c.options")
 	g.P("if len(opts) > 0 {")
-	g.P("cOpts = append(append([]sdk_go.CallOption{}, cOpts...), opts...)")
+	g.P("cOpts = append(append([]sdk_go.ClientOption{}, cOpts...), opts...)")
 	g.P("}")
 	getClient := `c.ctx.`
 	switch serviceType {

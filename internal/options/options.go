@@ -38,12 +38,12 @@ type SetOption interface {
 	BeforeSet(*SetOptions)
 }
 
-type CallOptions struct {
+type ClientOptions struct {
 	Codec encoding.Codec
 }
 
-type CallOption interface {
-	BeforeCall(*CallOptions)
+type ClientOption interface {
+	BeforeClient(*ClientOptions)
 }
 
 type RequestOptions struct {

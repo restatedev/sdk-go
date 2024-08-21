@@ -16,7 +16,7 @@ import (
 )
 
 type serviceCall struct {
-	options options.CallOptions
+	options options.ClientOptions
 	machine *Machine
 	service string
 	key     string
@@ -47,7 +47,7 @@ func (c *serviceCall) RequestFuture(input any, opts ...options.RequestOption) re
 type decodingResponseFuture struct {
 	*futures.ResponseFuture
 	machine *Machine
-	options options.CallOptions
+	options options.ClientOptions
 }
 
 func (d decodingResponseFuture) Response(output any) (err error) {
