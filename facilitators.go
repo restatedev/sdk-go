@@ -8,9 +8,10 @@ import (
 )
 
 // GetAs gets the value for a key, returning a typed response instead of accepting a pointer.
-// If there is no associated value with key, the zero value is returned - to check explicitly for this case use ctx.Get directly.
+// If there is no associated value with key, the zero value is returned - to check explicitly for this case use ctx.Get directly
+// or pass a pointer eg *string as T.
 // If the invocation was cancelled while obtaining the state (only possible if eager state is disabled),
-// a cancellation error is returned. If eager state is enabled (the default), err will always be nil and can be ignored.
+// a cancellation error is returned.
 func GetAs[T any](ctx ObjectSharedContext, key string, options ...options.GetOption) (output T, err error) {
 	if err := ctx.Get(key, &output, options...); !errors.Is(err, ErrKeyNotFound) {
 		return output, err

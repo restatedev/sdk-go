@@ -168,7 +168,7 @@ type KeyValueReader interface {
 	// Get gets value associated with key and stores it in value
 	// If key does not exist, this function returns [ErrKeyNotFound]
 	// If the invocation was cancelled while obtaining the state (only possible if eager state is disabled),
-	// a cancellation error is returned. If eager state is enabled (the default), err will always be ErrKeyNotFound or nil.
+	// a cancellation error is returned.
 	// Note: Use GetAs generic helper function to avoid passing in a value pointer
 	Get(key string, value any, options ...options.GetOption) error
 	// Keys returns a list of all associated key
