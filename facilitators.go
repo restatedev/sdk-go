@@ -1,7 +1,6 @@
 package restate
 
 import (
-	"errors"
 	"time"
 
 	"github.com/restatedev/sdk-go/internal/futures"
@@ -208,11 +207,8 @@ func Run[T any](ctx Context, fn func(ctx RunContext) (T, error), options ...opti
 // If the invocation was cancelled while obtaining the state (only possible if eager state is disabled),
 // a cancellation error is returned.
 func Get[T any](ctx ObjectSharedContext, key string, options ...options.GetOption) (output T, err error) {
-	if err := ctx.inner().Get(key, &output, options...); !errors.Is(err, ErrKeyNotFound) {
-		return output, err
-	} else {
-		return output, nil
-	}
+	_, err = ctx.inner().Get(key, &output, options...)
+	return output, err
 }
 
 // If the invocation was cancelled while obtaining the state (only possible if eager state is disabled),

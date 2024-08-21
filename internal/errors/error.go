@@ -14,10 +14,6 @@ const (
 	ErrProtocolViolation Code = 571
 )
 
-var (
-	ErrKeyNotFound = NewTerminalError(fmt.Errorf("key not found"), 404)
-)
-
 type CodeError struct {
 	Code  Code
 	Inner error
