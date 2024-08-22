@@ -168,7 +168,7 @@ func ResolveAwakeable[T any](ctx Context, id string, value T, options ...options
 
 // ResolveAwakeable allows an awakeable (not necessarily from this service) to be
 // rejected with a particular error.
-func RejectAwakeable[T any](ctx Context, id string, reason error) {
+func RejectAwakeable(ctx Context, id string, reason error) {
 	ctx.inner().RejectAwakeable(id, reason)
 }
 
