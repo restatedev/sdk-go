@@ -1,6 +1,7 @@
 package server
 
 import (
+	"cmp"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -8,6 +9,7 @@ import (
 	"net"
 	"net/http"
 	"runtime/debug"
+	"slices"
 	"strings"
 
 	restate "github.com/restatedev/sdk-go"
@@ -130,8 +132,14 @@ func (r *Restate) discover() (resource *internal.Endpoint, err error) {
 				Ty:     handler.HandlerType(),
 			})
 		}
+		slices.SortFunc(service.Handlers, func(a, b internal.Handler) int {
+			return cmp.Compare(a.Name, b.Name)
+		})
 		resource.Services = append(resource.Services, service)
 	}
+	slices.SortFunc(resource.Services, func(a, b internal.Service) int {
+		return cmp.Compare(a.Name, b.Name)
+	})
 
 	return
 }
