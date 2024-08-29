@@ -22,9 +22,8 @@ a stable release and APIs are subject to change. Feedback is welcome via
 
 ## Basic usage
 
-Please check [example](example) for a fully working example based on the
-[TypeScript ticket reservation example]
-(https://github.com/restatedev/examples/tree/main/patterns-use-cases/ticket-reservation/ticket-reservation-typescript)
+Please check [example](examples) for fully working examples based on the
+[TypeScript tutorial (Ticket Reservation Service)](https://docs.restate.dev/get_started/tour?sdk=ts)
 
 ### How to use the example
 
