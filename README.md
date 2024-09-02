@@ -3,32 +3,28 @@
 
 # Restate Go SDK
 
-[Restate](https://restate.dev/) is a system for easily building resilient applications using *distributed durable async/await*. This repository contains the Restate SDK for writing services in **Golang**. This SDK has not yet seen
-a stable release and APIs are subject to change. Feedback is welcome via
-[issues](https://github.com/restatedev/sdk-go/issues/new) and in
-[Discord](https://discord.gg/skW3AZ6uGd).
+[Restate](https://restate.dev/) is a system for easily building resilient applications using *distributed durable async/await*. This repository contains the Restate SDK for writing services in **Golang**.
 
-## Features implemented
+> [!INFO]
+> This SDK has not yet seen a stable release and APIs are subject to change. Feedback is welcome via [issues](https://github.com/restatedev/sdk-go/issues/new) and in [Discord](https://discord.gg/skW3AZ6uGd).
 
-- [x] Log replay (resume of execution on failure)
-- [x] State (set/get/clear/clear-all/keys)
-- [x] Remote service call over restate runtime
-- [X] Delayed execution of remote services
-- [X] Sleep
-- [x] Run
-- [x] Awakeable
-- [x] Shared object handlers
-- [ ] Workflows
+## Community
 
-## Basic usage
+* 🤗️ [Join our online community](https://discord.gg/skW3AZ6uGd) for help, sharing feedback and talking to the community.
+* 📖 [Check out our documentation](https://docs.restate.dev) to get quickly started!
+* 📣 [Follow us on Twitter](https://twitter.com/restatedev) for staying up to date.
+* 🙋 [Create a GitHub issue](https://github.com/restatedev/sdk-java/issues) for requesting a new feature or reporting a problem.
+* 🏠 [Visit our GitHub org](https://github.com/restatedev) for exploring other repositories.
 
-Please check [example](examples) for fully working examples based on the
-[TypeScript tutorial (Ticket Reservation Service)](https://docs.restate.dev/get_started/tour?sdk=ts)
+## Examples
+
+This repo contains an [example](examples) based on the [Ticket Reservation Service](https://github.com/restatedev/examples/tree/main/tutorials/tour-of-restate-go).
+
+You can also check a list of examples available here: https://github.com/restatedev/examples?tab=readme-ov-file#go
 
 ### How to use the example
 
-Download and run restate
-[v1.x](https://github.com/restatedev/restate/releases/)
+Download and run restate, as described here [v1.x](https://github.com/restatedev/restate/releases/)
 
 ```bash
 restate-server
@@ -44,7 +40,7 @@ go run .
 In a third terminal register:
 
 ```bash
-restate deployments register --force -y http://localhost:9080
+restate deployments register http://localhost:9080
 ```
 
 And do the following steps
@@ -78,9 +74,9 @@ This library follows [Semantic Versioning](https://semver.org/).
 
 The compatibility with Restate is described in the following table:
 
-| Restate Server\sdk-go | 0.9 |
-|-------------------------|-----|
-| 1.0                     | ✅   |
+| Restate Server\sdk-go | 0.9/0.10/0.11 |
+|-------------------------|---------------|
+| 1.0                     | ✅             |
 
 ## Contributing
 
