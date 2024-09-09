@@ -5,9 +5,6 @@
 
 [Restate](https://restate.dev/) is a system for easily building resilient applications using *distributed durable async/await*. This repository contains the Restate SDK for writing services in **Golang**.
 
-> [!NOTE]
-> This SDK has not yet seen a stable release and APIs are subject to change. Feedback is welcome via [issues](https://github.com/restatedev/sdk-go/issues/new) and in [Discord](https://discord.gg/skW3AZ6uGd).
-
 ## Community
 
 * 🤗️ [Join our online community](https://discord.gg/skW3AZ6uGd) for help, sharing feedback and talking to the community.
