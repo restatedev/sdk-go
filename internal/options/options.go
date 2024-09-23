@@ -14,6 +14,14 @@ type AwakeableOption interface {
 	BeforeAwakeable(*AwakeableOptions)
 }
 
+type PromiseOptions struct {
+	Codec encoding.Codec
+}
+
+type PromiseOption interface {
+	BeforePromise(*PromiseOptions)
+}
+
 type ResolveAwakeableOptions struct {
 	Codec encoding.Codec
 }

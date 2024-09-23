@@ -22,6 +22,7 @@ type reflectTestParams struct {
 type expectedMethods = map[string]*internal.ServiceHandlerType
 
 var exclusive = internal.ServiceHandlerType_EXCLUSIVE
+var workflowRun = internal.ServiceHandlerType_WORKFLOW
 var shared = internal.ServiceHandlerType_SHARED
 
 var tests []reflectTestParams = []reflectTestParams{
@@ -41,6 +42,10 @@ var tests []reflectTestParams = []reflectTestParams{
 	}},
 	{rcvr: namedService{}, serviceName: "foobar", expectedMethods: expectedMethods{
 		"Greet": nil,
+	}},
+	{rcvr: validWorkflow{}, serviceName: "validWorkflow", expectedMethods: expectedMethods{
+		"Run":    &workflowRun,
+		"Status": &shared,
 	}},
 	{rcvr: mixed{}, shouldPanic: true},
 	{rcvr: empty{}, shouldPanic: true},
@@ -136,6 +141,16 @@ type namedService struct{}
 
 func (namedService) ServiceName() string {
 	return "foobar"
+}
+
+type validWorkflow struct{}
+
+func (validWorkflow) Run(ctx restate.WorkflowContext, _ string) (string, error) {
+	return "", nil
+}
+
+func (validWorkflow) Status(ctx restate.WorkflowSharedContext, _ string) (string, error) {
+	return "", nil
 }
 
 func (namedService) Greet(ctx restate.Context, _ string) (string, error) {
