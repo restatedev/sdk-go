@@ -16,10 +16,12 @@ type serviceNamer interface {
 }
 
 var (
-	typeOfContext             = reflect.TypeOf((*Context)(nil)).Elem()
-	typeOfObjectContext       = reflect.TypeOf((*ObjectContext)(nil)).Elem()
-	typeOfSharedObjectContext = reflect.TypeOf((*ObjectSharedContext)(nil)).Elem()
-	typeOfError               = reflect.TypeOf((*error)(nil)).Elem()
+	typeOfContext               = reflect.TypeOf((*Context)(nil)).Elem()
+	typeOfObjectContext         = reflect.TypeOf((*ObjectContext)(nil)).Elem()
+	typeOfSharedObjectContext   = reflect.TypeOf((*ObjectSharedContext)(nil)).Elem()
+	typeOfWorkflowContext       = reflect.TypeOf((*WorkflowContext)(nil)).Elem()
+	typeOfSharedWorkflowContext = reflect.TypeOf((*WorkflowSharedContext)(nil)).Elem()
+	typeOfError                 = reflect.TypeOf((*error)(nil)).Elem()
 )
 
 // Reflect converts a struct with methods into a service definition where each correctly-typed
@@ -34,9 +36,10 @@ var (
 // - (ctx) (error)
 // - (ctx) (O)
 // - (ctx) (O, error)
-// Where ctx is [ObjectContext], [ObjectSharedContext] or [Context]. Other signatures are ignored.
+// Where ctx is [WorkflowContext], [WorkflowSharedContext], [ObjectContext], [ObjectSharedContext] or [Context]. Other signatures are ignored.
 // Signatures without an I or O type will be treated as if [Void] was provided.
-// This function will panic if a mixture of object and service method signatures or opts are provided.
+// This function will panic if a mixture of object service and workflow method signatures or opts are provided, or if multiple WorkflowContext
+// methods are defined.
 //
 // Input types will be deserialised with the provided codec (defaults to JSON) except when they are [Void],
 // in which case no input bytes or content type may be sent.
@@ -53,6 +56,7 @@ func Reflect(rcvr any, opts ...options.ServiceDefinitionOption) ServiceDefinitio
 	}
 
 	var definition ServiceDefinition
+	var foundWorkflowRun bool
 
 	for m := 0; m < typ.NumMethod(); m++ {
 		method := typ.Method(m)
@@ -95,6 +99,23 @@ func Reflect(rcvr any, opts ...options.ServiceDefinitionOption) ServiceDefinitio
 			if definition == nil {
 				definition = NewObject(name, opts...)
 			} else if definition.Type() != internal.ServiceType_VIRTUAL_OBJECT {
+				panic("found a mix of object context arguments and other context arguments")
+			}
+			handlerType = internal.ServiceHandlerType_SHARED
+		case typeOfWorkflowContext:
+			if definition == nil {
+				definition = NewWorkflow(name, opts...)
+			} else if definition.Type() != internal.ServiceType_WORKFLOW {
+				panic("found a mix of workflow context arguments and other context arguments")
+			} else if foundWorkflowRun {
+				panic("found more than one WorkflowContext argument; a workflow may only have one 'Run' method, the rest must be WorkflowSharedContext.")
+			}
+			handlerType = internal.ServiceHandlerType_WORKFLOW
+			foundWorkflowRun = true
+		case typeOfSharedWorkflowContext:
+			if definition == nil {
+				definition = NewWorkflow(name, opts...)
+			} else if definition.Type() != internal.ServiceType_WORKFLOW {
 				panic("found a mix of object context arguments and other context arguments")
 			}
 			handlerType = internal.ServiceHandlerType_SHARED
@@ -155,11 +176,26 @@ func Reflect(rcvr any, opts ...options.ServiceDefinitionOption) ServiceDefinitio
 				handlerType: &handlerType,
 			},
 			)
+		case *workflow:
+			def.Handler(mname, &reflectHandler{
+				fn:          method.Func,
+				receiver:    val,
+				input:       input,
+				output:      output,
+				hasError:    hasError,
+				options:     options.HandlerOptions{},
+				handlerType: &handlerType,
+			},
+			)
 		}
 	}
 
 	if definition == nil {
 		panic("no valid handlers could be found within the exported methods on this struct")
+	}
+
+	if definition.Type() == internal.ServiceType_WORKFLOW && !foundWorkflowRun {
+		panic("no WorkflowContext method found; a workflow must have exactly one 'Run' handler")
 	}
 
 	return definition
@@ -198,6 +234,7 @@ func (h *reflectHandler) HandlerType() *internal.ServiceHandlerType {
 }
 
 func (h *reflectHandler) Call(ctx *state.Context, bytes []byte) ([]byte, error) {
+
 	var args []reflect.Value
 	if h.input != nil {
 		input := reflect.New(h.input)

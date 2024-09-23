@@ -60,7 +60,7 @@ func (c *Context) Set(key string, value any, opts ...options.SetOption) {
 
 	bytes, err := encoding.Marshal(o.Codec, value)
 	if err != nil {
-		panic(c.machine.newCodecFailure(fmt.Errorf("failed to marshal Set value: %w", err)))
+		panic(c.machine.newCodecFailure(wire.SetStateEntryMessageType, fmt.Errorf("failed to marshal Set value: %w", err)))
 	}
 
 	c.machine.set(key, bytes)
@@ -93,7 +93,7 @@ func (c *Context) Get(key string, output any, opts ...options.GetOption) (bool, 
 	}
 
 	if err := encoding.Unmarshal(o.Codec, bytes, output); err != nil {
-		panic(c.machine.newCodecFailure(fmt.Errorf("failed to unmarshal Get state into output: %w", err)))
+		panic(c.machine.newCodecFailure(wire.GetStateEntryMessageType, fmt.Errorf("failed to unmarshal Get state into output: %w", err)))
 	}
 
 	return true, nil
@@ -146,6 +146,24 @@ func (c *Context) Object(service, key, method string, opts ...options.ClientOpti
 	}
 }
 
+func (c *Context) Workflow(service, workflowID, method string, opts ...options.ClientOption) *Client {
+	o := options.ClientOptions{}
+	for _, opt := range opts {
+		opt.BeforeClient(&o)
+	}
+	if o.Codec == nil {
+		o.Codec = encoding.JSONCodec
+	}
+
+	return &Client{
+		options: o,
+		machine: c.machine,
+		service: service,
+		key:     workflowID,
+		method:  method,
+	}
+}
+
 func (c *Context) Run(fn func(ctx RunContext) (any, error), output any, opts ...options.RunOption) error {
 	o := options.RunOptions{}
 	for _, opt := range opts {
@@ -163,7 +181,7 @@ func (c *Context) Run(fn func(ctx RunContext) (any, error), output any, opts ...
 
 		bytes, err := encoding.Marshal(o.Codec, output)
 		if err != nil {
-			panic(c.machine.newCodecFailure(fmt.Errorf("failed to marshal Run output: %w", err)))
+			panic(c.machine.newCodecFailure(wire.RunEntryMessageType, fmt.Errorf("failed to marshal Run output: %w", err)))
 		}
 
 		return bytes, nil
@@ -173,18 +191,10 @@ func (c *Context) Run(fn func(ctx RunContext) (any, error), output any, opts ...
 	}
 
 	if err := encoding.Unmarshal(o.Codec, bytes, output); err != nil {
-		panic(c.machine.newCodecFailure(fmt.Errorf("failed to unmarshal Run output: %w", err)))
+		panic(c.machine.newCodecFailure(wire.RunEntryMessageType, fmt.Errorf("failed to unmarshal Run output: %w", err)))
 	}
 
 	return nil
-}
-
-type awakeableOptions struct {
-	codec encoding.Codec
-}
-
-type AwakeableOption interface {
-	beforeAwakeable(*awakeableOptions)
 }
 
 func (c *Context) Awakeable(opts ...options.AwakeableOption) DecodingAwakeable {
@@ -211,7 +221,7 @@ func (d DecodingAwakeable) Result(output any) (err error) {
 		return err
 	}
 	if err := encoding.Unmarshal(d.codec, bytes, output); err != nil {
-		panic(d.machine.newCodecFailure(fmt.Errorf("failed to unmarshal Awakeable result into output: %w", err)))
+		panic(d.machine.newCodecFailure(wire.AwakeableEntryMessageType, fmt.Errorf("failed to unmarshal Awakeable result into output: %w", err)))
 	}
 	return
 }
@@ -226,7 +236,7 @@ func (c *Context) ResolveAwakeable(id string, value any, opts ...options.Resolve
 	}
 	bytes, err := encoding.Marshal(o.Codec, value)
 	if err != nil {
-		panic(c.machine.newCodecFailure(fmt.Errorf("failed to marshal ResolveAwakeable value: %w", err)))
+		panic(c.machine.newCodecFailure(wire.CompleteAwakeableEntryMessageType, fmt.Errorf("failed to marshal ResolveAwakeable value: %w", err)))
 	}
 	c.machine.resolveAwakeable(id, bytes)
 }
@@ -420,7 +430,7 @@ The journal entry at position %d was:
 					Code:              uint32(errors.ErrorCode(typ.err)),
 					Message:           typ.err.Error(),
 					RelatedEntryIndex: &typ.entryIndex,
-					RelatedEntryType:  wire.AwakeableEntryMessageType.UInt32(),
+					RelatedEntryType:  wire.RunEntryMessageType.UInt32(),
 				},
 			}); err != nil {
 				m.log.LogAttrs(m.ctx, slog.LevelError, "Error sending failure message", log.Error(typ.err))
@@ -435,7 +445,7 @@ The journal entry at position %d was:
 					Code:              uint32(errors.ErrorCode(typ.err)),
 					Message:           typ.err.Error(),
 					RelatedEntryIndex: &typ.entryIndex,
-					RelatedEntryType:  wire.AwakeableEntryMessageType.UInt32(),
+					RelatedEntryType:  typ.entryType.UInt32(),
 				},
 			}); err != nil {
 				m.log.LogAttrs(m.ctx, slog.LevelError, "Error sending failure message", log.Error(typ.err))

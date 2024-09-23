@@ -22,8 +22,11 @@ func generateClientStruct(g *protogen.GeneratedFile, service *protogen.Service, 
 	g.P("type ", unexport(clientName), " struct {")
 	g.P("ctx ", sdkPackage.Ident("Context"))
 	serviceType := proto.GetExtension(service.Desc.Options().(*descriptorpb.ServiceOptions), sdk.E_ServiceType).(sdk.ServiceType)
-	if serviceType == sdk.ServiceType_VIRTUAL_OBJECT {
+	switch serviceType {
+	case sdk.ServiceType_VIRTUAL_OBJECT:
 		g.P("key string")
+	case sdk.ServiceType_WORKFLOW:
+		g.P("workflowID string")
 	}
 	g.P("options []", sdkPackage.Ident("ClientOption"))
 	g.P("}")
@@ -34,8 +37,11 @@ func generateNewClientDefinitions(g *protogen.GeneratedFile, service *protogen.S
 	g.P("return &", unexport(clientName), "{")
 	g.P("ctx,")
 	serviceType := proto.GetExtension(service.Desc.Options().(*descriptorpb.ServiceOptions), sdk.E_ServiceType).(sdk.ServiceType)
-	if serviceType == sdk.ServiceType_VIRTUAL_OBJECT {
+	switch serviceType {
+	case sdk.ServiceType_VIRTUAL_OBJECT:
 		g.P("key,")
+	case sdk.ServiceType_WORKFLOW:
+		g.P("workflowID,")
 	}
 	g.P("cOpts,")
 	g.P("}")
@@ -170,8 +176,11 @@ func genService(gen *protogen.Plugin, g *protogen.GeneratedFile, service *protog
 	}
 	newClientSignature := "New" + clientName + " (ctx " + g.QualifiedGoIdent(sdkPackage.Ident("Context"))
 	serviceType := proto.GetExtension(service.Desc.Options().(*descriptorpb.ServiceOptions), sdk.E_ServiceType).(sdk.ServiceType)
-	if serviceType == sdk.ServiceType_VIRTUAL_OBJECT {
+	switch serviceType {
+	case sdk.ServiceType_VIRTUAL_OBJECT:
 		newClientSignature += ", key string"
+	case sdk.ServiceType_WORKFLOW:
+		newClientSignature += ", workflowID string"
 	}
 	newClientSignature += ", opts..." + g.QualifiedGoIdent(sdkPackage.Ident("ClientOption")) + ") " + clientName
 
@@ -286,6 +295,8 @@ func genClientMethod(gen *protogen.Plugin, g *protogen.GeneratedFile, method *pr
 		getClient = g.QualifiedGoIdent(sdkPackage.Ident("Service")) + `[*` + g.QualifiedGoIdent(method.Output.GoIdent) + `]` + `(c.ctx, "` + service.GoName + `",`
 	case sdk.ServiceType_VIRTUAL_OBJECT:
 		getClient = g.QualifiedGoIdent(sdkPackage.Ident("Object")) + `[*` + g.QualifiedGoIdent(method.Output.GoIdent) + `]` + `(c.ctx, "` + service.GoName + `", c.key,`
+	case sdk.ServiceType_WORKFLOW:
+		getClient = g.QualifiedGoIdent(sdkPackage.Ident("Workflow")) + `[*` + g.QualifiedGoIdent(method.Output.GoIdent) + `]` + `(c.ctx, "` + service.GoName + `", c.workflowID,`
 	default:
 		gen.Error(fmt.Errorf("Unexpected service type: %s", serviceType.String()))
 		return
@@ -328,6 +339,22 @@ func contextType(gen *protogen.Plugin, g *protogen.GeneratedFile, method *protog
 			gen.Error(fmt.Errorf("Handlers in services of type VIRTUAL_OBJECT must have type SHARED, EXCLUSIVE, or unset (defaults to EXCLUSIVE)"))
 			return ""
 		}
+	case sdk.ServiceType_WORKFLOW:
+		switch handlerType {
+		case sdk.HandlerType_SHARED:
+			return g.QualifiedGoIdent(sdkPackage.Ident("WorkflowSharedContext"))
+		case sdk.HandlerType_WORKFLOW_RUN:
+			return g.QualifiedGoIdent(sdkPackage.Ident("WorkflowContext"))
+		case sdk.HandlerType_UNSET:
+			if method.GoName == "Run" {
+				return g.QualifiedGoIdent(sdkPackage.Ident("WorkflowContext"))
+			} else {
+				return g.QualifiedGoIdent(sdkPackage.Ident("WorkflowSharedContext"))
+			}
+		default:
+			gen.Error(fmt.Errorf("Handlers in services of type WORKFLOW must have type SHARED, WORKFLOW_RUN, or unset (defaults to SHARED unless the method name is 'Run')"))
+			return ""
+		}
 	default:
 		gen.Error(fmt.Errorf("Unexpected service type: %s", serviceType.String()))
 		return ""
@@ -341,6 +368,8 @@ func newRouterType(gen *protogen.Plugin, g *protogen.GeneratedFile, service *pro
 		return g.QualifiedGoIdent(sdkPackage.Ident("NewService"))
 	case sdk.ServiceType_VIRTUAL_OBJECT:
 		return g.QualifiedGoIdent(sdkPackage.Ident("NewObject"))
+	case sdk.ServiceType_WORKFLOW:
+		return g.QualifiedGoIdent(sdkPackage.Ident("NewWorkflow"))
 	default:
 		gen.Error(fmt.Errorf("Unexpected service type: %s", serviceType.String()))
 		return ""
@@ -367,6 +396,22 @@ func newHandlerType(gen *protogen.Plugin, g *protogen.GeneratedFile, method *pro
 			return g.QualifiedGoIdent(sdkPackage.Ident("NewObjectHandler"))
 		default:
 			gen.Error(fmt.Errorf("Handlers in services of type VIRTUAL_OBJECT must have type SHARED, EXCLUSIVE, or unset (defaults to EXCLUSIVE)"))
+			return ""
+		}
+	case sdk.ServiceType_WORKFLOW:
+		switch handlerType {
+		case sdk.HandlerType_SHARED:
+			return g.QualifiedGoIdent(sdkPackage.Ident("NewWorkflowSharedHandler"))
+		case sdk.HandlerType_WORKFLOW_RUN:
+			return g.QualifiedGoIdent(sdkPackage.Ident("NewWorkflowHandler"))
+		case sdk.HandlerType_UNSET:
+			if method.GoName == "Run" {
+				return g.QualifiedGoIdent(sdkPackage.Ident("NewWorkflowHandler"))
+			} else {
+				return g.QualifiedGoIdent(sdkPackage.Ident("NewWorkflowSharedHandler"))
+			}
+		default:
+			gen.Error(fmt.Errorf("Handlers in services of type WORKFLOW must have type SHARED, WORKFLOW_RUN, or unset (defaults to SHARED unless the method name is 'Run')"))
 			return ""
 		}
 	default:

@@ -107,3 +107,38 @@ func (r *ResponseFuture) Response() ([]byte, error) {
 func (r *ResponseFuture) getEntry() (wire.CompleteableMessage, uint32) {
 	return r.entry, r.entryIndex
 }
+
+type Promise struct {
+	suspensionCtx context.Context
+	invocationID  []byte
+	entry         *wire.GetPromiseEntryMessage
+	entryIndex    uint32
+	getPromise    func() (*wire.GetPromiseEntryMessage, uint32)
+}
+
+func NewPromise(suspensionCtx context.Context, invocationID []byte, getPromise func() (*wire.GetPromiseEntryMessage, uint32)) *Promise {
+	return &Promise{suspensionCtx, invocationID, nil, 0, getPromise}
+}
+
+func (c *Promise) Result() ([]byte, error) {
+	c.getEntry()
+
+	c.entry.Await(c.suspensionCtx, c.entryIndex)
+
+	switch result := c.entry.Result.(type) {
+	case *protocol.GetPromiseEntryMessage_Value:
+		return result.Value, nil
+	case *protocol.GetPromiseEntryMessage_Failure:
+		return nil, errors.ErrorFromFailure(result.Failure)
+	default:
+		return nil, fmt.Errorf("unexpected result in completed get promise entry: %v", c.entry.Result)
+	}
+}
+
+func (c *Promise) getEntry() (wire.CompleteableMessage, uint32) {
+	if c.entry == nil {
+		c.entry, c.entryIndex = c.getPromise()
+	}
+
+	return c.entry, c.entryIndex
+}

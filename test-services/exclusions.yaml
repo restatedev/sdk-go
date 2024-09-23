@@ -1,7 +1,4 @@
 exclusions:
-  "default":
-    - "dev.restate.sdktesting.tests.WorkflowAPI"
-  "alwaysSuspending":
-    - "dev.restate.sdktesting.tests.WorkflowAPI"
-  "singleThreadSinglePartition":
-    - "dev.restate.sdktesting.tests.WorkflowAPI"
+  "default": []
+  "alwaysSuspending": []
+  "singleThreadSinglePartition": []

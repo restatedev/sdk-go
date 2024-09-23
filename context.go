@@ -27,7 +27,7 @@ type Context interface {
 	inner() *state.Context
 }
 
-// ObjectContext is an extension of [Context] which is passed to shared-mode Virtual Object handlers,
+// ObjectSharedContext is an extension of [Context] which is passed to shared-mode Virtual Object handlers,
 // giving read-only access to a snapshot of state.
 type ObjectSharedContext interface {
 	Context
@@ -39,4 +39,19 @@ type ObjectSharedContext interface {
 type ObjectContext interface {
 	ObjectSharedContext
 	exclusiveObject()
+}
+
+// WorkflowSharedContext is an extension of [ObjectSharedContext] which is passed to shared-mode Workflow handlers,
+// giving read-only access to a snapshot of state.
+type WorkflowSharedContext interface {
+	ObjectSharedContext
+	workflow()
+}
+
+// WorkflowContext is an extension of [WorkflowSharedContext] and [ObjectContext] which is passed to Workflow 'run' handlers,
+// giving mutable access to state.
+type WorkflowContext interface {
+	WorkflowSharedContext
+	ObjectContext
+	runWorkflow()
 }

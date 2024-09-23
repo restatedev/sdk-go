@@ -31,7 +31,7 @@ func (c *Client) RequestFuture(input any, opts ...options.RequestOption) Decodin
 
 	bytes, err := encoding.Marshal(c.options.Codec, input)
 	if err != nil {
-		panic(c.machine.newCodecFailure(fmt.Errorf("failed to marshal RequestFuture input: %w", err)))
+		panic(c.machine.newCodecFailure(wire.CallEntryMessageType, fmt.Errorf("failed to marshal RequestFuture input: %w", err)))
 	}
 
 	entry, entryIndex := c.machine.doCall(c.service, c.key, c.method, o.Headers, bytes)
@@ -56,7 +56,7 @@ func (d DecodingResponseFuture) Response(output any) (err error) {
 	}
 
 	if err := encoding.Unmarshal(d.options.Codec, bytes, output); err != nil {
-		panic(d.machine.newCodecFailure(fmt.Errorf("failed to unmarshal Call response into output: %w", err)))
+		panic(d.machine.newCodecFailure(wire.CallEntryMessageType, fmt.Errorf("failed to unmarshal Call response into output: %w", err)))
 	}
 
 	return nil
@@ -76,7 +76,7 @@ func (c *Client) Send(input any, opts ...options.SendOption) {
 
 	bytes, err := encoding.Marshal(c.options.Codec, input)
 	if err != nil {
-		panic(c.machine.newCodecFailure(fmt.Errorf("failed to marshal Send input: %w", err)))
+		panic(c.machine.newCodecFailure(wire.OneWayCallEntryMessageType, fmt.Errorf("failed to marshal Send input: %w", err)))
 	}
 	c.machine.sendCall(c.service, c.key, c.method, o.Headers, bytes, o.Delay)
 	return

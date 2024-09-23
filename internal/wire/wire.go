@@ -47,7 +47,12 @@ const (
 	ClearAllStateEntryMessageType Type = 0x0800 + 3
 	GetStateKeysEntryMessageType  Type = 0x0800 + 4
 
-	//SysCalls
+	// Promises
+	GetPromiseEntryMessageType      Type = 0x0800 + 8
+	PeekPromiseEntryMessageType     Type = 0x0800 + 9
+	CompletePromiseEntryMessageType Type = 0x0800 + 10
+
+	// SysCalls
 	SleepEntryMessageType             Type = 0x0C00
 	CallEntryMessageType              Type = 0x0C00 + 1
 	OneWayCallEntryMessageType        Type = 0x0C00 + 2
@@ -181,6 +186,12 @@ func MessageType(message Message) Type {
 		return AwakeableEntryMessageType
 	case *CompleteAwakeableEntryMessage:
 		return CompleteAwakeableEntryMessageType
+	case *GetPromiseEntryMessage:
+		return GetPromiseEntryMessageType
+	case *PeekPromiseEntryMessage:
+		return PeekPromiseEntryMessageType
+	case *CompletePromiseEntryMessage:
+		return CompletePromiseEntryMessageType
 	case *RunEntryMessage:
 		return RunEntryMessageType
 	case *SelectorEntryMessage:
@@ -415,6 +426,33 @@ var (
 
 			return msg, proto.Unmarshal(bytes, msg)
 		},
+		GetPromiseEntryMessageType: func(header Header, bytes []byte) (Message, error) {
+			msg := &GetPromiseEntryMessage{}
+
+			if header.Flag.Completed() {
+				msg.completable.complete()
+			}
+
+			return msg, proto.Unmarshal(bytes, msg)
+		},
+		PeekPromiseEntryMessageType: func(header Header, bytes []byte) (Message, error) {
+			msg := &PeekPromiseEntryMessage{}
+
+			if header.Flag.Completed() {
+				msg.completable.complete()
+			}
+
+			return msg, proto.Unmarshal(bytes, msg)
+		},
+		CompletePromiseEntryMessageType: func(header Header, bytes []byte) (Message, error) {
+			msg := &CompletePromiseEntryMessage{}
+
+			if header.Flag.Completed() {
+				msg.completable.complete()
+			}
+
+			return msg, proto.Unmarshal(bytes, msg)
+		},
 		RunEntryMessageType: func(header Header, bytes []byte) (Message, error) {
 			msg := &RunEntryMessage{}
 
@@ -526,6 +564,69 @@ func (a *GetStateKeysEntryMessage) Complete(c *protocol.CompletionMessage) error
 		a.Result = &protocol.GetStateKeysEntryMessage_Failure{Failure: result.Failure}
 	case *protocol.CompletionMessage_Empty:
 		return fmt.Errorf("received empty completion for getstatekeys")
+	}
+
+	a.complete()
+	return nil
+}
+
+type GetPromiseEntryMessage struct {
+	completable
+	protocol.GetPromiseEntryMessage
+}
+
+var _ CompleteableMessage = (*GetPromiseEntryMessage)(nil)
+
+func (a *GetPromiseEntryMessage) Complete(c *protocol.CompletionMessage) error {
+	switch result := c.Result.(type) {
+	case *protocol.CompletionMessage_Value:
+		a.Result = &protocol.GetPromiseEntryMessage_Value{Value: result.Value}
+	case *protocol.CompletionMessage_Failure:
+		a.Result = &protocol.GetPromiseEntryMessage_Failure{Failure: result.Failure}
+	case *protocol.CompletionMessage_Empty:
+		return fmt.Errorf("received empty completion for getpromise")
+	}
+
+	a.complete()
+	return nil
+}
+
+type PeekPromiseEntryMessage struct {
+	completable
+	protocol.PeekPromiseEntryMessage
+}
+
+var _ CompleteableMessage = (*PeekPromiseEntryMessage)(nil)
+
+func (a *PeekPromiseEntryMessage) Complete(c *protocol.CompletionMessage) error {
+	switch result := c.Result.(type) {
+	case *protocol.CompletionMessage_Value:
+		a.Result = &protocol.PeekPromiseEntryMessage_Value{Value: result.Value}
+	case *protocol.CompletionMessage_Failure:
+		a.Result = &protocol.PeekPromiseEntryMessage_Failure{Failure: result.Failure}
+	case *protocol.CompletionMessage_Empty:
+		a.Result = &protocol.PeekPromiseEntryMessage_Empty{}
+	}
+
+	a.complete()
+	return nil
+}
+
+type CompletePromiseEntryMessage struct {
+	completable
+	protocol.CompletePromiseEntryMessage
+}
+
+var _ CompleteableMessage = (*CompletePromiseEntryMessage)(nil)
+
+func (a *CompletePromiseEntryMessage) Complete(c *protocol.CompletionMessage) error {
+	switch result := c.Result.(type) {
+	case *protocol.CompletionMessage_Failure:
+		a.Result = &protocol.CompletePromiseEntryMessage_Failure{Failure: result.Failure}
+	case *protocol.CompletionMessage_Empty:
+		a.Result = &protocol.CompletePromiseEntryMessage_Empty{}
+	case *protocol.CompletionMessage_Value:
+		return fmt.Errorf("received value completion for complete promise")
 	}
 
 	a.complete()
