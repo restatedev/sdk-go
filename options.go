@@ -46,12 +46,16 @@ type withPayloadCodec struct {
 
 var _ options.HandlerOption = withPayloadCodec{}
 var _ options.ServiceDefinitionOption = withPayloadCodec{}
+var _ options.IngressClientOption = withPayloadCodec{}
 
 func (w withPayloadCodec) BeforeHandler(opts *options.HandlerOptions) {
 	opts.Codec = w.codec
 }
 func (w withPayloadCodec) BeforeServiceDefinition(opts *options.ServiceDefinitionOptions) {
 	opts.DefaultCodec = w.codec
+}
+func (w withPayloadCodec) BeforeIngressClient(opts *options.IngressClientOptions) {
+	opts.Codec = w.codec
 }
 
 // WithPayloadCodec is an option that can be provided to handler/service options
@@ -105,7 +109,44 @@ func (w withDelay) BeforeSend(opts *options.SendOptions) {
 	opts.Delay = w.delay
 }
 
-// WithDelay is an [SendOption] to specify the duration to delay the request
+// WithDelay is a [SendOption] to specify the duration to delay the request
 func WithDelay(delay time.Duration) withDelay {
 	return withDelay{delay}
+}
+
+type withIdempotencyKey struct {
+	idempotencyKey string
+}
+
+var _ options.RequestOption = withIdempotencyKey{}
+var _ options.SendOption = withIdempotencyKey{}
+
+func (w withIdempotencyKey) BeforeRequest(opts *options.RequestOptions) {
+	opts.IdempotencyKey = w.idempotencyKey
+}
+
+func (w withIdempotencyKey) BeforeSend(opts *options.SendOptions) {
+	opts.IdempotencyKey = w.idempotencyKey
+}
+
+// WithIdempotencyKey is a [SendOption] to specify an idempotency key for the request
+// Currently this key is only used by the ingress client
+func WithIdempotencyKey(idempotencyKey string) withIdempotencyKey {
+	return withIdempotencyKey{idempotencyKey}
+}
+
+type withWorkflowRun struct {
+	runHandler string
+}
+
+var _ options.WorkflowSubmitOption = withWorkflowRun{}
+
+func (w withWorkflowRun) BeforeWorkflowSubmit(opts *options.WorkflowSubmitOptions) {
+	opts.RunHandler = w.runHandler
+}
+
+// WithWorkflowRun is a [WorkflowSubmitOption] to specify an idempotency key for the request
+// Currently this key is only used by the ingress client
+func WithWorkflowRun(idempotencyKey string) withIdempotencyKey {
+	return withIdempotencyKey{idempotencyKey}
 }
