@@ -89,6 +89,8 @@ jobs:
           java-version: '17'
       - name: Setup ko
         uses: ko-build/setup-ko@v0.6
+        with:
+          version: v0.16.0
       - name: Setup sdk-test-suite
         run: wget --no-verbose https://github.com/restatedev/sdk-test-suite/releases/download/v${{ matrix.sdk-test-suite }}/restate-sdk-test-suite.jar
 
