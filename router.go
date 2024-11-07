@@ -127,7 +127,7 @@ func NewWorkflow(name string, opts ...options.ServiceDefinitionOption) *workflow
 	}
 }
 
-// Handler registers a new Virtual Object handler by name
+// Handler registers a new Workflow handler by name
 func (r *workflow) Handler(name string, handler state.Handler) *workflow {
 	if handler.GetOptions().Codec == nil {
 		handler.GetOptions().Codec = r.options.DefaultCodec
