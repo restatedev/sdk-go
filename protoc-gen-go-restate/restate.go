@@ -38,8 +38,11 @@ func generateIngressClientStruct(g *protogen.GeneratedFile, service *protogen.Se
 	g.P("type ", unexport(clientName), " struct {")
 	g.P("ctx ", contextPackage.Ident("Context"))
 	serviceType := proto.GetExtension(service.Desc.Options().(*descriptorpb.ServiceOptions), sdk.E_ServiceType).(sdk.ServiceType)
-	if serviceType == sdk.ServiceType_VIRTUAL_OBJECT {
+	switch serviceType {
+	case sdk.ServiceType_VIRTUAL_OBJECT:
 		g.P("key string")
+	case sdk.ServiceType_WORKFLOW:
+		g.P("workflowID string")
 	}
 	g.P("options []", clientPackage.Ident("IngressClientOption"))
 	g.P("}")
@@ -65,8 +68,11 @@ func generateNewIngressClientDefinitions(g *protogen.GeneratedFile, service *pro
 	g.P("return &", unexport(clientName), "{")
 	g.P("ctx,")
 	serviceType := proto.GetExtension(service.Desc.Options().(*descriptorpb.ServiceOptions), sdk.E_ServiceType).(sdk.ServiceType)
-	if serviceType == sdk.ServiceType_VIRTUAL_OBJECT {
+	switch serviceType {
+	case sdk.ServiceType_VIRTUAL_OBJECT:
 		g.P("key,")
+	case sdk.ServiceType_WORKFLOW:
+		g.P("workflowID,")
 	}
 	g.P("cOpts,")
 	g.P("}")
@@ -257,8 +263,11 @@ func genService(gen *protogen.Plugin, g *protogen.GeneratedFile, service *protog
 	}
 	g.P("// New", ingressClientName, " must be called with a ctx returned from github.com/restatedev/sdk-go/client.Connect")
 	newIngressClientSignature := "New" + ingressClientName + " (ctx " + g.QualifiedGoIdent(contextPackage.Ident("Context"))
-	if serviceType == sdk.ServiceType_VIRTUAL_OBJECT {
+	switch serviceType {
+	case sdk.ServiceType_VIRTUAL_OBJECT:
 		newIngressClientSignature += ", key string"
+	case sdk.ServiceType_WORKFLOW:
+		newIngressClientSignature += ", workflowID string"
 	}
 	newIngressClientSignature += ", opts..." + g.QualifiedGoIdent(clientPackage.Ident("IngressClientOption")) + ") " + ingressClientName
 

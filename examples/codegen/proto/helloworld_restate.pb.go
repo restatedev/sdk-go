@@ -328,6 +328,55 @@ func (c *workflowClient) Status(opts ...sdk_go.ClientOption) sdk_go.Client[*Stat
 	return sdk_go.WithRequestType[*StatusRequest](sdk_go.Workflow[*StatusResponse](c.ctx, "Workflow", c.workflowID, "Status", cOpts...))
 }
 
+// WorkflowIngressClient is the ingress client API for Workflow service.
+type WorkflowIngressClient interface {
+	// Execute the workflow
+	Run(opts ...client.IngressClientOption) client.IngressClient[*RunRequest, *RunResponse]
+	// Unblock the workflow
+	Finish(opts ...client.IngressClientOption) client.IngressClient[*FinishRequest, *FinishResponse]
+	// Check the current status
+	Status(opts ...client.IngressClientOption) client.IngressClient[*StatusRequest, *StatusResponse]
+}
+
+type workflowIngressClient struct {
+	ctx        context.Context
+	workflowID string
+	options    []client.IngressClientOption
+}
+
+// NewWorkflowIngressClient must be called with a ctx returned from github.com/restatedev/sdk-go/client.Connect
+func NewWorkflowIngressClient(ctx context.Context, workflowID string, opts ...client.IngressClientOption) WorkflowIngressClient {
+	cOpts := append([]client.IngressClientOption{sdk_go.WithProtoJSON}, opts...)
+	return &workflowIngressClient{
+		ctx,
+		workflowID,
+		cOpts,
+	}
+}
+func (c *workflowIngressClient) Run(opts ...client.IngressClientOption) client.IngressClient[*RunRequest, *RunResponse] {
+	cOpts := c.options
+	if len(opts) > 0 {
+		cOpts = append(append([]client.IngressClientOption{}, cOpts...), opts...)
+	}
+	return client.WithRequestType[*RunRequest](client.Workflow[*RunResponse](c.ctx, "Workflow", c.workflowID, "Run", cOpts...))
+}
+
+func (c *workflowIngressClient) Finish(opts ...client.IngressClientOption) client.IngressClient[*FinishRequest, *FinishResponse] {
+	cOpts := c.options
+	if len(opts) > 0 {
+		cOpts = append(append([]client.IngressClientOption{}, cOpts...), opts...)
+	}
+	return client.WithRequestType[*FinishRequest](client.Workflow[*FinishResponse](c.ctx, "Workflow", c.workflowID, "Finish", cOpts...))
+}
+
+func (c *workflowIngressClient) Status(opts ...client.IngressClientOption) client.IngressClient[*StatusRequest, *StatusResponse] {
+	cOpts := c.options
+	if len(opts) > 0 {
+		cOpts = append(append([]client.IngressClientOption{}, cOpts...), opts...)
+	}
+	return client.WithRequestType[*StatusRequest](client.Workflow[*StatusResponse](c.ctx, "Workflow", c.workflowID, "Status", cOpts...))
+}
+
 // WorkflowServer is the server API for Workflow service.
 // All implementations should embed UnimplementedWorkflowServer
 // for forward compatibility.
