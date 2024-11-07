@@ -31,7 +31,7 @@ type ObjectSharedHandlerFn[I any, O any] func(ctx ObjectSharedContext, input I) 
 // ObjectHandlerFn is the signature for a Workflow 'Run' handler function
 type WorkflowHandlerFn[I any, O any] func(ctx WorkflowContext, input I) (O, error)
 
-// WorkflowSharedHandlerFn is the signature for a Workflow shared-mode handler function
+// WorkflowSharedHandlerFn is the signature for a Workflow shared handler function
 type WorkflowSharedHandlerFn[I any, O any] func(ctx WorkflowSharedContext, input I) (O, error)
 
 type serviceHandler[I any, O any] struct {
