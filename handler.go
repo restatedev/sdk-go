@@ -22,7 +22,7 @@ type Void = encoding.Void
 // ServiceHandlerFn is the signature for a Service handler function
 type ServiceHandlerFn[I any, O any] func(ctx Context, input I) (O, error)
 
-// ObjectHandlerFn is the signature for a Virtual Object exclusive-mode handler function
+// ObjectHandlerFn is the signature for a Virtual Object exclusive handler function
 type ObjectHandlerFn[I any, O any] func(ctx ObjectContext, input I) (O, error)
 
 // ObjectSharedHandlerFn is the signature for a Virtual Object shared-mode handler function
