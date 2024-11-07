@@ -59,7 +59,7 @@ func ObjectSend(ctx Context, service string, key string, method string, options 
 	return ctx.inner().Object(service, key, method, options...)
 }
 
-// Workflow gets an Workflow request client by service name, workflow ID and method name
+// Workflow gets a Workflow request client by service name, workflow ID and method name
 func Workflow[O any](ctx Context, service string, workflowID string, method string, options ...options.ClientOption) Client[any, O] {
 	return outputClient[O]{ctx.inner().Workflow(service, workflowID, method, options...)}
 }
