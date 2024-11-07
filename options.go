@@ -129,7 +129,7 @@ func (w withIdempotencyKey) BeforeSend(opts *options.SendOptions) {
 	opts.IdempotencyKey = w.idempotencyKey
 }
 
-// WithIdempotencyKey is a [SendOption] to specify an idempotency key for the request
+// WithIdempotencyKey is an option to specify an idempotency key for the request
 // Currently this key is only used by the ingress client
 func WithIdempotencyKey(idempotencyKey string) withIdempotencyKey {
 	return withIdempotencyKey{idempotencyKey}
@@ -145,8 +145,8 @@ func (w withWorkflowRun) BeforeWorkflowSubmit(opts *options.WorkflowSubmitOption
 	opts.RunHandler = w.runHandler
 }
 
-// WithWorkflowRun is a [WorkflowSubmitOption] to specify an idempotency key for the request
-// Currently this key is only used by the ingress client
-func WithWorkflowRun(idempotencyKey string) withIdempotencyKey {
-	return withIdempotencyKey{idempotencyKey}
+// WithWorkflowRun is a [WorkflowSubmitOption] to specify a different handler name than 'Run' for the
+// workflows main handler.
+func WithWorkflowRun(runHandler string) withWorkflowRun {
+	return withWorkflowRun{runHandler}
 }
