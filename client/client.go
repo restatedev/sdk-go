@@ -13,6 +13,9 @@ import (
 	"github.com/restatedev/sdk-go/internal/options"
 )
 
+// re-export for use in generated code
+type IngressClientOption = options.IngressClientOption
+
 type ingressContextKey struct{}
 
 func Connect(ctx context.Context, ingressURL string, opts ...options.ConnectOption) (context.Context, error) {
@@ -505,4 +508,27 @@ func RejectAwakeable(ctx context.Context, id string, reason error) error {
 		return fmt.Errorf("Reject awakeable request failed: status %d\n%s", resp.StatusCode, string(body))
 	}
 	return nil
+}
+
+type withRequestType[I any, O any] struct {
+	inner IngressClient[any, O]
+}
+
+func (w withRequestType[I, O]) Request(input I, options ...options.RequestOption) (O, error) {
+	return w.inner.Request(input, options...)
+}
+
+func (w withRequestType[I, O]) RequestFuture(input I, options ...options.RequestOption) IngressResponseFuture[O] {
+	return w.inner.RequestFuture(input, options...)
+}
+
+func (w withRequestType[I, O]) Send(input I, options ...options.SendOption) (Send, error) {
+	return w.inner.Send(input, options...)
+}
+
+// WithRequestType is primarily intended to be called from generated code, to provide
+// type safety of input types. In other contexts it's generally less cumbersome to use [Object] and [Service],
+// as the output type can be inferred.
+func WithRequestType[I any, O any](inner IngressClient[any, O]) IngressClient[I, O] {
+	return withRequestType[I, O]{inner}
 }
