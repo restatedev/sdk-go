@@ -59,6 +59,16 @@ func ObjectSend(ctx Context, service string, key string, method string, options 
 	return ctx.inner().Object(service, key, method, options...)
 }
 
+// Workflow gets a Workflow request client by service name, workflow ID and method name
+func Workflow[O any](ctx Context, service string, workflowID string, method string, options ...options.ClientOption) Client[any, O] {
+	return outputClient[O]{ctx.inner().Workflow(service, workflowID, method, options...)}
+}
+
+// WorkflowSend gets a Workflow send client by service name, workflow ID and method name
+func WorkflowSend[O any](ctx Context, service string, workflowID string, method string, options ...options.ClientOption) SendClient[any] {
+	return ctx.inner().Workflow(service, workflowID, method, options...)
+}
+
 // Client represents all the different ways you can invoke a particular service-method.
 type Client[I any, O any] interface {
 	// RequestFuture makes a call and returns a handle on a future response
@@ -143,8 +153,8 @@ func Awakeable[T any](ctx Context, options ...options.AwakeableOption) Awakeable
 type AwakeableFuture[T any] interface {
 	// Id returns the awakeable ID, which can be stored or sent to a another service
 	Id() string
-	// Result blocks on receiving the result of the awakeable, storing the value it was
-	// resolved with in output or otherwise returning the error it was rejected with.
+	// Result blocks on receiving the result of the awakeable, returning the value it was
+	// resolved or otherwise returning the error it was rejected with.
 	// It is *not* safe to call this in a goroutine - use Context.Select if you
 	// want to wait on multiple results at once.
 	Result() (T, error)
@@ -236,4 +246,47 @@ func Clear(ctx ObjectContext, key string) {
 // ClearAll drops all stored state associated with this Object key
 func ClearAll(ctx ObjectContext) {
 	ctx.inner().ClearAll()
+}
+
+// Promise returns a named Restate durable Promise  that can be resolved or rejected during the workflow execution.
+// The promise is bound to the workflow and will be persisted across suspensions and retries.
+func Promise[T any](ctx WorkflowSharedContext, name string, options ...options.PromiseOption) DurablePromise[T] {
+	return durablePromise[T]{ctx.inner().Promise(name, options...)}
+}
+
+type DurablePromise[T any] interface {
+	// Result blocks on receiving the result of the Promise, returning the value it was
+	// resolved or otherwise returning the error it was rejected with or a cancellation error.
+	// It is *not* safe to call this in a goroutine - use Context.Select if you
+	// want to wait on multiple results at once.
+	Result() (T, error)
+	// Peek returns the value of the promise if it has been resolved. If it has not been resolved,
+	// the zero value of T is returned. To check explicitly for this case pass a pointer eg *string as T.
+	// If the promise was rejected or the invocation was cancelled, an error is returned.
+	Peek() (T, error)
+	// Resolve resolves the promise with a value, returning an error if it was already completed
+	// or if the invocation was cancelled.
+	Resolve(value T) error
+	// Reject rejects the promise with an error, returning an error if it was already completed
+	// or if the invocation was cancelled.
+	Reject(reason error) error
+	futures.Selectable
+}
+
+type durablePromise[T any] struct {
+	state.DecodingPromise
+}
+
+func (t durablePromise[T]) Result() (output T, err error) {
+	err = t.DecodingPromise.Result(&output)
+	return
+}
+
+func (t durablePromise[T]) Peek() (output T, err error) {
+	_, err = t.DecodingPromise.Peek(&output)
+	return
+}
+
+func (t durablePromise[T]) Resolve(value T) (err error) {
+	return t.DecodingPromise.Resolve(value)
 }

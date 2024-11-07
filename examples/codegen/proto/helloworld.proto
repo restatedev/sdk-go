@@ -26,6 +26,16 @@ service Counter {
   }
 }
 
+service Workflow {
+    option (dev.restate.sdk.go.service_type) = WORKFLOW;
+    // Execute the workflow
+    rpc Run (RunRequest) returns (RunResponse) {}
+    // Unblock the workflow
+    rpc Finish(FinishRequest) returns (FinishResponse) {}
+    // Check the current status
+    rpc Status (StatusRequest) returns (StatusResponse) {}
+}
+
 message HelloRequest {
   string name = 1;
 }
@@ -53,3 +63,19 @@ message AddWatcherResponse {}
 message WatchRequest {
   int64 timeout_millis = 1;
 }
+
+message RunRequest {}
+
+message RunResponse {
+  string status = 1;
+}
+
+message StatusRequest {}
+
+message StatusResponse {
+  string status = 1;
+}
+
+message FinishRequest {}
+
+message FinishResponse {}

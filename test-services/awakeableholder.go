@@ -18,11 +18,11 @@ func init() {
 				})).
 			Handler("hasAwakeable", restate.NewObjectHandler(
 				func(ctx restate.ObjectContext, _ restate.Void) (bool, error) {
-					_, err := restate.Get[string](ctx, ID_KEY)
+					id, err := restate.Get[string](ctx, ID_KEY)
 					if err != nil {
 						return false, err
 					}
-					return err == nil, nil
+					return id != "", nil
 				})).
 			Handler("unlock", restate.NewObjectHandler(
 				func(ctx restate.ObjectContext, payload string) (restate.Void, error) {
@@ -34,6 +34,7 @@ func init() {
 						return restate.Void{}, restate.TerminalError(fmt.Errorf("No awakeable registered"), 404)
 					}
 					restate.ResolveAwakeable(ctx, id, payload)
+					restate.Clear(ctx, ID_KEY)
 					return restate.Void{}, nil
 				})))
 }

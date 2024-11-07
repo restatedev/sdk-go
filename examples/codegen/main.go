@@ -118,10 +118,37 @@ func (c counter) Watch(ctx restate.ObjectSharedContext, req *helloworld.WatchReq
 	return &helloworld.GetResponse{Value: next}, nil
 }
 
+type workflow struct {
+	helloworld.UnimplementedWorkflowServer
+}
+
+func (workflow) Run(ctx restate.WorkflowContext, _ *helloworld.RunRequest) (*helloworld.RunResponse, error) {
+	restate.Set(ctx, "status", "waiting")
+	_, err := restate.Promise[restate.Void](ctx, "promise").Result()
+	if err != nil {
+		return nil, err
+	}
+	restate.Set(ctx, "status", "finished")
+	return &helloworld.RunResponse{Status: "finished"}, nil
+}
+
+func (workflow) Finish(ctx restate.WorkflowSharedContext, _ *helloworld.FinishRequest) (*helloworld.FinishResponse, error) {
+	return nil, restate.Promise[restate.Void](ctx, "promise").Resolve(restate.Void{})
+}
+
+func (workflow) Status(ctx restate.WorkflowSharedContext, _ *helloworld.StatusRequest) (*helloworld.StatusResponse, error) {
+	status, err := restate.Get[string](ctx, "status")
+	if err != nil {
+		return nil, err
+	}
+	return &helloworld.StatusResponse{Status: status}, nil
+}
+
 func main() {
 	server := server.NewRestate().
 		Bind(helloworld.NewGreeterServer(greeter{})).
-		Bind(helloworld.NewCounterServer(counter{}))
+		Bind(helloworld.NewCounterServer(counter{})).
+		Bind(helloworld.NewWorkflowServer(workflow{}))
 
 	if err := server.Start(context.Background(), ":9080"); err != nil {
 		slog.Error("application exited unexpectedly", "err", err.Error())

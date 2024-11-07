@@ -192,3 +192,104 @@ func NewCounterServer(srv CounterServer, opts ...sdk_go.ServiceDefinitionOption)
 	router = router.Handler("Watch", sdk_go.NewObjectSharedHandler(srv.Watch))
 	return router
 }
+
+// WorkflowClient is the client API for Workflow service.
+type WorkflowClient interface {
+	// Execute the workflow
+	Run(opts ...sdk_go.ClientOption) sdk_go.Client[*RunRequest, *RunResponse]
+	// Unblock the workflow
+	Finish(opts ...sdk_go.ClientOption) sdk_go.Client[*FinishRequest, *FinishResponse]
+	// Check the current status
+	Status(opts ...sdk_go.ClientOption) sdk_go.Client[*StatusRequest, *StatusResponse]
+}
+
+type workflowClient struct {
+	ctx        sdk_go.Context
+	workflowID string
+	options    []sdk_go.ClientOption
+}
+
+func NewWorkflowClient(ctx sdk_go.Context, workflowID string, opts ...sdk_go.ClientOption) WorkflowClient {
+	cOpts := append([]sdk_go.ClientOption{sdk_go.WithProtoJSON}, opts...)
+	return &workflowClient{
+		ctx,
+		workflowID,
+		cOpts,
+	}
+}
+func (c *workflowClient) Run(opts ...sdk_go.ClientOption) sdk_go.Client[*RunRequest, *RunResponse] {
+	cOpts := c.options
+	if len(opts) > 0 {
+		cOpts = append(append([]sdk_go.ClientOption{}, cOpts...), opts...)
+	}
+	return sdk_go.WithRequestType[*RunRequest](sdk_go.Workflow[*RunResponse](c.ctx, "Workflow", c.workflowID, "Run", cOpts...))
+}
+
+func (c *workflowClient) Finish(opts ...sdk_go.ClientOption) sdk_go.Client[*FinishRequest, *FinishResponse] {
+	cOpts := c.options
+	if len(opts) > 0 {
+		cOpts = append(append([]sdk_go.ClientOption{}, cOpts...), opts...)
+	}
+	return sdk_go.WithRequestType[*FinishRequest](sdk_go.Workflow[*FinishResponse](c.ctx, "Workflow", c.workflowID, "Finish", cOpts...))
+}
+
+func (c *workflowClient) Status(opts ...sdk_go.ClientOption) sdk_go.Client[*StatusRequest, *StatusResponse] {
+	cOpts := c.options
+	if len(opts) > 0 {
+		cOpts = append(append([]sdk_go.ClientOption{}, cOpts...), opts...)
+	}
+	return sdk_go.WithRequestType[*StatusRequest](sdk_go.Workflow[*StatusResponse](c.ctx, "Workflow", c.workflowID, "Status", cOpts...))
+}
+
+// WorkflowServer is the server API for Workflow service.
+// All implementations should embed UnimplementedWorkflowServer
+// for forward compatibility.
+type WorkflowServer interface {
+	// Execute the workflow
+	Run(ctx sdk_go.WorkflowContext, req *RunRequest) (*RunResponse, error)
+	// Unblock the workflow
+	Finish(ctx sdk_go.WorkflowSharedContext, req *FinishRequest) (*FinishResponse, error)
+	// Check the current status
+	Status(ctx sdk_go.WorkflowSharedContext, req *StatusRequest) (*StatusResponse, error)
+}
+
+// UnimplementedWorkflowServer should be embedded to have
+// forward compatible implementations.
+//
+// NOTE: this should be embedded by value instead of pointer to avoid a nil
+// pointer dereference when methods are called.
+type UnimplementedWorkflowServer struct{}
+
+func (UnimplementedWorkflowServer) Run(ctx sdk_go.WorkflowContext, req *RunRequest) (*RunResponse, error) {
+	return nil, sdk_go.TerminalError(fmt.Errorf("method Run not implemented"), 501)
+}
+func (UnimplementedWorkflowServer) Finish(ctx sdk_go.WorkflowSharedContext, req *FinishRequest) (*FinishResponse, error) {
+	return nil, sdk_go.TerminalError(fmt.Errorf("method Finish not implemented"), 501)
+}
+func (UnimplementedWorkflowServer) Status(ctx sdk_go.WorkflowSharedContext, req *StatusRequest) (*StatusResponse, error) {
+	return nil, sdk_go.TerminalError(fmt.Errorf("method Status not implemented"), 501)
+}
+func (UnimplementedWorkflowServer) testEmbeddedByValue() {}
+
+// UnsafeWorkflowServer may be embedded to opt out of forward compatibility for this service.
+// Use of this interface is not recommended, as added methods to WorkflowServer will
+// result in compilation errors.
+type UnsafeWorkflowServer interface {
+	mustEmbedUnimplementedWorkflowServer()
+}
+
+func NewWorkflowServer(srv WorkflowServer, opts ...sdk_go.ServiceDefinitionOption) sdk_go.ServiceDefinition {
+	// If the following call panics, it indicates UnimplementedWorkflowServer was
+	// embedded by pointer and is nil.  This will cause panics if an
+	// unimplemented method is ever invoked, so we test this at initialization
+	// time to prevent it from happening at runtime later due to I/O.
+	if t, ok := srv.(interface{ testEmbeddedByValue() }); ok {
+		t.testEmbeddedByValue()
+	}
+	sOpts := append([]sdk_go.ServiceDefinitionOption{sdk_go.WithProtoJSON}, opts...)
+	router := sdk_go.NewWorkflow("Workflow", sOpts...)
+	router = router.Handler("Run", sdk_go.NewWorkflowHandler(srv.Run))
+	router = router.Handler("Finish", sdk_go.NewWorkflowSharedHandler(srv.Finish))
+	router = router.Handler("Status", sdk_go.NewWorkflowSharedHandler(srv.Status))
+	return router
+}

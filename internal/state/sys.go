@@ -378,12 +378,13 @@ func (m *Machine) newRunFailure(err error) *runFailure {
 }
 
 type codecFailure struct {
+	entryType  wire.Type
 	entryIndex uint32
 	err        error
 }
 
-func (m *Machine) newCodecFailure(err error) *codecFailure {
-	c := &codecFailure{m.entryIndex, err}
+func (m *Machine) newCodecFailure(entryType wire.Type, err error) *codecFailure {
+	c := &codecFailure{entryType, m.entryIndex, err}
 	m.failure = c
 	return c
 }

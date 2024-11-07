@@ -103,3 +103,35 @@ func (r *object) Handler(name string, handler state.Handler) *object {
 	r.handlers[name] = handler
 	return r
 }
+
+type workflow struct {
+	serviceDefinition
+}
+
+// NewWorkflow creates a new named Workflow
+func NewWorkflow(name string, opts ...options.ServiceDefinitionOption) *workflow {
+	o := options.ServiceDefinitionOptions{}
+	for _, opt := range opts {
+		opt.BeforeServiceDefinition(&o)
+	}
+	if o.DefaultCodec == nil {
+		o.DefaultCodec = encoding.JSONCodec
+	}
+	return &workflow{
+		serviceDefinition: serviceDefinition{
+			name:     name,
+			handlers: make(map[string]state.Handler),
+			options:  o,
+			typ:      internal.ServiceType_WORKFLOW,
+		},
+	}
+}
+
+// Handler registers a new Workflow handler by name
+func (r *workflow) Handler(name string, handler state.Handler) *workflow {
+	if handler.GetOptions().Codec == nil {
+		handler.GetOptions().Codec = r.options.DefaultCodec
+	}
+	r.handlers[name] = handler
+	return r
+}

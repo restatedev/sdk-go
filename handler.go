@@ -22,11 +22,17 @@ type Void = encoding.Void
 // ServiceHandlerFn is the signature for a Service handler function
 type ServiceHandlerFn[I any, O any] func(ctx Context, input I) (O, error)
 
-// ObjectHandlerFn is the signature for a Virtual Object exclusive-mode handler function
+// ObjectHandlerFn is the signature for a Virtual Object exclusive handler function
 type ObjectHandlerFn[I any, O any] func(ctx ObjectContext, input I) (O, error)
 
-// ObjectHandlerFn is the signature for a Virtual Object shared-mode handler function
+// ObjectSharedHandlerFn is the signature for a Virtual Object shared-mode handler function
 type ObjectSharedHandlerFn[I any, O any] func(ctx ObjectSharedContext, input I) (O, error)
+
+// ObjectHandlerFn is the signature for a Workflow 'Run' handler function
+type WorkflowHandlerFn[I any, O any] func(ctx WorkflowContext, input I) (O, error)
+
+// WorkflowSharedHandlerFn is the signature for a Workflow shared handler function
+type WorkflowSharedHandlerFn[I any, O any] func(ctx WorkflowSharedContext, input I) (O, error)
 
 type serviceHandler[I any, O any] struct {
 	fn      ServiceHandlerFn[I, O]
@@ -135,6 +141,8 @@ func (o ctxWrapper) inner() *state.Context {
 }
 func (o ctxWrapper) object()          {}
 func (o ctxWrapper) exclusiveObject() {}
+func (o ctxWrapper) workflow()        {}
+func (o ctxWrapper) runWorkflow()     {}
 
 func (h *objectHandler[I, O]) Call(ctx *state.Context, bytes []byte) ([]byte, error) {
 	var input I
@@ -184,5 +192,94 @@ func (h *objectHandler[I, O]) GetOptions() *options.HandlerOptions {
 }
 
 func (h *objectHandler[I, O]) HandlerType() *internal.ServiceHandlerType {
+	return &h.handlerType
+}
+
+type workflowHandler[I any, O any] struct {
+	// only one of workflowFn or sharedFn should be set, as indicated by handlerType
+	workflowFn  WorkflowHandlerFn[I, O]
+	sharedFn    WorkflowSharedHandlerFn[I, O]
+	options     options.HandlerOptions
+	handlerType internal.ServiceHandlerType
+}
+
+var _ state.Handler = (*workflowHandler[struct{}, struct{}])(nil)
+
+// NewWorkflowHandler converts a function of signature [WorkflowHandlerFn] into the 'Run' handler on a Workflow.
+// The handler will have access to a full [WorkflowContext] which may mutate state.
+func NewWorkflowHandler[I any, O any](fn WorkflowHandlerFn[I, O], opts ...options.HandlerOption) *workflowHandler[I, O] {
+	o := options.HandlerOptions{}
+	for _, opt := range opts {
+		opt.BeforeHandler(&o)
+	}
+	return &workflowHandler[I, O]{
+		workflowFn:  fn,
+		options:     o,
+		handlerType: internal.ServiceHandlerType_WORKFLOW,
+	}
+}
+
+// NewWorkflowSharedHandler converts a function of signature [ObjectSharedHandlerFn] into a shared-mode handler on a Workflow.
+// The handler will only have access to a [WorkflowSharedContext] which can only read a snapshot of state.
+func NewWorkflowSharedHandler[I any, O any](fn WorkflowSharedHandlerFn[I, O], opts ...options.HandlerOption) *workflowHandler[I, O] {
+	o := options.HandlerOptions{}
+	for _, opt := range opts {
+		opt.BeforeHandler(&o)
+	}
+	return &workflowHandler[I, O]{
+		sharedFn:    fn,
+		options:     o,
+		handlerType: internal.ServiceHandlerType_SHARED,
+	}
+}
+
+func (h *workflowHandler[I, O]) Call(ctx *state.Context, bytes []byte) ([]byte, error) {
+	var input I
+	if err := encoding.Unmarshal(h.options.Codec, bytes, &input); err != nil {
+		return nil, TerminalError(fmt.Errorf("request could not be decoded into handler input type: %w", err), http.StatusBadRequest)
+	}
+
+	var output O
+	var err error
+	switch h.handlerType {
+	case internal.ServiceHandlerType_WORKFLOW:
+		output, err = h.workflowFn(
+			ctxWrapper{ctx},
+			input,
+		)
+	case internal.ServiceHandlerType_SHARED:
+		output, err = h.sharedFn(
+			ctxWrapper{ctx},
+			input,
+		)
+	}
+	if err != nil {
+		return nil, err
+	}
+
+	bytes, err = encoding.Marshal(h.options.Codec, output)
+	if err != nil {
+		// we don't use a terminal error here as this is hot-fixable by changing the return type
+		return nil, fmt.Errorf("failed to serialize output: %w", err)
+	}
+
+	return bytes, nil
+}
+
+func (h *workflowHandler[I, O]) InputPayload() *encoding.InputPayload {
+	var i I
+	return encoding.InputPayloadFor(h.options.Codec, i)
+}
+
+func (h *workflowHandler[I, O]) OutputPayload() *encoding.OutputPayload {
+	var o O
+	return encoding.OutputPayloadFor(h.options.Codec, o)
+}
+
+func (h *workflowHandler[I, O]) GetOptions() *options.HandlerOptions {
+	return &h.options
+}
+
+func (h *workflowHandler[I, O]) HandlerType() *internal.ServiceHandlerType {
 	return &h.handlerType
 }
