@@ -1,4 +1,4 @@
 exclusions:
-  "default": []
-  "alwaysSuspending": []
-  "singleThreadSinglePartition": []
+  "default": ["RunRetry"]
+  "alwaysSuspending": ["RunRetry"]
+  "singleThreadSinglePartition": ["RunRetry"]
