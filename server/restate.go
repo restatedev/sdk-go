@@ -88,7 +88,7 @@ func (r *Restate) WithIdentityV1(keys ...string) *Restate {
 // In bidirectional mode, Restate will keep the request body open even after we have started to respond,
 // allowing for more work to be done without suspending.
 // This is supported over HTTP2 and, in some cases (where there is no buffering proxy), with HTTP1.1.
-// When serving over a non-bidirectional channel (eg, Lambda), use .WithBidirectional(false) otherwise your handlers may get stuck.
+// When serving over a non-bidirectional channel (eg, Cloudflare Workers), use .Bidirectional(false) otherwise your handlers may get stuck.
 func (r *Restate) Bidirectional(bidi bool) *Restate {
 	if bidi {
 		r.protocolMode = internal.ProtocolMode_BIDI_STREAM
