@@ -7,30 +7,30 @@ on:
     branches:
       - main
   schedule:
-    - cron: '0 */6 * * *' # Every 6 hours
+    - cron: "0 */6 * * *" # Every 6 hours
   workflow_dispatch:
     inputs:
       restateCommit:
-        description: 'restate commit'
+        description: "restate commit"
         required: false
-        default: ''
+        default: ""
         type: string
       restateImage:
-        description: 'restate image, superseded by restate commit'
+        description: "restate image, superseded by restate commit"
         required: false
-        default: 'ghcr.io/restatedev/restate:main'
+        default: "ghcr.io/restatedev/restate:main"
         type: string
   workflow_call:
     inputs:
       restateCommit:
-        description: 'restate commit'
+        description: "restate commit"
         required: false
-        default: ''
+        default: ""
         type: string
       restateImage:
-        description: 'restate image, superseded by restate commit'
+        description: "restate image, superseded by restate commit"
         required: false
-        default: 'ghcr.io/restatedev/restate:main'
+        default: "ghcr.io/restatedev/restate:main"
         type: string
 
 jobs:
@@ -40,7 +40,7 @@ jobs:
     name: "Features integration test (sdk-test-suite version ${{ matrix.sdk-test-suite }})"
     strategy:
       matrix:
-        sdk-test-suite: [ "2.1" ]
+        sdk-test-suite: ["2.1"]
     permissions:
       contents: read
       issues: read
@@ -52,6 +52,17 @@ jobs:
       - uses: actions/checkout@v4
         with:
           repository: restatedev/sdk-go
+
+      # support importing oci-format restate.tar
+      - name: Set up Docker containerd snapshotter
+        uses: crazy-max/ghaction-setup-docker@v3
+        with:
+          daemon-config: |
+            {
+              "features": {
+                "containerd-snapshotter": true
+              }
+            }
 
       ### Download the Restate container image, if needed
       # Setup restate snapshot if necessary
@@ -85,8 +96,8 @@ jobs:
       - name: Setup Java
         uses: actions/setup-java@v4
         with:
-          distribution: 'temurin'
-          java-version: '17'
+          distribution: "temurin"
+          java-version: "17"
       - name: Setup ko
         uses: ko-build/setup-ko@v0.6
         with:
