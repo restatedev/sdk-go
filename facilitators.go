@@ -176,7 +176,7 @@ func ResolveAwakeable[T any](ctx Context, id string, value T, options ...options
 	ctx.inner().ResolveAwakeable(id, value, options...)
 }
 
-// ResolveAwakeable allows an awakeable (not necessarily from this service) to be
+// RejectAwakeable allows an awakeable (not necessarily from this service) to be
 // rejected with a particular error.
 func RejectAwakeable(ctx Context, id string, reason error) {
 	ctx.inner().RejectAwakeable(id, reason)
