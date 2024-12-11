@@ -20,14 +20,7 @@ plugins:
   - remote: buf.build/protocolbuffers/go:v1.34.2
     out: .
     opt: paths=source_relative
-  - local:
-      - docker
-      - run
-      - --pull=always
-      - -i
-      - ghcr.io/restatedev/protoc-gen-go-restate:latest
-    # alternatively if you prefer to install the binary:
-    # local: protoc-gen-go-restate
+  - local: protoc-gen-go-restate
     out: .
     opt: paths=source_relative
 ```
@@ -46,9 +39,4 @@ paths provided with `--proto_path`. It may be easier to use
 version: v2
 deps:
   - buf.build/restatedev/sdk-go
-```
-
-# Building a docker image
-```
-KO_DOCKER_REPO=ghcr.io/restatedev ko build --platform=all -B
 ```
