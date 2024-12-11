@@ -40,3 +40,16 @@ version: v2
 deps:
   - buf.build/restatedev/sdk-go
 ```
+
+# Upgrading from pre-v0.14
+This generator used to create Restate services and methods using the Go names (eg `Greeter/SayHello`) instead of the fully qualified protobuf names (eg `helloworld.Greeter/SayHello`).
+This was changed to make this package more compatible with gRPC.
+To maintain the old behaviour, pass `--go-restate_opt=use_go_service_names=true` to `protoc`. With buf:
+```yaml
+...
+  - local: protoc-gen-go-restate
+    out: .
+    opt:
+      - paths=source_relative
+      - use_go_service_names=true
+```
