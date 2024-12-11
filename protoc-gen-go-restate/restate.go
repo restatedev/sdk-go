@@ -63,7 +63,7 @@ func generateUnimplementedServerType(gen *protogen.Plugin, g *protogen.Generated
 	g.P()
 	for _, method := range service.Methods {
 		g.P("func (Unimplemented", serverType, ") ", serverSignature(gen, g, method), "{")
-		g.P("return ", "nil,", sdkPackage.Ident("TerminalError"), "(", fmtPackage.Ident("Errorf"), `("method `, method.GoName, ` not implemented"), 501)`)
+		g.P("return ", "nil,", sdkPackage.Ident("TerminalError"), "(", fmtPackage.Ident("Errorf"), `("method `, methodName(method), ` not implemented"), 501)`)
 		g.P("}")
 	}
 	if *requireUnimplemented {
@@ -144,7 +144,7 @@ func genService(gen *protogen.Plugin, g *protogen.GeneratedFile, service *protog
 	// Client interface.
 	clientName := service.GoName + "Client"
 
-	g.P("// ", clientName, " is the client API for ", service.GoName, " service.")
+	g.P("// ", clientName, " is the client API for ", serviceName(service), " service.")
 	g.P("//")
 
 	// Copy comments from proto file.
@@ -206,7 +206,7 @@ func genService(gen *protogen.Plugin, g *protogen.GeneratedFile, service *protog
 
 	// Server interface.
 	serverType := service.GoName + "Server"
-	g.P("// ", serverType, " is the server API for ", service.GoName, " service.")
+	g.P("// ", serverType, " is the server API for ", serviceName(service), " service.")
 	g.P("// All implementations ", mustOrShould, " embed Unimplemented", serverType)
 	g.P("// for forward compatibility.")
 
@@ -259,9 +259,9 @@ func genService(gen *protogen.Plugin, g *protogen.GeneratedFile, service *protog
 	g.P("t.testEmbeddedByValue()")
 	g.P("}")
 	g.P("sOpts := append([]", sdkPackage.Ident("ServiceDefinitionOption"), "{", sdkPackage.Ident("WithProtoJSON"), "}, opts...)")
-	g.P("router := ", newRouterType(gen, g, service), `("`, service.GoName, `", sOpts...)`)
+	g.P("router := ", newRouterType(gen, g, service), `("`, serviceName(service), `", sOpts...)`)
 	for _, method := range service.Methods {
-		g.P(`router = router.Handler("`, method.GoName, `",`, newHandlerType(gen, g, method), "(srv.", method.GoName, "))")
+		g.P(`router = router.Handler("`, methodName(method), `",`, newHandlerType(gen, g, method), "(srv.", method.GoName, "))")
 	}
 	g.P("return router")
 	g.P("}")
@@ -292,20 +292,34 @@ func genClientMethod(gen *protogen.Plugin, g *protogen.GeneratedFile, method *pr
 	var getClient string
 	switch serviceType {
 	case sdk.ServiceType_SERVICE:
-		getClient = g.QualifiedGoIdent(sdkPackage.Ident("Service")) + `[*` + g.QualifiedGoIdent(method.Output.GoIdent) + `]` + `(c.ctx, "` + service.GoName + `",`
+		getClient = g.QualifiedGoIdent(sdkPackage.Ident("Service")) + `[*` + g.QualifiedGoIdent(method.Output.GoIdent) + `]` + `(c.ctx, "` + serviceName(service) + `",`
 	case sdk.ServiceType_VIRTUAL_OBJECT:
-		getClient = g.QualifiedGoIdent(sdkPackage.Ident("Object")) + `[*` + g.QualifiedGoIdent(method.Output.GoIdent) + `]` + `(c.ctx, "` + service.GoName + `", c.key,`
+		getClient = g.QualifiedGoIdent(sdkPackage.Ident("Object")) + `[*` + g.QualifiedGoIdent(method.Output.GoIdent) + `]` + `(c.ctx, "` + serviceName(service) + `", c.key,`
 	case sdk.ServiceType_WORKFLOW:
-		getClient = g.QualifiedGoIdent(sdkPackage.Ident("Workflow")) + `[*` + g.QualifiedGoIdent(method.Output.GoIdent) + `]` + `(c.ctx, "` + service.GoName + `", c.workflowID,`
+		getClient = g.QualifiedGoIdent(sdkPackage.Ident("Workflow")) + `[*` + g.QualifiedGoIdent(method.Output.GoIdent) + `]` + `(c.ctx, "` + serviceName(service) + `", c.workflowID,`
 	default:
 		gen.Error(fmt.Errorf("Unexpected service type: %s", serviceType.String()))
 		return
 	}
-	getClient += `"` + method.GoName + `", cOpts...)`
+	getClient += `"` + methodName(method) + `", cOpts...)`
 	g.P("return ", sdkPackage.Ident("WithRequestType"), "[*", method.Input.GoIdent, "]", `(`, getClient, `)`)
 	g.P("}")
 	g.P()
 	return
+}
+
+func serviceName(service *protogen.Service) string {
+	if *useGoServiceNames {
+		return service.GoName
+	}
+	return string(service.Desc.FullName())
+}
+
+func methodName(method *protogen.Method) string {
+	if *useGoServiceNames {
+		return method.GoName
+	}
+	return string(method.Desc.Name())
 }
 
 func serverSignature(gen *protogen.Plugin, g *protogen.GeneratedFile, method *protogen.Method) string {

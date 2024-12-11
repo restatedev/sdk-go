@@ -11,7 +11,7 @@ import (
 	sdk_go "github.com/restatedev/sdk-go"
 )
 
-// GreeterClient is the client API for Greeter service.
+// GreeterClient is the client API for helloworld.Greeter service.
 type GreeterClient interface {
 	SayHello(opts ...sdk_go.ClientOption) sdk_go.Client[*HelloRequest, *HelloResponse]
 }
@@ -33,10 +33,10 @@ func (c *greeterClient) SayHello(opts ...sdk_go.ClientOption) sdk_go.Client[*Hel
 	if len(opts) > 0 {
 		cOpts = append(append([]sdk_go.ClientOption{}, cOpts...), opts...)
 	}
-	return sdk_go.WithRequestType[*HelloRequest](sdk_go.Service[*HelloResponse](c.ctx, "Greeter", "SayHello", cOpts...))
+	return sdk_go.WithRequestType[*HelloRequest](sdk_go.Service[*HelloResponse](c.ctx, "helloworld.Greeter", "SayHello", cOpts...))
 }
 
-// GreeterServer is the server API for Greeter service.
+// GreeterServer is the server API for helloworld.Greeter service.
 // All implementations should embed UnimplementedGreeterServer
 // for forward compatibility.
 type GreeterServer interface {
@@ -71,12 +71,12 @@ func NewGreeterServer(srv GreeterServer, opts ...sdk_go.ServiceDefinitionOption)
 		t.testEmbeddedByValue()
 	}
 	sOpts := append([]sdk_go.ServiceDefinitionOption{sdk_go.WithProtoJSON}, opts...)
-	router := sdk_go.NewService("Greeter", sOpts...)
+	router := sdk_go.NewService("helloworld.Greeter", sOpts...)
 	router = router.Handler("SayHello", sdk_go.NewServiceHandler(srv.SayHello))
 	return router
 }
 
-// CounterClient is the client API for Counter service.
+// CounterClient is the client API for helloworld.Counter service.
 type CounterClient interface {
 	// Mutate the value
 	Add(opts ...sdk_go.ClientOption) sdk_go.Client[*AddRequest, *GetResponse]
@@ -107,7 +107,7 @@ func (c *counterClient) Add(opts ...sdk_go.ClientOption) sdk_go.Client[*AddReque
 	if len(opts) > 0 {
 		cOpts = append(append([]sdk_go.ClientOption{}, cOpts...), opts...)
 	}
-	return sdk_go.WithRequestType[*AddRequest](sdk_go.Object[*GetResponse](c.ctx, "Counter", c.key, "Add", cOpts...))
+	return sdk_go.WithRequestType[*AddRequest](sdk_go.Object[*GetResponse](c.ctx, "helloworld.Counter", c.key, "Add", cOpts...))
 }
 
 func (c *counterClient) Get(opts ...sdk_go.ClientOption) sdk_go.Client[*GetRequest, *GetResponse] {
@@ -115,7 +115,7 @@ func (c *counterClient) Get(opts ...sdk_go.ClientOption) sdk_go.Client[*GetReque
 	if len(opts) > 0 {
 		cOpts = append(append([]sdk_go.ClientOption{}, cOpts...), opts...)
 	}
-	return sdk_go.WithRequestType[*GetRequest](sdk_go.Object[*GetResponse](c.ctx, "Counter", c.key, "Get", cOpts...))
+	return sdk_go.WithRequestType[*GetRequest](sdk_go.Object[*GetResponse](c.ctx, "helloworld.Counter", c.key, "Get", cOpts...))
 }
 
 func (c *counterClient) AddWatcher(opts ...sdk_go.ClientOption) sdk_go.Client[*AddWatcherRequest, *AddWatcherResponse] {
@@ -123,7 +123,7 @@ func (c *counterClient) AddWatcher(opts ...sdk_go.ClientOption) sdk_go.Client[*A
 	if len(opts) > 0 {
 		cOpts = append(append([]sdk_go.ClientOption{}, cOpts...), opts...)
 	}
-	return sdk_go.WithRequestType[*AddWatcherRequest](sdk_go.Object[*AddWatcherResponse](c.ctx, "Counter", c.key, "AddWatcher", cOpts...))
+	return sdk_go.WithRequestType[*AddWatcherRequest](sdk_go.Object[*AddWatcherResponse](c.ctx, "helloworld.Counter", c.key, "AddWatcher", cOpts...))
 }
 
 func (c *counterClient) Watch(opts ...sdk_go.ClientOption) sdk_go.Client[*WatchRequest, *GetResponse] {
@@ -131,10 +131,10 @@ func (c *counterClient) Watch(opts ...sdk_go.ClientOption) sdk_go.Client[*WatchR
 	if len(opts) > 0 {
 		cOpts = append(append([]sdk_go.ClientOption{}, cOpts...), opts...)
 	}
-	return sdk_go.WithRequestType[*WatchRequest](sdk_go.Object[*GetResponse](c.ctx, "Counter", c.key, "Watch", cOpts...))
+	return sdk_go.WithRequestType[*WatchRequest](sdk_go.Object[*GetResponse](c.ctx, "helloworld.Counter", c.key, "Watch", cOpts...))
 }
 
-// CounterServer is the server API for Counter service.
+// CounterServer is the server API for helloworld.Counter service.
 // All implementations should embed UnimplementedCounterServer
 // for forward compatibility.
 type CounterServer interface {
@@ -185,7 +185,7 @@ func NewCounterServer(srv CounterServer, opts ...sdk_go.ServiceDefinitionOption)
 		t.testEmbeddedByValue()
 	}
 	sOpts := append([]sdk_go.ServiceDefinitionOption{sdk_go.WithProtoJSON}, opts...)
-	router := sdk_go.NewObject("Counter", sOpts...)
+	router := sdk_go.NewObject("helloworld.Counter", sOpts...)
 	router = router.Handler("Add", sdk_go.NewObjectHandler(srv.Add))
 	router = router.Handler("Get", sdk_go.NewObjectSharedHandler(srv.Get))
 	router = router.Handler("AddWatcher", sdk_go.NewObjectHandler(srv.AddWatcher))
@@ -193,7 +193,7 @@ func NewCounterServer(srv CounterServer, opts ...sdk_go.ServiceDefinitionOption)
 	return router
 }
 
-// WorkflowClient is the client API for Workflow service.
+// WorkflowClient is the client API for helloworld.Workflow service.
 type WorkflowClient interface {
 	// Execute the workflow
 	Run(opts ...sdk_go.ClientOption) sdk_go.Client[*RunRequest, *RunResponse]
@@ -222,7 +222,7 @@ func (c *workflowClient) Run(opts ...sdk_go.ClientOption) sdk_go.Client[*RunRequ
 	if len(opts) > 0 {
 		cOpts = append(append([]sdk_go.ClientOption{}, cOpts...), opts...)
 	}
-	return sdk_go.WithRequestType[*RunRequest](sdk_go.Workflow[*RunResponse](c.ctx, "Workflow", c.workflowID, "Run", cOpts...))
+	return sdk_go.WithRequestType[*RunRequest](sdk_go.Workflow[*RunResponse](c.ctx, "helloworld.Workflow", c.workflowID, "Run", cOpts...))
 }
 
 func (c *workflowClient) Finish(opts ...sdk_go.ClientOption) sdk_go.Client[*FinishRequest, *FinishResponse] {
@@ -230,7 +230,7 @@ func (c *workflowClient) Finish(opts ...sdk_go.ClientOption) sdk_go.Client[*Fini
 	if len(opts) > 0 {
 		cOpts = append(append([]sdk_go.ClientOption{}, cOpts...), opts...)
 	}
-	return sdk_go.WithRequestType[*FinishRequest](sdk_go.Workflow[*FinishResponse](c.ctx, "Workflow", c.workflowID, "Finish", cOpts...))
+	return sdk_go.WithRequestType[*FinishRequest](sdk_go.Workflow[*FinishResponse](c.ctx, "helloworld.Workflow", c.workflowID, "Finish", cOpts...))
 }
 
 func (c *workflowClient) Status(opts ...sdk_go.ClientOption) sdk_go.Client[*StatusRequest, *StatusResponse] {
@@ -238,10 +238,10 @@ func (c *workflowClient) Status(opts ...sdk_go.ClientOption) sdk_go.Client[*Stat
 	if len(opts) > 0 {
 		cOpts = append(append([]sdk_go.ClientOption{}, cOpts...), opts...)
 	}
-	return sdk_go.WithRequestType[*StatusRequest](sdk_go.Workflow[*StatusResponse](c.ctx, "Workflow", c.workflowID, "Status", cOpts...))
+	return sdk_go.WithRequestType[*StatusRequest](sdk_go.Workflow[*StatusResponse](c.ctx, "helloworld.Workflow", c.workflowID, "Status", cOpts...))
 }
 
-// WorkflowServer is the server API for Workflow service.
+// WorkflowServer is the server API for helloworld.Workflow service.
 // All implementations should embed UnimplementedWorkflowServer
 // for forward compatibility.
 type WorkflowServer interface {
@@ -287,7 +287,7 @@ func NewWorkflowServer(srv WorkflowServer, opts ...sdk_go.ServiceDefinitionOptio
 		t.testEmbeddedByValue()
 	}
 	sOpts := append([]sdk_go.ServiceDefinitionOption{sdk_go.WithProtoJSON}, opts...)
-	router := sdk_go.NewWorkflow("Workflow", sOpts...)
+	router := sdk_go.NewWorkflow("helloworld.Workflow", sOpts...)
 	router = router.Handler("Run", sdk_go.NewWorkflowHandler(srv.Run))
 	router = router.Handler("Finish", sdk_go.NewWorkflowSharedHandler(srv.Finish))
 	router = router.Handler("Status", sdk_go.NewWorkflowSharedHandler(srv.Status))

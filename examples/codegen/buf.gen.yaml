@@ -7,6 +7,8 @@ plugins:
     opt: paths=source_relative
   - local: protoc-gen-go-restate
     out: .
-    opt: paths=source_relative
+    opt:
+      - paths=source_relative
+      - use_go_service_names=false
 inputs:
   - directory: .

@@ -30,7 +30,7 @@ import (
 var version = "0.1"
 
 var requireUnimplemented *bool
-var useGenericStreams *bool
+var useGoServiceNames *bool
 
 func main() {
 	showVersion := flag.Bool("version", false, "print the version and exit")
@@ -42,6 +42,7 @@ func main() {
 
 	var flags flag.FlagSet
 	requireUnimplemented = flags.Bool("require_unimplemented_servers", false, "set to true to disallow servers that have unimplemented fields")
+	useGoServiceNames = flags.Bool("use_go_service_names", false, "set to true to use Go names for service and method names instead of the Protobuf fully qualified names. This used to be the default behaviour")
 
 	protogen.Options{
 		ParamFunc: flags.Set,
