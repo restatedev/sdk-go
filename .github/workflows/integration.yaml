@@ -37,10 +37,7 @@ jobs:
   sdk-test-suite:
     if: github.repository_owner == 'restatedev'
     runs-on: ubuntu-latest
-    name: "Features integration test (sdk-test-suite version ${{ matrix.sdk-test-suite }})"
-    strategy:
-      matrix:
-        sdk-test-suite: ["2.1"]
+    name: "Features integration test"
     permissions:
       contents: read
       issues: read
@@ -74,6 +71,7 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: restate.tar
+
       # In the workflow dispatch case where the artifact was created in a previous run, we can download as normal
       - name: Download restate snapshot from completed workflow
         if: ${{ inputs.restateCommit != '' && github.event_name == 'workflow_dispatch' }}
@@ -83,6 +81,7 @@ jobs:
           workflow: ci.yml
           commit: ${{ inputs.restateCommit }}
           name: restate.tar
+
       - name: Install restate snapshot
         if: ${{ inputs.restateCommit != '' }}
         run: |
@@ -94,39 +93,22 @@ jobs:
         uses: actions/setup-go@v5
         with:
           go-version: "1.21.x"
-      - name: Setup Java
-        uses: actions/setup-java@v4
-        with:
-          distribution: "temurin"
-          java-version: "17"
+
       - name: Setup ko
         uses: ko-build/setup-ko@v0.6
         with:
           version: v0.16.0
-      - name: Setup sdk-test-suite
-        run: wget --no-verbose https://github.com/restatedev/sdk-test-suite/releases/download/v${{ matrix.sdk-test-suite }}/restate-sdk-test-suite.jar
 
-      # Build docker image
       - name: Install dependencies
         run: go get .
+
       - name: Build Docker image
         run: KO_DOCKER_REPO=restatedev ko build -B -L github.com/restatedev/sdk-go/test-services
 
-      # Run test suite
-      - name: Run test suite
-        env:
-          RESTATE_CONTAINER_IMAGE: ${{ inputs.restateCommit != '' && 'localhost/restatedev/restate-commit-download:latest' || (inputs.restateImage != '' && inputs.restateImage || 'ghcr.io/restatedev/restate:main') }}
-        run: java -jar restate-sdk-test-suite.jar run --report-dir=test-report --exclusions-file test-services/exclusions.yaml restatedev/test-services
-
-      # Upload logs and publish test result
-      - uses: actions/upload-artifact@v4
-        if: always() # Make sure this is run even when test fails
+      - name: Run test tool
+        uses: restatedev/sdk-test-suite@v2.3
         with:
-          name: sdk-go-integration-test-report
-          path: test-report
-      - name: Publish Test Results
-        uses: EnricoMi/publish-unit-test-result-action@v2
-        if: always()
-        with:
-          files: |
-            test-report/*/*.xml
+          restateContainerImage: ${{ inputs.restateCommit != '' && 'localhost/restatedev/restate-commit-download:latest' || (inputs.restateImage != '' && inputs.restateImage || 'ghcr.io/restatedev/restate:main') }}
+          serviceContainerImage: "restatedev/test-services"
+          exclusionsFile: "test-services/exclusions.yaml"
+          testArtifactOutput: "sdk-go-integration-test-report"
