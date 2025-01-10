@@ -1,4 +1,6 @@
 exclusions:
   "default": ["RunRetry"]
+  "threeNodes": ["RunRetry"]
+  "threeNodesAlwaysSuspending": ["RunRetry"]
   "alwaysSuspending": ["RunRetry"]
   "singleThreadSinglePartition": ["RunRetry"]
