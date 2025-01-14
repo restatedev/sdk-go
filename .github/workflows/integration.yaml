@@ -106,7 +106,7 @@ jobs:
         run: KO_DOCKER_REPO=restatedev ko build -B -L github.com/restatedev/sdk-go/test-services
 
       - name: Run test tool
-        uses: restatedev/sdk-test-suite@v2.3
+        uses: restatedev/sdk-test-suite@v2.4
         with:
           restateContainerImage: ${{ inputs.restateCommit != '' && 'localhost/restatedev/restate-commit-download:latest' || (inputs.restateImage != '' && inputs.restateImage || 'ghcr.io/restatedev/restate:main') }}
           serviceContainerImage: "restatedev/test-services"
