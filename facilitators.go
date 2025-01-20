@@ -65,7 +65,7 @@ func Workflow[O any](ctx Context, service string, workflowID string, method stri
 }
 
 // WorkflowSend gets a Workflow send client by service name, workflow ID and method name
-func WorkflowSend[O any](ctx Context, service string, workflowID string, method string, options ...options.ClientOption) SendClient[any] {
+func WorkflowSend(ctx Context, service string, workflowID string, method string, options ...options.ClientOption) SendClient[any] {
 	return ctx.inner().Workflow(service, workflowID, method, options...)
 }
 
