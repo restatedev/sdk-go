@@ -75,6 +75,7 @@ func OutputPayloadFor(codec PayloadCodec, o any) *OutputPayload {
 }
 
 // RestateMarshaler can be implemented by types that want to control their own marshaling
+// Marshaling *must* be deterministic
 type RestateMarshaler interface {
 	RestateMarshal(codec Codec) ([]byte, error)
 	OutputPayload(codec Codec) *OutputPayload
@@ -82,6 +83,7 @@ type RestateMarshaler interface {
 
 // Codec is a mechanism for serialising and deserialising a wide range of types.
 // Care should be taken to ensure that only valid types are passed to a codec, eg proto.Message for [ProtoCodec].
+// Codecs *must* marshal deterministically, such that a round trip of []byte -> any -> []byte leaves the bytes unchanged.
 type Codec interface {
 	Marshal(v any) ([]byte, error)
 	Unmarshal(data []byte, v any) error
