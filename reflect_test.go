@@ -6,7 +6,6 @@ import (
 
 	restate "github.com/restatedev/sdk-go"
 	"github.com/restatedev/sdk-go/internal"
-	"github.com/restatedev/sdk-go/internal/state"
 	"github.com/stretchr/testify/require"
 )
 
@@ -73,7 +72,7 @@ func TestReflect(t *testing.T) {
 					// check for panics
 					_ = foundHandler.InputPayload()
 					_ = foundHandler.OutputPayload()
-					_, err := foundHandler.Call(&state.Context{}, []byte(`""`))
+					_, err := foundHandler.Call(nil, []byte(`""`))
 					require.NoError(t, err)
 				})
 			}

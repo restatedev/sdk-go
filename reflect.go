@@ -233,7 +233,7 @@ func (h *reflectHandler) HandlerType() *internal.ServiceHandlerType {
 	return h.handlerType
 }
 
-func (h *reflectHandler) Call(ctx *state.Context, bytes []byte) ([]byte, error) {
+func (h *reflectHandler) Call(ctx state.Context, bytes []byte) ([]byte, error) {
 
 	var args []reflect.Value
 	if h.input != nil {

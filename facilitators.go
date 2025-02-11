@@ -12,7 +12,7 @@ import (
 // Rand returns a random source which will give deterministic results for a given invocation
 // The source wraps the stdlib rand.Rand but with some extra helper methods
 // This source is not safe for use inside .Run()
-func Rand(ctx Context) *rand.Rand {
+func Rand(ctx Context) rand.Rand {
 	return ctx.inner().Rand()
 }
 
@@ -30,14 +30,7 @@ func After(ctx Context, d time.Duration) AfterFuture {
 
 // After is a handle on a Sleep operation which allows you to do other work concurrently
 // with the sleep.
-type AfterFuture interface {
-	// Done blocks waiting on the remaining duration of the sleep.
-	// It is *not* safe to call this in a goroutine - use Context.Select if you want to wait on multiple
-	// results at once. Can return a terminal error in the case where the invocation was cancelled mid-sleep,
-	// hence Done() should always be called, even after using Context.Select.
-	Done() error
-	futures.Selectable
-}
+type AfterFuture = state.AfterFuture
 
 // Service gets a Service request client by service and method name
 func Service[O any](ctx Context, service string, method string, options ...options.ClientOption) Client[any, O] {
@@ -85,11 +78,11 @@ type SendClient[I any] interface {
 }
 
 type outputClient[O any] struct {
-	inner *state.Client
+	inner state.Client
 }
 
 func (t outputClient[O]) Request(input any, options ...options.RequestOption) (output O, err error) {
-	err = t.inner.RequestFuture(input, options...).Response(&output)
+	err = t.inner.Request(input, &output, options...)
 	return
 }
 
@@ -135,11 +128,11 @@ type ResponseFuture[O any] interface {
 }
 
 type responseFuture[O any] struct {
-	state.DecodingResponseFuture
+	state.ResponseFuture
 }
 
 func (t responseFuture[O]) Response() (output O, err error) {
-	err = t.DecodingResponseFuture.Response(&output)
+	err = t.ResponseFuture.Response(&output)
 	return
 }
 
@@ -162,11 +155,11 @@ type AwakeableFuture[T any] interface {
 }
 
 type awakeable[T any] struct {
-	state.DecodingAwakeable
+	state.AwakeableFuture
 }
 
 func (t awakeable[T]) Result() (output T, err error) {
-	err = t.DecodingAwakeable.Result(&output)
+	err = t.AwakeableFuture.Result(&output)
 	return
 }
 
@@ -186,18 +179,12 @@ func Select(ctx Context, futs ...futures.Selectable) Selector {
 	return ctx.inner().Select(futs...)
 }
 
+// Selectable is a marker interface for futures that can be selected over with [Select]
 type Selectable = futures.Selectable
 
 // Selector is an iterator over a list of blocking Restate operations that are running
 // in the background.
-type Selector interface {
-	// Remaining returns whether there are still operations that haven't been returned by Select().
-	// There will always be exactly the same number of results as there were operations
-	// given to Context.Select
-	Remaining() bool
-	// Select blocks on the next completed operation or returns nil if there are none left
-	Select() futures.Selectable
-}
+type Selector = state.Selector
 
 // Run runs the function (fn), storing final results (including terminal errors)
 // durably in the journal, or otherwise for transient errors stopping execution
@@ -205,7 +192,7 @@ type Selector interface {
 // all non-deterministic operations (eg, generating a unique ID) *must* happen
 // inside Run blocks.
 func Run[T any](ctx Context, fn func(ctx RunContext) (T, error), options ...options.RunOption) (output T, err error) {
-	err = ctx.inner().Run(func(ctx state.RunContext) (any, error) {
+	err = ctx.inner().Run(func(ctx RunContext) (any, error) {
 		return fn(ctx)
 	}, &output, options...)
 
@@ -274,19 +261,19 @@ type DurablePromise[T any] interface {
 }
 
 type durablePromise[T any] struct {
-	state.DecodingPromise
+	state.DurablePromise
 }
 
 func (t durablePromise[T]) Result() (output T, err error) {
-	err = t.DecodingPromise.Result(&output)
+	err = t.DurablePromise.Result(&output)
 	return
 }
 
 func (t durablePromise[T]) Peek() (output T, err error) {
-	_, err = t.DecodingPromise.Peek(&output)
+	_, err = t.DurablePromise.Peek(&output)
 	return
 }
 
 func (t durablePromise[T]) Resolve(value T) (err error) {
-	return t.DecodingPromise.Resolve(value)
+	return t.DurablePromise.Resolve(value)
 }

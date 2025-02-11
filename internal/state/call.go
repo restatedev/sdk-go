@@ -14,7 +14,13 @@ import (
 	"github.com/restatedev/sdk-go/internal/wire"
 )
 
-type Client struct {
+type Client interface {
+	RequestFuture(input any, opts ...options.RequestOption) ResponseFuture
+	Request(input any, output any, opts ...options.RequestOption) error
+	Send(input any, opts ...options.SendOption)
+}
+
+type client struct {
 	options options.ClientOptions
 	machine *Machine
 	service string
@@ -23,7 +29,7 @@ type Client struct {
 }
 
 // RequestFuture makes a call and returns a handle on the response
-func (c *Client) RequestFuture(input any, opts ...options.RequestOption) DecodingResponseFuture {
+func (c *client) RequestFuture(input any, opts ...options.RequestOption) ResponseFuture {
 	o := options.RequestOptions{}
 	for _, opt := range opts {
 		opt.BeforeRequest(&o)
@@ -36,20 +42,25 @@ func (c *Client) RequestFuture(input any, opts ...options.RequestOption) Decodin
 
 	entry, entryIndex := c.machine.doCall(c.service, c.key, c.method, o.Headers, bytes)
 
-	return DecodingResponseFuture{
+	return decodingResponseFuture{
 		futures.NewResponseFuture(c.machine.suspensionCtx, entry, entryIndex, func(err error) any { return c.machine.newProtocolViolation(entry, err) }),
 		c.machine,
 		c.options,
 	}
 }
 
-type DecodingResponseFuture struct {
+type ResponseFuture interface {
+	futures.Selectable
+	Response(output any) error
+}
+
+type decodingResponseFuture struct {
 	*futures.ResponseFuture
 	machine *Machine
 	options options.ClientOptions
 }
 
-func (d DecodingResponseFuture) Response(output any) (err error) {
+func (d decodingResponseFuture) Response(output any) (err error) {
 	bytes, err := d.ResponseFuture.Response()
 	if err != nil {
 		return err
@@ -63,12 +74,12 @@ func (d DecodingResponseFuture) Response(output any) (err error) {
 }
 
 // Request makes a call and blocks on the response
-func (c *Client) Request(input any, output any, opts ...options.RequestOption) error {
+func (c *client) Request(input any, output any, opts ...options.RequestOption) error {
 	return c.RequestFuture(input, opts...).Response(output)
 }
 
 // Send runs a call in the background after delay duration
-func (c *Client) Send(input any, opts ...options.SendOption) {
+func (c *client) Send(input any, opts ...options.SendOption) {
 	o := options.SendOptions{}
 	for _, opt := range opts {
 		opt.BeforeSend(&o)

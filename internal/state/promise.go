@@ -12,7 +12,7 @@ import (
 	"github.com/restatedev/sdk-go/internal/wire"
 )
 
-func (c *Context) Promise(key string, opts ...options.PromiseOption) DecodingPromise {
+func (c *ctx) Promise(key string, opts ...options.PromiseOption) DurablePromise {
 	o := options.PromiseOptions{}
 	for _, opt := range opts {
 		opt.BeforePromise(&o)
@@ -20,19 +20,27 @@ func (c *Context) Promise(key string, opts ...options.PromiseOption) DecodingPro
 	if o.Codec == nil {
 		o.Codec = encoding.JSONCodec
 	}
-	return DecodingPromise{futures.NewPromise(c.machine.suspensionCtx, c.machine.request.ID, func() (*wire.GetPromiseEntryMessage, uint32) {
+	return decodingPromise{futures.NewPromise(c.machine.suspensionCtx, c.machine.request.ID, func() (*wire.GetPromiseEntryMessage, uint32) {
 		return c.machine.getPromise(key)
 	}), key, c.machine, o.Codec}
 }
 
-type DecodingPromise struct {
+type DurablePromise interface {
+	futures.Selectable
+	Result(output any) (err error)
+	Peek(output any) (ok bool, err error)
+	Resolve(value any) error
+	Reject(reason error) error
+}
+
+type decodingPromise struct {
 	*futures.Promise
 	key     string
 	machine *Machine
 	codec   encoding.Codec
 }
 
-func (d DecodingPromise) Result(output any) (err error) {
+func (d decodingPromise) Result(output any) (err error) {
 	bytes, err := d.Promise.Result()
 	if err != nil {
 		return err
@@ -43,7 +51,7 @@ func (d DecodingPromise) Result(output any) (err error) {
 	return
 }
 
-func (d DecodingPromise) Peek(output any) (ok bool, err error) {
+func (d decodingPromise) Peek(output any) (ok bool, err error) {
 	bytes, ok, err := d.machine.peekPromise(d.key)
 	if err != nil || !ok {
 		return ok, err
@@ -54,7 +62,7 @@ func (d DecodingPromise) Peek(output any) (ok bool, err error) {
 	return
 }
 
-func (d DecodingPromise) Resolve(value any) error {
+func (d decodingPromise) Resolve(value any) error {
 	bytes, err := encoding.Marshal(d.codec, value)
 	if err != nil {
 		panic(d.machine.newCodecFailure(wire.CompletePromiseEntryMessageType, fmt.Errorf("failed to marshal Promise Resolve value: %w", err)))
@@ -62,7 +70,7 @@ func (d DecodingPromise) Resolve(value any) error {
 	return d.machine.resolvePromise(d.key, bytes)
 }
 
-func (d DecodingPromise) Reject(reason error) error {
+func (d decodingPromise) Reject(reason error) error {
 	return d.machine.rejectPromise(d.key, reason)
 }
 

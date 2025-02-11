@@ -31,25 +31,59 @@ var (
 	ErrInvalidVersion = fmt.Errorf("invalid version number")
 )
 
-type Context struct {
+type Context interface {
+	context.Context
+	Log() *slog.Logger
+	Request() *Request
+
+	// available outside of .Run()
+	Rand() rand.Rand
+	Sleep(time.Duration) error
+	After(time.Duration) AfterFuture
+	Service(service, method string, options ...options.ClientOption) Client
+	Object(service, key, method string, options ...options.ClientOption) Client
+	Workflow(seservice, workflowID, method string, options ...options.ClientOption) Client
+	Awakeable(options ...options.AwakeableOption) AwakeableFuture
+	ResolveAwakeable(id string, value any, options ...options.ResolveAwakeableOption)
+	RejectAwakeable(id string, reason error)
+	Select(futs ...futures.Selectable) Selector
+	Run(fn func(ctx RunContext) (any, error), output any, options ...options.RunOption) error
+
+	// available on all keyed handlers
+	Get(key string, output any, options ...options.GetOption) (bool, error)
+	Keys() ([]string, error)
+	Key() string
+
+	// available on non-shared keyed handlers
+	Set(key string, value any, options ...options.SetOption)
+	Clear(key string)
+	ClearAll()
+
+	// available on workflow handlers
+	Promise(name string, options ...options.PromiseOption) DurablePromise
+}
+
+type ctx struct {
 	context.Context
 	userLogger *slog.Logger
 	machine    *Machine
 }
 
-func (c *Context) Log() *slog.Logger {
+var _ Context = (*ctx)(nil)
+
+func (c *ctx) Log() *slog.Logger {
 	return c.machine.userLog
 }
 
-func (c *Context) Request() *Request {
+func (c *ctx) Request() *Request {
 	return &c.machine.request
 }
 
-func (c *Context) Rand() *rand.Rand {
+func (c *ctx) Rand() rand.Rand {
 	return c.machine.rand
 }
 
-func (c *Context) Set(key string, value any, opts ...options.SetOption) {
+func (c *ctx) Set(key string, value any, opts ...options.SetOption) {
 	o := options.SetOptions{}
 	for _, opt := range opts {
 		opt.BeforeSet(&o)
@@ -67,18 +101,18 @@ func (c *Context) Set(key string, value any, opts ...options.SetOption) {
 	return
 }
 
-func (c *Context) Clear(key string) {
+func (c *ctx) Clear(key string) {
 	c.machine.clear(key)
 
 }
 
 // ClearAll drops all associated keys
-func (c *Context) ClearAll() {
+func (c *ctx) ClearAll() {
 	c.machine.clearAll()
 
 }
 
-func (c *Context) Get(key string, output any, opts ...options.GetOption) (bool, error) {
+func (c *ctx) Get(key string, output any, opts ...options.GetOption) (bool, error) {
 	o := options.GetOptions{}
 	for _, opt := range opts {
 		opt.BeforeGet(&o)
@@ -99,19 +133,30 @@ func (c *Context) Get(key string, output any, opts ...options.GetOption) (bool, 
 	return true, nil
 }
 
-func (c *Context) Keys() ([]string, error) {
+func (c *ctx) Keys() ([]string, error) {
 	return c.machine.keys()
 }
 
-func (c *Context) Sleep(d time.Duration) error {
+func (c *ctx) Sleep(d time.Duration) error {
 	return c.machine.sleep(d)
 }
 
-func (c *Context) After(d time.Duration) *futures.After {
+// After is a handle on a Sleep operation which allows you to do other work concurrently
+// with the sleep.
+type AfterFuture interface {
+	// Done blocks waiting on the remaining duration of the sleep.
+	// It is *not* safe to call this in a goroutine - use Context.Select if you want to wait on multiple
+	// results at once. Can return a terminal error in the case where the invocation was cancelled mid-sleep,
+	// hence Done() should always be called, even after using Context.Select.
+	Done() error
+	futures.Selectable
+}
+
+func (c *ctx) After(d time.Duration) AfterFuture {
 	return c.machine.after(d)
 }
 
-func (c *Context) Service(service, method string, opts ...options.ClientOption) *Client {
+func (c *ctx) Service(service, method string, opts ...options.ClientOption) Client {
 	o := options.ClientOptions{}
 	for _, opt := range opts {
 		opt.BeforeClient(&o)
@@ -120,7 +165,7 @@ func (c *Context) Service(service, method string, opts ...options.ClientOption) 
 		o.Codec = encoding.JSONCodec
 	}
 
-	return &Client{
+	return &client{
 		options: o,
 		machine: c.machine,
 		service: service,
@@ -128,7 +173,7 @@ func (c *Context) Service(service, method string, opts ...options.ClientOption) 
 	}
 }
 
-func (c *Context) Object(service, key, method string, opts ...options.ClientOption) *Client {
+func (c *ctx) Object(service, key, method string, opts ...options.ClientOption) Client {
 	o := options.ClientOptions{}
 	for _, opt := range opts {
 		opt.BeforeClient(&o)
@@ -137,7 +182,7 @@ func (c *Context) Object(service, key, method string, opts ...options.ClientOpti
 		o.Codec = encoding.JSONCodec
 	}
 
-	return &Client{
+	return &client{
 		options: o,
 		machine: c.machine,
 		service: service,
@@ -146,7 +191,7 @@ func (c *Context) Object(service, key, method string, opts ...options.ClientOpti
 	}
 }
 
-func (c *Context) Workflow(service, workflowID, method string, opts ...options.ClientOption) *Client {
+func (c *ctx) Workflow(service, workflowID, method string, opts ...options.ClientOption) Client {
 	o := options.ClientOptions{}
 	for _, opt := range opts {
 		opt.BeforeClient(&o)
@@ -155,7 +200,7 @@ func (c *Context) Workflow(service, workflowID, method string, opts ...options.C
 		o.Codec = encoding.JSONCodec
 	}
 
-	return &Client{
+	return &client{
 		options: o,
 		machine: c.machine,
 		service: service,
@@ -164,7 +209,7 @@ func (c *Context) Workflow(service, workflowID, method string, opts ...options.C
 	}
 }
 
-func (c *Context) Run(fn func(ctx RunContext) (any, error), output any, opts ...options.RunOption) error {
+func (c *ctx) Run(fn func(ctx RunContext) (any, error), output any, opts ...options.RunOption) error {
 	o := options.RunOptions{}
 	for _, opt := range opts {
 		opt.BeforeRun(&o)
@@ -197,7 +242,7 @@ func (c *Context) Run(fn func(ctx RunContext) (any, error), output any, opts ...
 	return nil
 }
 
-func (c *Context) Awakeable(opts ...options.AwakeableOption) DecodingAwakeable {
+func (c *ctx) Awakeable(opts ...options.AwakeableOption) AwakeableFuture {
 	o := options.AwakeableOptions{}
 	for _, opt := range opts {
 		opt.BeforeAwakeable(&o)
@@ -205,17 +250,23 @@ func (c *Context) Awakeable(opts ...options.AwakeableOption) DecodingAwakeable {
 	if o.Codec == nil {
 		o.Codec = encoding.JSONCodec
 	}
-	return DecodingAwakeable{c.machine.awakeable(), c.machine, o.Codec}
+	return decodingAwakeable{c.machine.awakeable(), c.machine, o.Codec}
 }
 
-type DecodingAwakeable struct {
+type AwakeableFuture interface {
+	futures.Selectable
+	Id() string
+	Result(output any) error
+}
+
+type decodingAwakeable struct {
 	*futures.Awakeable
 	machine *Machine
 	codec   encoding.Codec
 }
 
-func (d DecodingAwakeable) Id() string { return d.Awakeable.Id() }
-func (d DecodingAwakeable) Result(output any) (err error) {
+func (d decodingAwakeable) Id() string { return d.Awakeable.Id() }
+func (d decodingAwakeable) Result(output any) (err error) {
 	bytes, err := d.Awakeable.Result()
 	if err != nil {
 		return err
@@ -226,7 +277,7 @@ func (d DecodingAwakeable) Result(output any) (err error) {
 	return
 }
 
-func (c *Context) ResolveAwakeable(id string, value any, opts ...options.ResolveAwakeableOption) {
+func (c *ctx) ResolveAwakeable(id string, value any, opts ...options.ResolveAwakeableOption) {
 	o := options.ResolveAwakeableOptions{}
 	for _, opt := range opts {
 		opt.BeforeResolveAwakeable(&o)
@@ -241,23 +292,23 @@ func (c *Context) ResolveAwakeable(id string, value any, opts ...options.Resolve
 	c.machine.resolveAwakeable(id, bytes)
 }
 
-func (c *Context) RejectAwakeable(id string, reason error) {
+func (c *ctx) RejectAwakeable(id string, reason error) {
 	c.machine.rejectAwakeable(id, reason)
 }
 
-func (c *Context) Select(futs ...futures.Selectable) *selector {
+func (c *ctx) Select(futs ...futures.Selectable) Selector {
 	return c.machine.selector(futs...)
 }
 
-func (c *Context) Key() string {
+func (c *ctx) Key() string {
 	return c.machine.key
 }
 
-func newContext(inner context.Context, machine *Machine) *Context {
+func newContext(inner context.Context, machine *Machine) *ctx {
 	// will be cancelled when the http2 stream is cancelled
 	// but NOT when we just suspend - just because we can't get completions doesn't mean we can't make
 	// progress towards producing an output message
-	ctx := &Context{
+	ctx := &ctx{
 		Context: inner,
 		machine: machine,
 	}
@@ -292,7 +343,7 @@ type Machine struct {
 	pendingAcks        map[uint32]wire.AckableMessage
 	pendingMutex       sync.RWMutex
 
-	rand *rand.Rand
+	rand rand.Rand
 
 	failure any
 }
@@ -342,7 +393,7 @@ func (m *Machine) Start(inner context.Context, dropReplayLogs bool, logHandler s
 	return m.process(ctx, start)
 }
 
-func (m *Machine) invoke(ctx *Context, outputSeen bool) error {
+func (m *Machine) invoke(ctx *ctx, outputSeen bool) error {
 	// always terminate the invocation with
 	// an end message.
 	// this will always terminate the connection
@@ -562,7 +613,7 @@ The journal entry at position %d was:
 	}
 }
 
-func (m *Machine) process(ctx *Context, start *wire.StartMessage) error {
+func (m *Machine) process(ctx *ctx, start *wire.StartMessage) error {
 	for _, entry := range start.StateMap {
 		m.current[string(entry.Key)] = entry.Value
 	}

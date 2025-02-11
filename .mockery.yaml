@@ -1,0 +1,16 @@
+with-expecter: true
+issue-845-fix: true
+resolve-type-alias: false
+dir: mocks
+outPkg: mocks
+packages:
+  github.com/restatedev/sdk-go/internal/state:
+    interfaces:
+      Context:
+      Client:
+      Selector:
+      AwakeableFuture:
+      DurablePromise:
+  github.com/restatedev/sdk-go/internal/rand:
+    interfaces:
+      Rand:
