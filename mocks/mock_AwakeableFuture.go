@@ -12,11 +12,12 @@ type MockAwakeableFuture struct {
 }
 
 type MockAwakeableFuture_Expecter struct {
-	mock *mock.Mock
+	parent *MockAwakeableFuture
+	mock   *mock.Mock
 }
 
 func (_m *MockAwakeableFuture) EXPECT() *MockAwakeableFuture_Expecter {
-	return &MockAwakeableFuture_Expecter{mock: &_m.Mock}
+	return &MockAwakeableFuture_Expecter{parent: _m, mock: &_m.Mock}
 }
 
 // Id provides a mock function with no fields

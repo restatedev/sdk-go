@@ -9,22 +9,19 @@ import (
 	restate "github.com/restatedev/sdk-go"
 	"github.com/restatedev/sdk-go/mocks"
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/mock"
 )
 
 func TestPayment(t *testing.T) {
 	mockCtx := mocks.NewMockContext(t)
-	mockRand := mocks.NewMockRand(t)
 
-	mockRand.EXPECT().UUID().Return(uuid.UUID([16]byte{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16}))
+	mockCtx.EXPECT().MockRand().UUID().Return(uuid.Max)
 
-	mockCtx.EXPECT().Rand().Return(mockRand)
-	mockCtx.EXPECT().RunAndExpect(t, mockCtx, true, nil)
+	mockCtx.EXPECT().RunAndExpect(mockCtx, true, nil)
 	mockCtx.EXPECT().Log().Return(slog.Default())
 
 	resp, err := (&checkout{}).Payment(restate.WithMockContext(mockCtx), PaymentRequest{Tickets: []string{"abc"}})
 	assert.NoError(t, err)
-	assert.Equal(t, resp, PaymentResponse{ID: "01020304-0506-0708-090a-0b0c0d0e0f10", Price: 30})
+	assert.Equal(t, resp, PaymentResponse{ID: "ffffffff-ffff-ffff-ffff-ffffffffffff", Price: 30})
 }
 
 func TestReserve(t *testing.T) {
@@ -76,17 +73,14 @@ func TestStatus(t *testing.T) {
 
 func TestAddTicket(t *testing.T) {
 	mockCtx := mocks.NewMockContext(t)
-	mockTicketClient := mocks.NewMockClient(t)
-	mockSessionClient := mocks.NewMockClient(t)
 
 	mockCtx.EXPECT().Key().Return("userID")
-	mockCtx.EXPECT().Object(TicketServiceName, "ticket2", "Reserve").Once().Return(mockTicketClient)
-	mockTicketClient.EXPECT().RequestAndReturn("userID", true, nil)
+	mockCtx.EXPECT().MockObjectClient(TicketServiceName, "ticket2", "Reserve").RequestAndReturn("userID", true, nil)
 
 	mockCtx.EXPECT().GetAndReturn("tickets", []string{"ticket1"})
 	mockCtx.EXPECT().Set("tickets", []string{"ticket1", "ticket2"})
-	mockCtx.EXPECT().Object(UserSessionServiceName, "userID", "ExpireTicket").Once().Return(mockSessionClient)
-	mockSessionClient.EXPECT().Send("ticket2", restate.WithDelay(15*time.Minute))
+	mockCtx.EXPECT().MockObjectClient(UserSessionServiceName, "userID", "ExpireTicket").
+		Send("ticket2", restate.WithDelay(15*time.Minute))
 
 	ok, err := (&userSession{}).AddTicket(restate.WithMockContext(mockCtx), "ticket2")
 	assert.NoError(t, err)
@@ -95,13 +89,11 @@ func TestAddTicket(t *testing.T) {
 
 func TestExpireTicket(t *testing.T) {
 	mockCtx := mocks.NewMockContext(t)
-	mockTicketClient := mocks.NewMockClient(t)
 
 	mockCtx.EXPECT().GetAndReturn("tickets", []string{"ticket1", "ticket2"})
 	mockCtx.EXPECT().Set("tickets", []string{"ticket1"})
 
-	mockCtx.EXPECT().Object(TicketServiceName, "ticket2", "Unreserve").Once().Return(mockTicketClient)
-	mockTicketClient.EXPECT().Send(restate.Void{})
+	mockCtx.EXPECT().MockObjectClient(TicketServiceName, "ticket2", "Unreserve").Send(restate.Void{})
 
 	_, err := (&userSession{}).ExpireTicket(restate.WithMockContext(mockCtx), "ticket2")
 	assert.NoError(t, err)
@@ -114,23 +106,17 @@ func TestCheckout(t *testing.T) {
 	mockCtx.EXPECT().GetAndReturn("tickets", []string{"ticket1"})
 	mockCtx.EXPECT().Log().Return(slog.Default())
 
-	mockAfter := mocks.NewMockAfterFuture(t)
-	mockCtx.EXPECT().After(time.Minute).Return(mockAfter)
+	mockAfter := mockCtx.EXPECT().MockAfter(time.Minute)
 
-	mockCheckoutClient := mocks.NewMockClient(t)
-	mockCtx.EXPECT().Object(CheckoutServiceName, "", "Payment").Once().Return(mockCheckoutClient)
-	mockResponseFuture := mocks.NewMockResponseFuture(t)
-	mockCheckoutClient.EXPECT().RequestFuture(PaymentRequest{UserID: "userID", Tickets: []string{"ticket1"}}).Return(mockResponseFuture)
+	mockResponseFuture := mockCtx.EXPECT().MockObjectClient(CheckoutServiceName, "", "Payment").
+		MockResponseFuture(PaymentRequest{UserID: "userID", Tickets: []string{"ticket1"}})
 
-	mockSelector := mocks.NewMockSelector(t)
-	mockCtx.EXPECT().Select(mockAfter, mock.AnythingOfType("restate.responseFuture[github.com/restatedev/sdk-go/examples/ticketreservation.PaymentResponse]")).Return(mockSelector)
-	mockSelector.EXPECT().Select().Return(mockResponseFuture)
+	mockCtx.EXPECT().MockSelector(mockAfter, mockResponseFuture).
+		Select().Return(mockResponseFuture)
 
 	mockResponseFuture.EXPECT().ResponseAndReturn(PaymentResponse{ID: "paymentID", Price: 30}, nil)
 
-	mockTicketClient := mocks.NewMockClient(t)
-	mockCtx.EXPECT().Object(TicketServiceName, "ticket1", "MarkAsSold").Once().Return(mockTicketClient)
-	mockTicketClient.EXPECT().Send(restate.Void{})
+	mockCtx.EXPECT().MockObjectClient(TicketServiceName, "ticket1", "MarkAsSold").Send(restate.Void{})
 
 	mockCtx.EXPECT().Clear("tickets")
 

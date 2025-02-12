@@ -2,10 +2,10 @@ package mocks
 
 import (
 	"reflect"
-	"testing"
 	"time"
 
 	restate "github.com/restatedev/sdk-go"
+	"github.com/restatedev/sdk-go/internal/converters"
 	options "github.com/restatedev/sdk-go/internal/options"
 	state "github.com/restatedev/sdk-go/internal/state"
 	"github.com/stretchr/testify/assert"
@@ -30,7 +30,7 @@ func (_e *MockContext_Expecter) RunAndReturn(value any, err error) *MockContext_
 
 // RunAndExpect is a helper method to mock a 'Run' call where you want to execute the function provided to Run. Non terminal errors will be retried
 // indefinitely, subject to a 1 second delay between retries. The final result or terminal error will be compared to the provided values.
-func (_e *MockContext_Expecter) RunAndExpect(t *testing.T, ctx state.RunContext, expectedValue any, expectedErr error) *MockContext_Run_Call {
+func (_e *MockContext_Expecter) RunAndExpect(ctx state.RunContext, expectedValue any, expectedErr error) *MockContext_Run_Call {
 	return _e.Run(mock.Anything, mock.Anything).RunAndReturn(func(f func(state.RunContext) (any, error), i any, ro ...options.RunOption) error {
 		var value any
 		var err error
@@ -42,8 +42,8 @@ func (_e *MockContext_Expecter) RunAndExpect(t *testing.T, ctx state.RunContext,
 			time.Sleep(time.Second)
 		}
 
-		assert.Equal(t, expectedValue, value)
-		assert.Equal(t, expectedErr, err)
+		assert.Equal(_e.parent.t, expectedValue, value)
+		assert.Equal(_e.parent.t, expectedErr, err)
 
 		if err == nil {
 			reflect.ValueOf(i).Elem().Set(reflect.ValueOf(value))
@@ -65,6 +65,34 @@ func (_e *MockContext_Expecter) GetAndReturn(key interface{}, value any) *MockCo
 	})
 }
 
+// MockRand is a helper method to mock a typical 'Rand' call on a ctx; return a mocked Rand object
+func (_e *MockContext_Expecter) MockRand() *MockRand_Expecter {
+	mockRand := NewMockRand(_e.parent.t)
+	_e.Rand().Once().Return(mockRand)
+	return mockRand.EXPECT()
+}
+
+// MockServiceClient is a helper method to mock a typical 'Service' call on a ctx; return a mocked Client object
+func (_e *MockContext_Expecter) MockServiceClient(service, method interface{}) *MockClient_Expecter {
+	mockClient := NewMockClient(_e.parent.t)
+	_e.Service(service, method).Once().Return(mockClient)
+	return mockClient.EXPECT()
+}
+
+// MockObjectClient is a helper method to mock a typical 'Object' call on a ctx; return a mocked Client object
+func (_e *MockContext_Expecter) MockObjectClient(service, key, method interface{}) *MockClient_Expecter {
+	mockClient := NewMockClient(_e.parent.t)
+	_e.Object(service, key, method).Once().Return(mockClient)
+	return mockClient.EXPECT()
+}
+
+// MockWorkflowClient is a helper method to mock a typical 'Workflow' call on a ctx; return a mocked Client object
+func (_e *MockContext_Expecter) MockWorkflowClient(service, workflowID, method interface{}) *MockClient_Expecter {
+	mockClient := NewMockClient(_e.parent.t)
+	_e.Workflow(service, workflowID, method).Once().Return(mockClient)
+	return mockClient.EXPECT()
+}
+
 // GetAndReturn is a helper method to mock a typical 'Request' call; return a concrete value or an error
 func (_e *MockClient_Expecter) RequestAndReturn(input interface{}, value any, err error) *MockClient_Request_Call {
 	return _e.Request(input, mock.AnythingOfType(pointerType(value))).RunAndReturn(func(i1, i2 interface{}, ro ...options.RequestOption) error {
@@ -75,6 +103,14 @@ func (_e *MockClient_Expecter) RequestAndReturn(input interface{}, value any, er
 		reflect.ValueOf(i2).Elem().Set(reflect.ValueOf(value))
 		return nil
 	})
+}
+
+// MockResponseFuture is a helper method to mock a typical 'RequestFuture' call on a client; return a mocked ResponseFuture object
+func (_e *MockClient_Expecter) MockResponseFuture(input interface{}, opts ...interface{}) *MockResponseFuture {
+	mockResponseFuture := NewMockResponseFuture(_e.parent.t)
+
+	_e.RequestFuture(input, opts...).Once().Return(mockResponseFuture)
+	return mockResponseFuture
 }
 
 // ResponseAndReturn is a helper method to mock a typical 'Response' call on a ResponseFuture; return a concrete value or an error
@@ -99,6 +135,12 @@ func (_e *MockAwakeableFuture_Expecter) ResultAndReturn(value any, err error) *M
 		reflect.ValueOf(i).Elem().Set(reflect.ValueOf(value))
 		return nil
 	})
+}
+
+func (_e *MockContext_Expecter) PromiseByName(promiseName string) *MockDurablePromise_Expecter {
+	mockPromise := NewMockDurablePromise(_e.parent.t)
+	_e.Promise(promiseName).Once().Return(mockPromise)
+	return mockPromise.EXPECT()
 }
 
 // PeekAndReturn is a helper method to mock a typical 'Peek' call on a DurablePromise; return a concrete value, no value, or an error
@@ -127,4 +169,42 @@ func (_e *MockDurablePromise_Expecter) ResultAndReturn(value any, err error) *Mo
 		reflect.ValueOf(i).Elem().Set(reflect.ValueOf(value))
 		return nil
 	})
+}
+
+// MockAfter is a helper method to mock a typical 'After' call on a ctx; return a mocked AfterFuture object
+func (_e *MockContext_Expecter) MockAfter(duration interface{}) *MockAfterFuture {
+	mockAfter := NewMockAfterFuture(_e.parent.t)
+	_e.After(duration).Once().Return(mockAfter)
+	return mockAfter
+}
+
+// MockSelector is a helper method to mock a typical 'Select' call on a ctx; return a mocked Selector object
+func (_e *MockContext_Expecter) MockSelector(futs ...interface{}) *MockSelector_Expecter {
+	outFuts := make([]interface{}, 0, len(futs))
+
+	for _, expected := range futs {
+		expected := expected
+
+		if assert.ObjectsAreEqual(expected, mock.Anything) {
+			outFuts = append(outFuts, expected)
+			continue
+		}
+
+		outFuts = append(outFuts, mock.MatchedBy(func(actual interface{}) bool {
+			if assert.ObjectsAreEqual(actual, mock.Anything) {
+				return true
+			}
+
+			// support the case where the future is wrapped in some converter
+			if toInner, ok := actual.(converters.ToInnerFuture); ok {
+				actual = toInner.InnerFuture()
+			}
+
+			return assert.ObjectsAreEqual(actual, expected)
+		}))
+	}
+
+	mockSelector := NewMockSelector(_e.parent.t)
+	_e.Select(outFuts...).Once().Return(mockSelector)
+	return mockSelector.EXPECT()
 }

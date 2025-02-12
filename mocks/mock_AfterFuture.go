@@ -13,11 +13,12 @@ type MockAfterFuture struct {
 }
 
 type MockAfterFuture_Expecter struct {
-	mock *mock.Mock
+	parent *MockAfterFuture
+	mock   *mock.Mock
 }
 
 func (_m *MockAfterFuture) EXPECT() *MockAfterFuture_Expecter {
-	return &MockAfterFuture_Expecter{mock: &_m.Mock}
+	return &MockAfterFuture_Expecter{parent: _m, mock: &_m.Mock}
 }
 
 // Done provides a mock function with no fields

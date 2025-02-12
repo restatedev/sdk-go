@@ -3,6 +3,7 @@ package restate
 import (
 	"time"
 
+	"github.com/restatedev/sdk-go/internal/converters"
 	"github.com/restatedev/sdk-go/internal/futures"
 	"github.com/restatedev/sdk-go/internal/options"
 	"github.com/restatedev/sdk-go/internal/rand"
@@ -87,7 +88,7 @@ func (t outputClient[O]) Request(input any, options ...options.RequestOption) (o
 }
 
 func (t outputClient[O]) RequestFuture(input any, options ...options.RequestOption) ResponseFuture[O] {
-	return responseFuture[O]{t.inner.RequestFuture(input, options...)}
+	return converters.ResponseFuture[O]{ResponseFuture: t.inner.RequestFuture(input, options...)}
 }
 
 func (t outputClient[O]) Send(input any, options ...options.SendOption) {
@@ -127,19 +128,10 @@ type ResponseFuture[O any] interface {
 	futures.Selectable
 }
 
-type responseFuture[O any] struct {
-	state.ResponseFuture
-}
-
-func (t responseFuture[O]) Response() (output O, err error) {
-	err = t.ResponseFuture.Response(&output)
-	return
-}
-
 // Awakeable returns a Restate awakeable; a 'promise' to a future
 // value or error, that can be resolved or rejected by other services.
 func Awakeable[T any](ctx Context, options ...options.AwakeableOption) AwakeableFuture[T] {
-	return awakeable[T]{ctx.inner().Awakeable(options...)}
+	return converters.AwakeableFuture[T]{AwakeableFuture: ctx.inner().Awakeable(options...)}
 }
 
 // AwakeableFuture is a 'promise' to a future value or error, that can be resolved or rejected by other services.
@@ -152,15 +144,6 @@ type AwakeableFuture[T any] interface {
 	// want to wait on multiple results at once.
 	Result() (T, error)
 	futures.Selectable
-}
-
-type awakeable[T any] struct {
-	state.AwakeableFuture
-}
-
-func (t awakeable[T]) Result() (output T, err error) {
-	err = t.AwakeableFuture.Result(&output)
-	return
 }
 
 // ResolveAwakeable allows an awakeable (not necessarily from this service) to be
