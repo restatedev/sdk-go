@@ -307,14 +307,27 @@ func (m *Machine) run(fn func(RunContext) ([]byte, error)) ([]byte, error) {
 	}
 }
 
-type RunContext struct {
+// RunContext is passed to [Run] closures and provides the limited set of Restate operations that are safe to use there.
+type RunContext interface {
+	context.Context
+
+	// Log obtains a handle on a slog.Logger which already has some useful fields (invocationID and method)
+	// By default, this logger will not output messages if the invocation is currently replaying
+	// The log handler can be set with `.WithLogger()` on the server object
+	Log() *slog.Logger
+
+	// Request gives extra information about the request that started this invocation
+	Request() *Request
+}
+
+type runContext struct {
 	context.Context
 	log     *slog.Logger
 	request *Request
 }
 
-func (r RunContext) Log() *slog.Logger { return r.log }
-func (r RunContext) Request() *Request { return r.request }
+func (r runContext) Log() *slog.Logger { return r.log }
+func (r runContext) Request() *Request { return r.request }
 
 type Request struct {
 	// The unique id that identifies the current function invocation. This id is guaranteed to be
@@ -332,7 +345,7 @@ type Request struct {
 }
 
 func (m *Machine) _run(fn func(RunContext) ([]byte, error)) *wire.RunEntryMessage {
-	bytes, err := fn(RunContext{m.ctx, m.userLog, &m.request})
+	bytes, err := fn(runContext{m.ctx, m.userLog, &m.request})
 
 	if err != nil {
 		if errors.IsTerminalError(err) {

@@ -8,6 +8,17 @@ import (
 	"github.com/restatedev/sdk-go/internal/wire"
 )
 
+// Selector is an iterator over a list of blocking Restate operations that are running
+// in the background.
+type Selector interface {
+	// Remaining returns whether there are still operations that haven't been returned by Select().
+	// There will always be exactly the same number of results as there were operations
+	// given to Context.Select
+	Remaining() bool
+	// Select blocks on the next completed operation or returns nil if there are none left
+	Select() futures.Selectable
+}
+
 type selector struct {
 	machine *Machine
 	inner   *futures.Selector

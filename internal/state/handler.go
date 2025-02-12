@@ -12,5 +12,5 @@ type Handler interface {
 	InputPayload() *encoding.InputPayload
 	OutputPayload() *encoding.OutputPayload
 	HandlerType() *internal.ServiceHandlerType
-	Call(ctx *Context, request []byte) (output []byte, err error)
+	Call(ctx Context, request []byte) (output []byte, err error)
 }

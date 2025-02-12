@@ -53,7 +53,7 @@ func NewServiceHandler[I any, O any](fn ServiceHandlerFn[I, O], opts ...options.
 	}
 }
 
-func (h *serviceHandler[I, O]) Call(ctx *state.Context, bytes []byte) ([]byte, error) {
+func (h *serviceHandler[I, O]) Call(ctx state.Context, bytes []byte) ([]byte, error) {
 	var input I
 	if err := encoding.Unmarshal(h.options.Codec, bytes, &input); err != nil {
 		return nil, TerminalError(fmt.Errorf("request could not be decoded into handler input type: %w", err), http.StatusBadRequest)
@@ -133,10 +133,10 @@ func NewObjectSharedHandler[I any, O any](fn ObjectSharedHandlerFn[I, O], opts .
 }
 
 type ctxWrapper struct {
-	*state.Context
+	state.Context
 }
 
-func (o ctxWrapper) inner() *state.Context {
+func (o ctxWrapper) inner() state.Context {
 	return o.Context
 }
 func (o ctxWrapper) object()          {}
@@ -144,7 +144,7 @@ func (o ctxWrapper) exclusiveObject() {}
 func (o ctxWrapper) workflow()        {}
 func (o ctxWrapper) runWorkflow()     {}
 
-func (h *objectHandler[I, O]) Call(ctx *state.Context, bytes []byte) ([]byte, error) {
+func (h *objectHandler[I, O]) Call(ctx state.Context, bytes []byte) ([]byte, error) {
 	var input I
 	if err := encoding.Unmarshal(h.options.Codec, bytes, &input); err != nil {
 		return nil, TerminalError(fmt.Errorf("request could not be decoded into handler input type: %w", err), http.StatusBadRequest)
@@ -233,7 +233,7 @@ func NewWorkflowSharedHandler[I any, O any](fn WorkflowSharedHandlerFn[I, O], op
 	}
 }
 
-func (h *workflowHandler[I, O]) Call(ctx *state.Context, bytes []byte) ([]byte, error) {
+func (h *workflowHandler[I, O]) Call(ctx state.Context, bytes []byte) ([]byte, error) {
 	var input I
 	if err := encoding.Unmarshal(h.options.Codec, bytes, &input); err != nil {
 		return nil, TerminalError(fmt.Errorf("request could not be decoded into handler input type: %w", err), http.StatusBadRequest)
