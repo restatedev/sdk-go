@@ -6,11 +6,16 @@ outPkg: mocks
 packages:
   github.com/restatedev/sdk-go/internal/state:
     interfaces:
-      Context:
-      Client:
+      # these have been manually edited. If you want to regenerate, uncomment here,
+      # generate, and then make sure the previous diffs are carried over!
+      # AfterFuture:
+      # AwakeableFuture:
+      # Client:
+      # Context:
+      # DurablePromise:
+      # ResponseFuture
+      Rand:
       Selector:
-      AwakeableFuture:
-      DurablePromise:
   github.com/restatedev/sdk-go/internal/rand:
     interfaces:
       Rand:
