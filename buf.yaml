@@ -4,6 +4,8 @@ modules:
     name: buf.build/restatedev/sdk-go
     excludes:
       - proto/dev/restate/sdk/go
+deps:
+  - buf.build/protocolbuffers/wellknowntypes:v29.3
 breaking:
   use:
     - FILE

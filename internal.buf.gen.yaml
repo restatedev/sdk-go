@@ -1,0 +1,11 @@
+version: v2
+managed:
+  enabled: true
+plugins:
+  - remote: buf.build/protocolbuffers/go:v1.36.5
+    out: internal/generated
+    opt:
+      - paths=source_relative
+      - default_api_level=API_OPAQUE
+inputs:
+  - proto_file: proto/internal.proto

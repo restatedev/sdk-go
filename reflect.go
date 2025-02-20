@@ -2,13 +2,13 @@ package restate
 
 import (
 	"fmt"
+	"github.com/restatedev/sdk-go/internal/restatecontext"
 	"net/http"
 	"reflect"
 
 	"github.com/restatedev/sdk-go/encoding"
 	"github.com/restatedev/sdk-go/internal"
 	"github.com/restatedev/sdk-go/internal/options"
-	"github.com/restatedev/sdk-go/internal/state"
 )
 
 type serviceNamer interface {
@@ -233,7 +233,7 @@ func (h *reflectHandler) HandlerType() *internal.ServiceHandlerType {
 	return h.handlerType
 }
 
-func (h *reflectHandler) Call(ctx state.Context, bytes []byte) ([]byte, error) {
+func (h *reflectHandler) Call(ctx restatecontext.Context, bytes []byte) ([]byte, error) {
 
 	var args []reflect.Value
 	if h.input != nil {
@@ -283,4 +283,4 @@ func (h *reflectHandler) Call(ctx state.Context, bytes []byte) ([]byte, error) {
 	return bytes, nil
 }
 
-var _ state.Handler = (*reflectHandler)(nil)
+var _ restatecontext.Handler = (*reflectHandler)(nil)

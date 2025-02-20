@@ -1,16 +1,15 @@
 package converters
 
 import (
-	"github.com/restatedev/sdk-go/internal/futures"
-	"github.com/restatedev/sdk-go/internal/state"
+	"github.com/restatedev/sdk-go/internal/restatecontext"
 )
 
 type ToInnerFuture interface {
-	InnerFuture() futures.Selectable
+	InnerFuture() restatecontext.Selectable
 }
 
 type ResponseFuture[O any] struct {
-	state.ResponseFuture
+	restatecontext.ResponseFuture
 }
 
 func (t ResponseFuture[O]) Response() (output O, err error) {
@@ -18,12 +17,12 @@ func (t ResponseFuture[O]) Response() (output O, err error) {
 	return
 }
 
-func (t ResponseFuture[O]) InnerFuture() futures.Selectable {
+func (t ResponseFuture[O]) InnerFuture() restatecontext.Selectable {
 	return t.ResponseFuture
 }
 
 type AwakeableFuture[T any] struct {
-	state.AwakeableFuture
+	restatecontext.AwakeableFuture
 }
 
 func (t AwakeableFuture[T]) Result() (output T, err error) {
@@ -31,6 +30,6 @@ func (t AwakeableFuture[T]) Result() (output T, err error) {
 	return
 }
 
-func (t AwakeableFuture[T]) InnerFuture() futures.Selectable {
+func (t AwakeableFuture[T]) InnerFuture() restatecontext.Selectable {
 	return t.AwakeableFuture
 }
