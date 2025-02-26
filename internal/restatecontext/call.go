@@ -52,6 +52,9 @@ func (c *client) RequestFuture(input any, opts ...options.RequestOption) Respons
 		}
 		inputParams.SetHeaders(headers)
 	}
+	if o.IdempotencyKey != "" {
+		inputParams.SetIdempotencyKey(o.IdempotencyKey)
+	}
 	inputParams.SetInput(inputBytes)
 
 	_, handle, err := c.restateContext.stateMachine.SysCall(c.restateContext, &inputParams)
@@ -124,6 +127,9 @@ func (c *client) Send(input any, opts ...options.SendOption) {
 			headers = append(headers, &h)
 		}
 		inputParams.SetHeaders(headers)
+	}
+	if o.IdempotencyKey != "" {
+		inputParams.SetIdempotencyKey(o.IdempotencyKey)
 	}
 	inputParams.SetInput(inputBytes)
 	if o.Delay != 0 {

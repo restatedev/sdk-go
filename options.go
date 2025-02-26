@@ -95,6 +95,26 @@ func WithHeaders(headers map[string]string) withHeaders {
 	return withHeaders{headers}
 }
 
+type withIdempotencyKey struct {
+	idempotencyKey string
+}
+
+var _ options.RequestOption = withIdempotencyKey{}
+var _ options.SendOption = withIdempotencyKey{}
+
+func (w withIdempotencyKey) BeforeRequest(opts *options.RequestOptions) {
+	opts.IdempotencyKey = w.idempotencyKey
+}
+
+func (w withIdempotencyKey) BeforeSend(opts *options.SendOptions) {
+	opts.IdempotencyKey = w.idempotencyKey
+}
+
+// WithIdempotencyKey is an option to specify the idempotency key to set when making a call
+func WithIdempotencyKey(idempotencyKey string) withIdempotencyKey {
+	return withIdempotencyKey{idempotencyKey}
+}
+
 type withDelay struct {
 	delay time.Duration
 }

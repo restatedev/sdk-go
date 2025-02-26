@@ -55,7 +55,8 @@ type ClientOption interface {
 }
 
 type RequestOptions struct {
-	Headers map[string]string
+	IdempotencyKey string
+	Headers        map[string]string
 }
 
 type RequestOption interface {
@@ -63,8 +64,9 @@ type RequestOption interface {
 }
 
 type SendOptions struct {
-	Headers map[string]string
-	Delay   time.Duration
+	IdempotencyKey string
+	Headers        map[string]string
+	Delay          time.Duration
 }
 
 type SendOption interface {
