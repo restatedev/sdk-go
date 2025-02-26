@@ -1,0 +1,52 @@
+name: Docker
+
+on:    
+  push:    
+    branches: [main]    
+    tags:    
+      - v**
+
+env:
+  REPOSITORY_OWNER: ${{ github.repository_owner }}
+  GHCR_REGISTRY: "ghcr.io"
+  GHCR_REGISTRY_USERNAME: ${{ github.actor }}
+  GHCR_REGISTRY_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+jobs:
+  sdk-test-docker:
+    if: github.repository_owner == 'restatedev'
+    runs-on: ubuntu-latest
+    name: "Create test-services Docker Image"
+    
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          repository: restatedev/sdk-go
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.21.x"
+
+      - name: Setup ko
+        uses: ko-build/setup-ko@v0.6
+        with:
+          version: v0.16.0
+
+      - name: Log into GitHub container registry
+        uses: docker/login-action@v2
+        with:
+          registry: ${{ env.GHCR_REGISTRY }}
+          username: ${{ env.GHCR_REGISTRY_USERNAME }}
+          password: ${{ env.GHCR_REGISTRY_TOKEN }}
+
+      - name: Install dependencies
+        run: go get .
+
+      - name: Build Docker image
+        run: KO_DOCKER_REPO=restatedev ko build -B -L github.com/restatedev/sdk-go/test-services
+
+      - name: Push restatedev/test-services-java:main image
+        run: |
+          docker tag restatedev/test-services ghcr.io/restatedev/test-services-go:main
+          docker push ghcr.io/restatedev/test-services-go:main
