@@ -10,7 +10,7 @@ import (
 )
 
 func main() {
-	// Accomodating for verification tests here
+	// Accommodating for verification tests here
 	logging := strings.ToLower(os.Getenv("RESTATE_LOGGING"))
 	if logging == "error" {
 		slog.SetLogLoggerLevel(slog.LevelError)

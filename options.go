@@ -129,3 +129,90 @@ func (w withDelay) BeforeSend(opts *options.SendOptions) {
 func WithDelay(delay time.Duration) withDelay {
 	return withDelay{delay}
 }
+
+type withMaxRetryAttempts struct {
+	maxAttempts uint
+}
+
+var _ options.RunOption = withMaxRetryAttempts{}
+
+func (w withMaxRetryAttempts) BeforeRun(opts *options.RunOptions) {
+	opts.MaxRetryAttempts = &w.maxAttempts
+}
+
+// WithMaxRetryAttempts sets the MaxRetryAttempts before giving up.
+//
+// When giving up, Run will return a TerminalError wrapping the original error message.
+func WithMaxRetryAttempts(maxAttempts uint) withMaxRetryAttempts {
+	return withMaxRetryAttempts{maxAttempts}
+}
+
+type withMaxRetryDuration struct {
+	maxRetryDuration time.Duration
+}
+
+var _ options.RunOption = withMaxRetryDuration{}
+
+func (w withMaxRetryDuration) BeforeRun(opts *options.RunOptions) {
+	opts.MaxRetryDuration = &w.maxRetryDuration
+}
+
+// WithMaxRetryDuration sets the MaxRetryDuration before giving up.
+//
+// When giving up, Run will return a TerminalError wrapping the original error message.
+func WithMaxRetryDuration(maxRetryDuration time.Duration) withMaxRetryDuration {
+	return withMaxRetryDuration{maxRetryDuration}
+}
+
+type withInitialRetryInterval struct {
+	initialRetryInterval time.Duration
+}
+
+var _ options.RunOption = withInitialRetryInterval{}
+
+func (w withInitialRetryInterval) BeforeRun(opts *options.RunOptions) {
+	opts.InitialRetryInterval = &w.initialRetryInterval
+}
+
+// WithInitialRetryInterval sets the InitialRetryInterval for the first retry attempt.
+//
+// The retry interval will grow by a factor specified in RetryIntervalFactor.
+//
+// If any of the other retry options are set, this will be set by default to 50 milliseconds.
+func WithInitialRetryInterval(initialRetryInterval time.Duration) withInitialRetryInterval {
+	return withInitialRetryInterval{initialRetryInterval}
+}
+
+type withRetryIntervalFactor struct {
+	retryIntervalFactor float32
+}
+
+var _ options.RunOption = withRetryIntervalFactor{}
+
+func (w withRetryIntervalFactor) BeforeRun(opts *options.RunOptions) {
+	opts.RetryIntervalFactor = &w.retryIntervalFactor
+}
+
+// WithRetryIntervalFactor sets the RetryIntervalFactor to use when computing the next retry delay.
+//
+// If any of the other retry options are set, this will be set by default to 2, meaning retry interval will double at each attempt.
+func WithRetryIntervalFactor(retryIntervalFactor float32) withRetryIntervalFactor {
+	return withRetryIntervalFactor{retryIntervalFactor}
+}
+
+type withMaxRetryInterval struct {
+	maxRetryInterval time.Duration
+}
+
+var _ options.RunOption = withMaxRetryInterval{}
+
+func (w withMaxRetryInterval) BeforeRun(opts *options.RunOptions) {
+	opts.MaxRetryInterval = &w.maxRetryInterval
+}
+
+// WithMaxRetryInterval sets the MaxRetryInterval before giving up.
+//
+// When giving up, Run will return a TerminalError wrapping the original error message.
+func WithMaxRetryInterval(maxRetryInterval time.Duration) withMaxRetryInterval {
+	return withMaxRetryInterval{maxRetryInterval}
+}

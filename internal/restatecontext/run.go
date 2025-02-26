@@ -21,7 +21,10 @@ func (restateCtx *ctx) Run(fn func(ctx RunContext) (any, error), output any, opt
 		o.Codec = encoding.JSONCodec
 	}
 
-	handle, err := restateCtx.stateMachine.SysRun(restateCtx, "")
+	params := pbinternal.VmSysRunParameters{}
+	params.SetName(o.Name)
+
+	handle, err := restateCtx.stateMachine.SysRun(restateCtx, o.Name)
 	if err != nil {
 		panic(err)
 	}
@@ -37,6 +40,31 @@ func (restateCtx *ctx) Run(fn func(ctx RunContext) (any, error), output any, opt
 		proposal := pbinternal.VmProposeRunCompletionParameters{}
 		proposal.SetHandle(handle)
 		proposal.SetAttemptDurationMillis(uint64(time.Now().Sub(now).Milliseconds()))
+
+		// Set retry policy if any of the retry policy config options are set
+		if o.MaxRetryAttempts != nil && o.MaxRetryInterval != nil && o.MaxRetryDuration != nil && o.RetryIntervalFactor != nil && o.InitialRetryInterval != nil {
+			retryPolicy := pbinternal.VmProposeRunCompletionParameters_RetryPolicy{}
+			retryPolicy.SetInitialInternalMillis(50)
+			retryPolicy.SetFactor(2)
+			retryPolicy.SetMaxIntervalMillis(2000)
+
+			if o.MaxRetryDuration != nil {
+				retryPolicy.SetMaxDurationMillis(uint64((*o.MaxRetryDuration).Milliseconds()))
+			}
+			if o.MaxRetryInterval != nil {
+				retryPolicy.SetMaxIntervalMillis(uint64((*o.MaxRetryInterval).Milliseconds()))
+			}
+			if o.RetryIntervalFactor != nil {
+				retryPolicy.SetFactor(*o.RetryIntervalFactor)
+			}
+			if o.MaxRetryAttempts != nil {
+				retryPolicy.SetMaxAttempts(uint32(*o.MaxRetryAttempts))
+			}
+			if o.InitialRetryInterval != nil {
+				retryPolicy.SetInitialInternalMillis(uint64((*o.InitialRetryInterval).Milliseconds()))
+			}
+		}
+
 		if errors.IsTerminalError(err) {
 			// Terminal error
 			failure := pbinternal.Failure{}

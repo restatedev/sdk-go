@@ -74,6 +74,37 @@ type SendOption interface {
 }
 
 type RunOptions struct {
+	// MaxRetryAttempts before giving up.
+	//
+	// When giving up, Run will return a TerminalError wrapping the original error message.
+	MaxRetryAttempts *uint
+
+	// MaxRetryDuration before giving up.
+	//
+	// When giving up, Run will return a TerminalError wrapping the original error message.
+	MaxRetryDuration *time.Duration
+
+	// InitialRetryInterval for the first retry attempt.
+	//
+	// The retry interval will grow by a factor specified in RetryIntervalFactor.
+	//
+	// If any of the other retry options are set, this will be set by default to 50 milliseconds.
+	InitialRetryInterval *time.Duration
+
+	// RetryIntervalFactor to use when computing the next retry delay.
+	//
+	// If any of the other retry options are set, this will be set by default to 2, meaning retry interval will double at each attempt.
+	RetryIntervalFactor *float32
+
+	// MaxRetryInterval between retries.
+	// Retry interval will grow by a factor specified in RetryIntervalFactor up to the interval specified in this value.
+	//
+	// If any of the other retry options are set, this will be set by default to 2 seconds.
+	MaxRetryInterval *time.Duration
+
+	// Name used for observability
+	Name string
+
 	Codec encoding.Codec
 }
 
