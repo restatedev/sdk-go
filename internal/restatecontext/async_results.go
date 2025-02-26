@@ -76,7 +76,7 @@ func (a *asyncResult) pollProgressAndLoadValue() statemachine.Value {
 	return a.mustLoadValue()
 }
 
-func (restateCtx *ctx) pollProgress(handles []uint32) (cancelled bool) {
+func (restateCtx *ctx) pollProgress(handles []uint32) bool {
 	// Pump output once
 	if err := statemachine.TakeOutputAndWriteOut(restateCtx, restateCtx.stateMachine, restateCtx.conn); err != nil {
 		panic(err)
@@ -96,6 +96,11 @@ func (restateCtx *ctx) pollProgress(handles []uint32) (cancelled bool) {
 			}
 		}
 		if _, ok := progressResult.(statemachine.DoProgressCancelSignalReceived); ok {
+			// Pump output once. This is needed for cancel commands to be effectively written
+			if err := statemachine.TakeOutputAndWriteOut(restateCtx, restateCtx.stateMachine, restateCtx.conn); err != nil {
+				panic(err)
+			}
+
 			return true
 		}
 		if executeRun, ok := progressResult.(statemachine.DoProgressExecuteRun); ok {
