@@ -480,6 +480,8 @@ func (r *Restate) Start(ctx context.Context, address string) error {
 		return fmt.Errorf("failed to listen on address %s: %w", address, err)
 	}
 
+	slog.Info(fmt.Sprintf("Started listening on %s", listener.Addr()))
+
 	var h2server http2.Server
 
 	opts := &http2.ServeConnOpts{

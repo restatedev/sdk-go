@@ -97,15 +97,19 @@ func interpret(ctx restate.ObjectContext, layer uint32, value Program) error {
 			break
 		case IncrementViaDelayedCall:
 			delay := time.Duration(*cmd.Duration) * time.Millisecond
-			restate.Service[any](ctx, "ServiceInterpreterHelper", "incrementIndirectly").Send(interpreterId, restate.WithDelay(delay))
+			restate.Service[restate.Void](ctx, "ServiceInterpreterHelper", "incrementIndirectly").Send(interpreterId, restate.WithDelay(delay))
 			break
 		case IncrementStateCounterIndirectly:
-			restate.Service[any](ctx, "ServiceInterpreterHelper", "incrementIndirectly").Send(interpreterId)
+			restate.Service[restate.Void](ctx, "ServiceInterpreterHelper", "incrementIndirectly").Send(interpreterId)
 			break
 		case CallSlowService:
 			expected := fmt.Sprintf("hello-%d", i)
+			input := EchoLaterInput{
+				Sleep:     *cmd.Sleep,
+				Parameter: expected,
+			}
 			response, err := restate.Service[string](ctx, "ServiceInterpreterHelper", "echoLater").
-				Request(expected)
+				Request(input)
 			if err != nil {
 				return err
 			}
@@ -177,7 +181,7 @@ func interpret(ctx restate.ObjectContext, layer uint32, value Program) error {
 		case IncrementStateCounterViaAwakeable:
 			awakeable := restate.Awakeable[string](ctx)
 
-			restate.Service[any](ctx, "ServiceInterpreterHelper", "incrementViaAwakeableDance").Send(IncrementViaAwakeableDanceInput{
+			restate.Service[restate.Void](ctx, "ServiceInterpreterHelper", "incrementViaAwakeableDance").Send(IncrementViaAwakeableDanceInput{
 				Interpreter: interpreterId,
 				TxPromiseId: awakeable.Id(),
 			})
@@ -195,7 +199,7 @@ func interpret(ctx restate.ObjectContext, layer uint32, value Program) error {
 			objectKey := fmt.Sprintf("%d", *cmd.Key)
 			program := *cmd.Program
 
-			_, err := restate.Object[any](ctx, objectName, objectKey, "interpret").
+			_, err := restate.Object[restate.Void](ctx, objectName, objectKey, "interpret").
 				Request(program)
 			if err != nil {
 				return err
@@ -256,7 +260,7 @@ func init() {
 						Kind: IncrementStateCounter,
 					}}}
 
-					restate.Object[any](ctx, objectName, id.Key, "interpret").Send(program)
+					restate.Object[restate.Void](ctx, objectName, id.Key, "interpret").Send(program)
 
 					return restate.Void{}, nil
 				})).
@@ -286,7 +290,7 @@ func init() {
 						Kind: IncrementStateCounter,
 					}}}
 
-					restate.Object[any](ctx, objectName, input.Interpreter.Key, "interpret").Send(program)
+					restate.Object[restate.Void](ctx, objectName, input.Interpreter.Key, "interpret").Send(program)
 
 					return restate.Void{}, nil
 				})))
