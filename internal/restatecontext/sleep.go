@@ -26,6 +26,7 @@ func (restateCtx *ctx) After(d time.Duration) AfterFuture {
 	if err != nil {
 		panic(err)
 	}
+	restateCtx.checkStateTransition()
 
 	return &afterFuture{
 		asyncResult: newAsyncResult(restateCtx, handle),

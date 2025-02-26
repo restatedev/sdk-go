@@ -5,11 +5,15 @@ import (
 	_ "embed"
 	"fmt"
 	pbinternal "github.com/restatedev/sdk-go/internal/generated"
+	loginternal "github.com/restatedev/sdk-go/internal/log"
 	"github.com/tetratelabs/wazero"
 	"github.com/tetratelabs/wazero/api"
 	"google.golang.org/protobuf/proto"
 	"io"
 	"log"
+	"log/slog"
+	"os"
+	"strings"
 	"sync"
 	"time"
 )
@@ -22,6 +26,8 @@ var sharedCore []byte
 var _sharedCoreMod wazero.CompiledModule
 var _wazeroRuntime wazero.Runtime
 var modPool sync.Pool
+
+var coreTraceLogging = strings.ToLower(os.Getenv("CORE_TRACE_LOGGING_ENABLED"))
 
 func init() {
 	ctx := context.Background()
@@ -44,12 +50,61 @@ func init() {
 
 // -- Exported logging
 
-func wasmLogExport(ctx context.Context, m api.Module, offset, byteCount uint32) {
-	buf, ok := m.Memory().Read(offset, byteCount)
-	if !ok {
-		log.Panicf("Memory.Read(%d, %d) out of range", offset, byteCount)
+const (
+	abiLogLevelTrace uint32 = 0
+	abiLogLevelDebug uint32 = 1
+	abiLogLevelInfo  uint32 = 2
+	abiLogLevelWarn  uint32 = 3
+	abiLogLevelError uint32 = 4
+)
+
+func wasmLogExport(ctx context.Context, m api.Module, level, offset, byteCount uint32) {
+	logger := getLogger(ctx)
+	if logger == nil {
+		logger = slog.Default()
 	}
-	log.Printf("[core]: %s", string(buf))
+	switch level {
+	case abiLogLevelTrace:
+		// Access memory only if the log level is enabled
+		buf, ok := m.Memory().Read(offset, byteCount)
+		if !ok {
+			panic(fmt.Sprintf("Memory.Read(%d, %d) out of range", offset, byteCount))
+		}
+		logger.Log(ctx, loginternal.LevelTrace, string(buf))
+		break
+	case abiLogLevelDebug:
+		// Access memory only if the log level is enabled
+		buf, ok := m.Memory().Read(offset, byteCount)
+		if !ok {
+			panic(fmt.Sprintf("Memory.Read(%d, %d) out of range", offset, byteCount))
+		}
+		logger.Debug(string(buf))
+		break
+	case abiLogLevelInfo:
+		// Access memory only if the log level is enabled
+		buf, ok := m.Memory().Read(offset, byteCount)
+		if !ok {
+			panic(fmt.Sprintf("Memory.Read(%d, %d) out of range", offset, byteCount))
+		}
+		logger.Info(string(buf))
+		break
+	case abiLogLevelWarn:
+		// Access memory only if the log level is enabled
+		buf, ok := m.Memory().Read(offset, byteCount)
+		if !ok {
+			panic(fmt.Sprintf("Memory.Read(%d, %d) out of range", offset, byteCount))
+		}
+		logger.Warn(string(buf))
+		break
+	case abiLogLevelError:
+		// Access memory only if the log level is enabled
+		buf, ok := m.Memory().Read(offset, byteCount)
+		if !ok {
+			panic(fmt.Sprintf("Memory.Read(%d, %d) out of range", offset, byteCount))
+		}
+		logger.Error(string(buf))
+		break
+	}
 }
 
 // -- Exposed API
@@ -73,6 +128,7 @@ type Core struct {
 	vmNotifyError          api.Function
 	vmIsReadyToExecute     api.Function
 	vmIsCompleted          api.Function
+	vmIsProcessing         api.Function
 	vmDoProgress           api.Function
 	vmTakeNotification     api.Function
 	vmTakeOutput           api.Function
@@ -115,7 +171,11 @@ func NewCore(ctx context.Context) (*Core, error) {
 	}
 
 	// Init module, this sets up few things such as the panic handler
-	_, err = instance.ExportedFunction("init").Call(ctx)
+	logPreFiltering := abiLogLevelDebug
+	if coreTraceLogging == "true" {
+		logPreFiltering = abiLogLevelTrace
+	}
+	_, err = instance.ExportedFunction("init").Call(ctx, uint64(logPreFiltering))
 	if err != nil {
 		return nil, fmt.Errorf("cannot instantiate new core: %e", err)
 	}
@@ -132,6 +192,7 @@ func NewCore(ctx context.Context) (*Core, error) {
 		vmNotifyError:          instance.ExportedFunction("vm_notify_error"),
 		vmIsReadyToExecute:     instance.ExportedFunction("vm_is_ready_to_execute"),
 		vmIsCompleted:          instance.ExportedFunction("vm_is_completed"),
+		vmIsProcessing:         instance.ExportedFunction("vm_is_processing"),
 		vmDoProgress:           instance.ExportedFunction("vm_do_progress"),
 		vmTakeNotification:     instance.ExportedFunction("vm_take_notification"),
 		vmTakeOutput:           instance.ExportedFunction("vm_take_output"),
@@ -190,7 +251,7 @@ func (core *Core) NewStateMachine(ctx context.Context, headers []*pbinternal.Hea
 	core.transferOutputStructFromWasmMemory(ctx, out, &output)
 
 	if output.HasFailure() {
-		return nil, fmt.Errorf("error when initializing state machine: %e", wasmFailureToGoError(output.GetFailure()))
+		return nil, wasmFailureToGoError(output.GetFailure())
 	}
 	return &StateMachine{
 		core:      core,
@@ -254,13 +315,16 @@ func (sm *StateMachine) NotifyInput(ctx context.Context, bytes []byte) error {
 	return nil
 }
 
-func (sm *StateMachine) NotifyError(ctx context.Context, message string, _stacktrace string) error {
+func (sm *StateMachine) NotifyError(ctx context.Context, message string, stacktrace string) error {
 	if !sm.core.coreMutex.TryLock() {
 		panic(concurrentContextUseError{})
 	}
 	defer sm.core.coreMutex.Unlock()
 
-	inputPtr, inputLen := sm.core.transferBytesToWasmMemory(ctx, []byte(message))
+	params := pbinternal.VmNotifyError{}
+	params.SetMessage(message)
+	params.SetStacktrace(stacktrace)
+	inputPtr, inputLen := sm.core.transferInputStructToWasmMemory(ctx, &params)
 
 	sm.core.callStack[0] = sm.vmPointer
 	sm.core.callStack[1] = inputPtr
@@ -290,7 +354,7 @@ func (sm *StateMachine) IsReadyToExecute(ctx context.Context) (bool, error) {
 	sm.core.transferOutputStructFromWasmMemory(ctx, out, &output)
 
 	if output.HasFailure() {
-		return false, fmt.Errorf("error when initializing state machine: [%e]", wasmFailureToGoError(output.GetFailure()))
+		return false, wasmFailureToGoError(output.GetFailure())
 	}
 
 	return output.GetReady(), nil
@@ -307,6 +371,24 @@ func (sm *StateMachine) IsCompleted(ctx context.Context, handle uint32) (bool, e
 	err := sm.core.vmIsCompleted.CallWithStack(ctx, sm.core.callStack)
 	if err != nil {
 		return false, fmt.Errorf("error when calling vm_is_completed: %e", err)
+	}
+
+	if sm.core.callStack[0] == 0 {
+		return false, nil
+	}
+	return true, nil
+}
+
+func (sm *StateMachine) IsProcessing(ctx context.Context) (bool, error) {
+	if !sm.core.coreMutex.TryLock() {
+		panic(concurrentContextUseError{})
+	}
+	defer sm.core.coreMutex.Unlock()
+
+	sm.core.callStack[0] = sm.vmPointer
+	err := sm.core.vmIsProcessing.CallWithStack(ctx, sm.core.callStack)
+	if err != nil {
+		return false, fmt.Errorf("error when calling vm_is_processing: %e", err)
 	}
 
 	if sm.core.callStack[0] == 0 {
@@ -370,7 +452,7 @@ func (sm *StateMachine) DoProgress(ctx context.Context, handles []uint32) (DoPro
 	sm.core.transferOutputStructFromWasmMemory(ctx, out, &output)
 
 	if output.HasFailure() {
-		return nil, fmt.Errorf("error when deserializing vm_do_progress result: %e", wasmFailureToGoError(output.GetFailure()))
+		return nil, wasmFailureToGoError(output.GetFailure())
 	}
 	if output.HasSuspended() {
 		return nil, SuspensionError{}
@@ -451,7 +533,7 @@ func (sm *StateMachine) TakeNotification(ctx context.Context, handle uint32) (Va
 	sm.core.transferOutputStructFromWasmMemory(ctx, out, &output)
 
 	if output.HasFailure() {
-		return nil, fmt.Errorf("error when deserializing vm_take_notification result: %e", wasmFailureToGoError(output.GetFailure()))
+		return nil, wasmFailureToGoError(output.GetFailure())
 	}
 	if output.HasSuspended() {
 		return nil, SuspensionError{}
@@ -525,7 +607,7 @@ func (sm *StateMachine) SysInput(ctx context.Context) (*pbinternal.VmSysInputRet
 	sm.core.transferOutputStructFromWasmMemory(ctx, out, &output)
 
 	if output.HasFailure() {
-		return nil, fmt.Errorf("error when calling vm_sys_input: %e", wasmFailureToGoError(output.GetFailure()))
+		return nil, wasmFailureToGoError(output.GetFailure())
 	}
 
 	return output.GetOk(), nil
@@ -554,7 +636,7 @@ func (sm *StateMachine) SysStateGet(ctx context.Context, key string) (uint32, er
 	sm.core.transferOutputStructFromWasmMemory(ctx, out, &output)
 
 	if output.HasFailure() {
-		return 0, fmt.Errorf("error when deserializing vm_sys_state_get result: %e", wasmFailureToGoError(output.GetFailure()))
+		return 0, wasmFailureToGoError(output.GetFailure())
 	}
 	return output.GetHandle(), nil
 }
@@ -576,7 +658,7 @@ func (sm *StateMachine) SysStateGetKeys(ctx context.Context) (uint32, error) {
 	sm.core.transferOutputStructFromWasmMemory(ctx, out, &output)
 
 	if output.HasFailure() {
-		return 0, fmt.Errorf("error when deserializing vm_sys_state_get_keys result: %e", wasmFailureToGoError(output.GetFailure()))
+		return 0, wasmFailureToGoError(output.GetFailure())
 	}
 	return output.GetHandle(), nil
 }
@@ -605,7 +687,7 @@ func (sm *StateMachine) SysStateSet(ctx context.Context, key string, value []byt
 	sm.core.transferOutputStructFromWasmMemory(ctx, out, &output)
 
 	if output.HasFailure() {
-		return fmt.Errorf("error when deserializing vm_sys_state_set result: %e", wasmFailureToGoError(output.GetFailure()))
+		return wasmFailureToGoError(output.GetFailure())
 	}
 	return nil
 }
@@ -633,7 +715,7 @@ func (sm *StateMachine) SysStateClear(ctx context.Context, key string) error {
 	sm.core.transferOutputStructFromWasmMemory(ctx, out, &output)
 
 	if output.HasFailure() {
-		return fmt.Errorf("error when deserializing vm_sys_state_clear result: %e", wasmFailureToGoError(output.GetFailure()))
+		return wasmFailureToGoError(output.GetFailure())
 	}
 	return nil
 }
@@ -655,7 +737,7 @@ func (sm *StateMachine) SysStateClearAll(ctx context.Context) error {
 	sm.core.transferOutputStructFromWasmMemory(ctx, out, &output)
 
 	if output.HasFailure() {
-		return fmt.Errorf("error when calling vm_sys_state_clear: %e", wasmFailureToGoError(output.GetFailure()))
+		return wasmFailureToGoError(output.GetFailure())
 	}
 
 	return nil
@@ -686,7 +768,7 @@ func (sm *StateMachine) SysSleep(ctx context.Context, duration time.Duration) (u
 	sm.core.transferOutputStructFromWasmMemory(ctx, out, &output)
 
 	if output.HasFailure() {
-		return 0, fmt.Errorf("error when deserializing vm_sys_sleep result: %e", wasmFailureToGoError(output.GetFailure()))
+		return 0, wasmFailureToGoError(output.GetFailure())
 	}
 	return output.GetHandle(), nil
 }
@@ -708,7 +790,7 @@ func (sm *StateMachine) SysAwakeable(ctx context.Context) (string, uint32, error
 	sm.core.transferOutputStructFromWasmMemory(ctx, out, &output)
 
 	if output.HasFailure() {
-		return "", 0, fmt.Errorf("error when deserializing vm_sys_awakable result: %e", wasmFailureToGoError(output.GetFailure()))
+		return "", 0, wasmFailureToGoError(output.GetFailure())
 	}
 	return output.GetOk().GetId(), output.GetOk().GetHandle(), nil
 }
@@ -734,7 +816,7 @@ func (sm *StateMachine) SysCall(ctx context.Context, input *pbinternal.VmSysCall
 	sm.core.transferOutputStructFromWasmMemory(ctx, out, &output)
 
 	if output.HasFailure() {
-		return 0, 0, fmt.Errorf("error when deserializing vm_sys_call result: %e", wasmFailureToGoError(output.GetFailure()))
+		return 0, 0, wasmFailureToGoError(output.GetFailure())
 	}
 	return output.GetOk().GetInvocationIdHandle(), output.GetOk().GetResultHandle(), nil
 }
@@ -760,7 +842,7 @@ func (sm *StateMachine) SysSend(ctx context.Context, input *pbinternal.VmSysSend
 	sm.core.transferOutputStructFromWasmMemory(ctx, out, &output)
 
 	if output.HasFailure() {
-		return 0, fmt.Errorf("error when deserializing vm_sys_send result: %e", wasmFailureToGoError(output.GetFailure()))
+		return 0, wasmFailureToGoError(output.GetFailure())
 	}
 	return output.GetHandle(), nil
 }
@@ -786,7 +868,7 @@ func (sm *StateMachine) SysCompleteAwakeable(ctx context.Context, input *pbinter
 	sm.core.transferOutputStructFromWasmMemory(ctx, out, &output)
 
 	if output.HasFailure() {
-		return fmt.Errorf("error when deserializing vm_sys_complete_awakeable result: %e", wasmFailureToGoError(output.GetFailure()))
+		return wasmFailureToGoError(output.GetFailure())
 	}
 	return nil
 }
@@ -814,7 +896,7 @@ func (sm *StateMachine) SysPromiseGet(ctx context.Context, key string) (uint32, 
 	sm.core.transferOutputStructFromWasmMemory(ctx, out, &output)
 
 	if output.HasFailure() {
-		return 0, fmt.Errorf("error when deserializing vm_sys_promise_get result: %e", wasmFailureToGoError(output.GetFailure()))
+		return 0, wasmFailureToGoError(output.GetFailure())
 	}
 	return output.GetHandle(), nil
 }
@@ -842,7 +924,7 @@ func (sm *StateMachine) SysPromisePeek(ctx context.Context, key string) (uint32,
 	sm.core.transferOutputStructFromWasmMemory(ctx, out, &output)
 
 	if output.HasFailure() {
-		return 0, fmt.Errorf("error when deserializing vm_sys_promise_peek result: %e", wasmFailureToGoError(output.GetFailure()))
+		return 0, wasmFailureToGoError(output.GetFailure())
 	}
 	return output.GetHandle(), nil
 }
@@ -868,7 +950,7 @@ func (sm *StateMachine) SysPromiseComplete(ctx context.Context, input *pbinterna
 	sm.core.transferOutputStructFromWasmMemory(ctx, out, &output)
 
 	if output.HasFailure() {
-		return 0, fmt.Errorf("error when deserializing vm_sys_promise_complete result: %e", wasmFailureToGoError(output.GetFailure()))
+		return 0, wasmFailureToGoError(output.GetFailure())
 	}
 	return output.GetHandle(), nil
 }
@@ -896,7 +978,7 @@ func (sm *StateMachine) SysRun(ctx context.Context, name string) (uint32, error)
 	sm.core.transferOutputStructFromWasmMemory(ctx, out, &output)
 
 	if output.HasFailure() {
-		return 0, fmt.Errorf("error when deserializing vm_sys_run result: %e", wasmFailureToGoError(output.GetFailure()))
+		return 0, wasmFailureToGoError(output.GetFailure())
 	}
 	return output.GetHandle(), nil
 }
@@ -922,7 +1004,7 @@ func (sm *StateMachine) ProposeRunCompletion(ctx context.Context, input *pbinter
 	sm.core.transferOutputStructFromWasmMemory(ctx, out, &output)
 
 	if output.HasFailure() {
-		return fmt.Errorf("error when deserializing vm_propose_run_completion result: %e", wasmFailureToGoError(output.GetFailure()))
+		return wasmFailureToGoError(output.GetFailure())
 	}
 	return nil
 }
@@ -948,7 +1030,7 @@ func (sm *StateMachine) SysWriteOutput(ctx context.Context, input *pbinternal.Vm
 	sm.core.transferOutputStructFromWasmMemory(ctx, out, &output)
 
 	if output.HasFailure() {
-		return fmt.Errorf("error when deserializing vm_sys_write_output result: %e", wasmFailureToGoError(output.GetFailure()))
+		return wasmFailureToGoError(output.GetFailure())
 	}
 	return nil
 }
@@ -970,7 +1052,7 @@ func (sm *StateMachine) SysEnd(ctx context.Context) error {
 	sm.core.transferOutputStructFromWasmMemory(ctx, out, &output)
 
 	if output.HasFailure() {
-		return fmt.Errorf("error when deserializing vm_sys_end result: %e", wasmFailureToGoError(output.GetFailure()))
+		return wasmFailureToGoError(output.GetFailure())
 	}
 	return nil
 }

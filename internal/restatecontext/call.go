@@ -58,6 +58,7 @@ func (c *client) RequestFuture(input any, opts ...options.RequestOption) Respons
 	if err != nil {
 		panic(err)
 	}
+	c.restateContext.checkStateTransition()
 
 	return &responseFuture{
 		asyncResult: newAsyncResult(c.restateContext, handle),
@@ -133,6 +134,7 @@ func (c *client) Send(input any, opts ...options.SendOption) {
 	if err != nil {
 		panic(err)
 	}
+	c.restateContext.checkStateTransition()
 }
 
 func (restateCtx *ctx) Service(service, method string, opts ...options.ClientOption) Client {

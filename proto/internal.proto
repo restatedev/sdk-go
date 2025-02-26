@@ -41,6 +41,11 @@ message VmGetResponseHeadReturn {
   repeated Header headers = 2;
 }
 
+message VmNotifyError {
+  string message = 1;
+  string stacktrace = 2;
+}
+
 message VmTakeOutputReturn {
   oneof result {
     bytes bytes = 1;

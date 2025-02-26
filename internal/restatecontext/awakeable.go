@@ -22,6 +22,7 @@ func (restateCtx *ctx) Awakeable(opts ...options.AwakeableOption) AwakeableFutur
 	if err != nil {
 		panic(err)
 	}
+	restateCtx.checkStateTransition()
 
 	return &awakeableFuture{
 		asyncResult: newAsyncResult(restateCtx, handle),
@@ -80,6 +81,7 @@ func (restateCtx *ctx) ResolveAwakeable(id string, value any, opts ...options.Re
 	if err := restateCtx.stateMachine.SysCompleteAwakeable(restateCtx, &input); err != nil {
 		panic(err)
 	}
+	restateCtx.checkStateTransition()
 }
 
 func (restateCtx *ctx) RejectAwakeable(id string, reason error) {
@@ -93,4 +95,5 @@ func (restateCtx *ctx) RejectAwakeable(id string, reason error) {
 	if err := restateCtx.stateMachine.SysCompleteAwakeable(restateCtx, &input); err != nil {
 		panic(err)
 	}
+	restateCtx.checkStateTransition()
 }

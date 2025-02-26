@@ -75,8 +75,3 @@ func (d *contextInjectingHandler) WithGroup(name string) slog.Handler {
 }
 
 var _ slog.Handler = &contextInjectingHandler{}
-
-type dropReplayHandler struct {
-	isReplaying func() bool
-	inner       slog.Handler
-}

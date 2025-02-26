@@ -63,8 +63,6 @@ type Context interface {
 
 type ctx struct {
 	context.Context
-	internalLogger *slog.Logger
-	userLogger     *slog.Logger
 
 	ctx context.Context
 
@@ -74,11 +72,14 @@ type ctx struct {
 	stateMachine *statemachine.StateMachine
 
 	// Info about the invocation
-	key     string
-	request Request
+	key          string
+	request      Request
+	isProcessing bool
 
 	// Logging
 	userLogContext atomic.Pointer[rcontext.LogContext]
+	internalLogger *slog.Logger
+	userLogger     *slog.Logger
 
 	// Random
 	rand rand.Rand
@@ -101,6 +102,8 @@ func newContext(inner context.Context, machine *statemachine.StateMachine, invoc
 	}
 
 	logHandler = logHandler.WithAttrs([]slog.Attr{slog.String("invocationID", invocationInput.GetInvocationId())})
+	internalLogger := slog.New(log.NewRestateContextHandler(logHandler))
+	inner = statemachine.WithLogger(inner, internalLogger)
 
 	// will be cancelled when the http2 stream is cancelled
 	// but NOT when we just doSuspend - just because we can't get completions doesn't mean we can't make
@@ -112,13 +115,20 @@ func newContext(inner context.Context, machine *statemachine.StateMachine, invoc
 		stateMachine:   machine,
 		key:            invocationInput.GetKey(),
 		request:        request,
-		internalLogger: slog.New(log.NewRestateContextHandler(logHandler)),
+		internalLogger: internalLogger,
 		userLogContext: atomic.Pointer[rcontext.LogContext]{},
 		rand:           rand.New([]byte(invocationInput.GetInvocationId())),
 		userLogger:     nil,
+		isProcessing:   false,
 		runClosures:    make(map[uint32]func() *pbinternal.VmProposeRunCompletionParameters),
 	}
 	ctx.userLogger = slog.New(log.NewUserContextHandler(&ctx.userLogContext, dropReplayLogs, logHandler))
+
+	// Prepare logger
+	ctx.userLogContext.Store(&rcontext.LogContext{Source: rcontext.LogSourceUser, IsReplaying: true})
+
+	// It might be we're already in processing phase
+	ctx.checkStateTransition()
 
 	return ctx
 }
@@ -137,4 +147,19 @@ func (restateCtx *ctx) Rand() rand.Rand {
 
 func (restateCtx *ctx) Key() string {
 	return restateCtx.key
+}
+
+func (restateCtx *ctx) checkStateTransition() {
+	if restateCtx.isProcessing {
+		return
+	}
+	// Check if we transitioned to processing
+	processing, err := restateCtx.stateMachine.IsProcessing(restateCtx)
+	if err != nil {
+		panic(err)
+	}
+	if processing {
+		restateCtx.userLogContext.Store(&rcontext.LogContext{Source: rcontext.LogSourceUser, IsReplaying: false})
+		restateCtx.isProcessing = true
+	}
 }

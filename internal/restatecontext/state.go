@@ -26,6 +26,7 @@ func (restateCtx *ctx) Set(key string, value any, opts ...options.SetOption) {
 	if err != nil {
 		panic(err)
 	}
+	restateCtx.checkStateTransition()
 }
 
 func (restateCtx *ctx) Clear(key string) {
@@ -33,6 +34,7 @@ func (restateCtx *ctx) Clear(key string) {
 	if err != nil {
 		panic(err)
 	}
+	restateCtx.checkStateTransition()
 }
 
 // ClearAll drops all associated keys
@@ -41,6 +43,7 @@ func (restateCtx *ctx) ClearAll() {
 	if err != nil {
 		panic(err)
 	}
+	restateCtx.checkStateTransition()
 }
 
 func (restateCtx *ctx) Get(key string, output any, opts ...options.GetOption) (bool, error) {
@@ -56,6 +59,7 @@ func (restateCtx *ctx) Get(key string, output any, opts ...options.GetOption) (b
 	if err != nil {
 		panic(err)
 	}
+	restateCtx.checkStateTransition()
 
 	ar := newAsyncResult(restateCtx, handle)
 	switch result := ar.pollProgressAndLoadValue().(type) {
@@ -81,6 +85,7 @@ func (restateCtx *ctx) Keys() ([]string, error) {
 	if err != nil {
 		panic(err)
 	}
+	restateCtx.checkStateTransition()
 
 	ar := newAsyncResult(restateCtx, handle)
 	switch result := ar.pollProgressAndLoadValue().(type) {

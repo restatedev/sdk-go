@@ -22,6 +22,7 @@ func (restateCtx *ctx) Promise(key string, opts ...options.PromiseOption) Durabl
 	if err != nil {
 		panic(err)
 	}
+	restateCtx.checkStateTransition()
 
 	return &durablePromise{
 		asyncResult: newAsyncResult(restateCtx, handle),
@@ -66,6 +67,7 @@ func (d *durablePromise) Peek(output any) (ok bool, err error) {
 	if err != nil {
 		panic(err)
 	}
+	d.ctx.checkStateTransition()
 
 	ar := newAsyncResult(d.ctx, handle)
 	switch result := ar.pollProgressAndLoadValue().(type) {
@@ -98,6 +100,7 @@ func (d *durablePromise) Resolve(value any) error {
 	if err != nil {
 		panic(err)
 	}
+	d.ctx.checkStateTransition()
 
 	ar := newAsyncResult(d.ctx, handle)
 	switch result := ar.pollProgressAndLoadValue().(type) {
@@ -122,6 +125,7 @@ func (d *durablePromise) Reject(reason error) error {
 	if err != nil {
 		panic(err)
 	}
+	d.ctx.checkStateTransition()
 
 	ar := newAsyncResult(d.ctx, handle)
 	switch result := ar.pollProgressAndLoadValue().(type) {

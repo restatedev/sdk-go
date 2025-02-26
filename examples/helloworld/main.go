@@ -10,7 +10,6 @@ import (
 	"net/http"
 	_ "net/http/pprof"
 	"os"
-	"time"
 )
 
 type Greeter struct{}
@@ -30,19 +29,7 @@ func (GreeterCounter) Greet(ctx restate.ObjectContext, name string) (string, err
 
 	restate.Set[uint32](ctx, "count", count)
 
-	runRes, err := restate.Run(ctx, func(ctx restate.RunContext) (string, error) {
-		return "myass", nil
-	})
-	if err != nil {
-		return "", err
-	}
-
-	// Sleep my ass
-	if err := restate.Sleep(ctx, 1*time.Minute); err != nil {
-		return "", err
-	}
-
-	return fmt.Sprintf("You said hi to %s for the %d time! Run returned %s", name, count, runRes), nil
+	return fmt.Sprintf("You said hi to %s for the %d time!", name, count), nil
 }
 
 func main() {

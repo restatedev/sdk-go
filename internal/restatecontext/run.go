@@ -25,6 +25,7 @@ func (restateCtx *ctx) Run(fn func(ctx RunContext) (any, error), output any, opt
 	if err != nil {
 		panic(err)
 	}
+	restateCtx.checkStateTransition()
 
 	restateCtx.runClosures[handle] = func() *pbinternal.VmProposeRunCompletionParameters {
 		now := time.Now()

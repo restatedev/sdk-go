@@ -4,7 +4,19 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"log/slog"
 )
+
+type loggerKey struct{}
+
+func WithLogger(ctx context.Context, logger *slog.Logger) context.Context {
+	return context.WithValue(ctx, loggerKey{}, logger)
+}
+
+func getLogger(ctx context.Context) *slog.Logger {
+	val, _ := ctx.Value(loggerKey{}).(*slog.Logger)
+	return val
+}
 
 func TakeOutputAndWriteOut(ctx context.Context, machine *StateMachine, conn io.WriteCloser) error {
 	buffer, err := machine.TakeOutput(ctx)
