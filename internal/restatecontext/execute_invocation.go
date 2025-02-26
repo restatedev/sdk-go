@@ -16,9 +16,9 @@ func ExecuteInvocation(ctx context.Context, logger *slog.Logger, stateMachine *s
 	// Let's read the input entry
 	invocationInput, err := stateMachine.SysInput(ctx)
 	if err != nil {
-		logger.WarnContext(ctx, "Error when reading invocation input", slog.Any("err", err))
+		logger.WarnContext(ctx, "Error when reading invocation input", log.Error(err))
 		if err = statemachine.ConsumeOutput(ctx, stateMachine, conn); err != nil {
-			logger.WarnContext(ctx, "Error when consuming output", slog.Any("err", err))
+			logger.WarnContext(ctx, "Error when consuming output", log.Error(err))
 			return err
 		}
 		return err
@@ -48,13 +48,14 @@ func invoke(restateCtx *ctx, handler Handler) {
 			// nothing to do, just exit
 			break
 		case *statemachine.SuspensionError:
+		case statemachine.SuspensionError:
 			restateCtx.internalLogger.LogAttrs(restateCtx, slog.LevelInfo, "Suspending invocation")
 			break
 		default:
 			restateCtx.internalLogger.LogAttrs(restateCtx, slog.LevelError, "Invocation panicked, returning error to Restate", slog.Any("err", typ))
 
 			if err := restateCtx.stateMachine.NotifyError(restateCtx, fmt.Sprint(typ), string(debug.Stack())); err != nil {
-				restateCtx.internalLogger.WarnContext(restateCtx, "Error when notifying error to state restateContext", slog.Any("err", err))
+				restateCtx.internalLogger.WarnContext(restateCtx, "Error when notifying error to state restateContext", log.Error(err))
 			}
 
 			break
@@ -62,7 +63,7 @@ func invoke(restateCtx *ctx, handler Handler) {
 
 		// Consume all the state restateContext output as last step
 		if err := statemachine.ConsumeOutput(restateCtx, restateCtx.stateMachine, restateCtx.conn); err != nil {
-			restateCtx.internalLogger.WarnContext(restateCtx, "Error when consuming output", slog.Any("err", err))
+			restateCtx.internalLogger.WarnContext(restateCtx, "Error when consuming output", log.Error(err))
 		}
 	}()
 

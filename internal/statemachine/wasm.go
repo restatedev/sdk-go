@@ -469,7 +469,7 @@ func (sm *StateMachine) TakeNotification(ctx context.Context, handle uint32) (Va
 	}
 	if value.HasFailure() {
 		return ValueFailure{
-			Failure: output.GetFailure(),
+			Failure: value.GetFailure(),
 		}, nil
 	}
 	if value.HasStateKeys() {
