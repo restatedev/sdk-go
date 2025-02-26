@@ -7,14 +7,14 @@ import (
 	restate "github.com/restatedev/sdk-go"
 )
 
-const CANCELED_STATE = "canceled"
+const CanceledState = "canceled"
 
 type BlockingOperation string
 
 const (
-	CALL      BlockingOperation = "CALL"
-	SLEEP     BlockingOperation = "SLEEP"
-	AWAKEABLE BlockingOperation = "AWAKEABLE"
+	CallOp      BlockingOperation = "CALL"
+	SleepOp     BlockingOperation = "SLEEP"
+	AwakeableOp BlockingOperation = "AWAKEABLE"
 )
 
 func init() {
@@ -24,7 +24,7 @@ func init() {
 				func(ctx restate.ObjectContext, operation BlockingOperation) (restate.Void, error) {
 					if _, err := restate.Object[restate.Void](ctx, "CancelTestBlockingService", "", "block").Request(operation); err != nil {
 						if restate.ErrorCode(err) == 409 {
-							restate.Set(ctx, CANCELED_STATE, true)
+							restate.Set(ctx, CanceledState, true)
 							return restate.Void{}, nil
 						}
 						return restate.Void{}, err
@@ -33,7 +33,7 @@ func init() {
 				})).
 			Handler("verifyTest", restate.NewObjectHandler(
 				func(ctx restate.ObjectContext, _ restate.Void) (bool, error) {
-					return restate.Get[bool](ctx, CANCELED_STATE)
+					return restate.Get[bool](ctx, CanceledState)
 				})))
 	REGISTRY.AddDefinition(
 		restate.NewObject("CancelTestBlockingService").
@@ -47,11 +47,11 @@ func init() {
 						return restate.Void{}, err
 					}
 					switch operation {
-					case CALL:
+					case CallOp:
 						return restate.Object[restate.Void](ctx, "CancelTestBlockingService", "", "block").Request(operation)
-					case SLEEP:
+					case SleepOp:
 						return restate.Void{}, restate.Sleep(ctx, 1024*time.Hour*24)
-					case AWAKEABLE:
+					case AwakeableOp:
 						return restate.Awakeable[restate.Void](ctx).Result()
 					default:
 						return restate.Void{}, restate.TerminalError(fmt.Errorf("unexpected operation %s", operation), 400)
