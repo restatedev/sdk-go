@@ -44,7 +44,7 @@ jobs:
         run: go get .
 
       - name: Build Docker image
-        run: KO_DOCKER_REPO=restatedev ko build -B -L github.com/restatedev/sdk-go/test-services
+        run: KO_DOCKER_REPO=restatedev ko build --platform=linux/amd64,linux/arm64 -B -L github.com/restatedev/sdk-go/test-services
 
       - name: Push restatedev/test-services-java:main image
         run: |
