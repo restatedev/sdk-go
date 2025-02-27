@@ -1,14 +1,14 @@
 package mocks
 
 import (
-	"github.com/restatedev/sdk-go/internal/futures"
+	"github.com/restatedev/sdk-go/internal/restatecontext"
 	mock "github.com/stretchr/testify/mock"
 )
 
 // MockAwakeableFuture is a mock type for the AwakeableFuture type
 type MockAwakeableFuture struct {
 	mock.Mock
-	futures.Selectable
+	restatecontext.Selectable
 }
 
 type MockAwakeableFuture_Expecter struct {

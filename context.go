@@ -1,17 +1,17 @@
 package restate
 
 import (
-	"github.com/restatedev/sdk-go/internal/state"
+	"github.com/restatedev/sdk-go/internal/restatecontext"
 )
 
 // RunContext is passed to [Run] closures and provides the limited set of Restate operations that are safe to use there.
-type RunContext = state.RunContext
+type RunContext = restatecontext.RunContext
 
 // Context is an extension of [RunContext] which is passed to Restate service handlers and enables
 // interaction with Restate
 type Context interface {
 	RunContext
-	inner() state.Context
+	inner() restatecontext.Context
 }
 
 // ObjectSharedContext is an extension of [Context] which is passed to shared-mode Virtual Object handlers,

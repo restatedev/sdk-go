@@ -1,15 +1,14 @@
 package mocks
 
 import (
+	"github.com/restatedev/sdk-go/internal/restatecontext"
 	mock "github.com/stretchr/testify/mock"
-
-	"github.com/restatedev/sdk-go/internal/futures"
 )
 
 // MockDurablePromise is a mock type for the DurablePromise type
 type MockDurablePromise struct {
 	mock.Mock
-	futures.Selectable
+	restatecontext.Selectable
 }
 
 type MockDurablePromise_Expecter struct {

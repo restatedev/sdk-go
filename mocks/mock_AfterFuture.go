@@ -1,15 +1,14 @@
 package mocks
 
 import (
+	"github.com/restatedev/sdk-go/internal/restatecontext"
 	mock "github.com/stretchr/testify/mock"
-
-	"github.com/restatedev/sdk-go/internal/futures"
 )
 
 // MockAfterFuture is a mock type for the AfterFuture type
 type MockAfterFuture struct {
 	mock.Mock
-	futures.Selectable
+	restatecontext.Selectable
 }
 
 type MockAfterFuture_Expecter struct {

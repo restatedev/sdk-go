@@ -1,9 +1,9 @@
 package mocks
 
 import (
+	"github.com/restatedev/sdk-go/internal/restatecontext"
 	"testing"
 
-	futures "github.com/restatedev/sdk-go/internal/futures"
 	mock "github.com/stretchr/testify/mock"
 
 	options "github.com/restatedev/sdk-go/internal/options"
@@ -11,8 +11,6 @@ import (
 	rand "github.com/restatedev/sdk-go/internal/rand"
 
 	slog "log/slog"
-
-	state "github.com/restatedev/sdk-go/internal/state"
 
 	time "time"
 )
@@ -33,19 +31,19 @@ func (_m *MockContext) EXPECT() *MockContext_Expecter {
 }
 
 // After provides a mock function with given fields: _a0
-func (_m *MockContext) After(_a0 time.Duration) state.AfterFuture {
+func (_m *MockContext) After(_a0 time.Duration) restatecontext.AfterFuture {
 	ret := _m.Called(_a0)
 
 	if len(ret) == 0 {
 		panic("no return value specified for After")
 	}
 
-	var r0 state.AfterFuture
-	if rf, ok := ret.Get(0).(func(time.Duration) state.AfterFuture); ok {
+	var r0 restatecontext.AfterFuture
+	if rf, ok := ret.Get(0).(func(time.Duration) restatecontext.AfterFuture); ok {
 		r0 = rf(_a0)
 	} else {
 		if ret.Get(0) != nil {
-			r0 = ret.Get(0).(state.AfterFuture)
+			r0 = ret.Get(0).(restatecontext.AfterFuture)
 		}
 	}
 
@@ -70,18 +68,18 @@ func (_c *MockContext_After_Call) Run(run func(_a0 time.Duration)) *MockContext_
 	return _c
 }
 
-func (_c *MockContext_After_Call) Return(_a0 state.AfterFuture) *MockContext_After_Call {
+func (_c *MockContext_After_Call) Return(_a0 restatecontext.AfterFuture) *MockContext_After_Call {
 	_c.Call.Return(_a0)
 	return _c
 }
 
-func (_c *MockContext_After_Call) RunAndReturn(run func(time.Duration) state.AfterFuture) *MockContext_After_Call {
+func (_c *MockContext_After_Call) RunAndReturn(run func(time.Duration) restatecontext.AfterFuture) *MockContext_After_Call {
 	_c.Call.Return(run)
 	return _c
 }
 
 // Awakeable provides a mock function with given fields: _a0
-func (_m *MockContext) Awakeable(_a0 ...options.AwakeableOption) state.AwakeableFuture {
+func (_m *MockContext) Awakeable(_a0 ...options.AwakeableOption) restatecontext.AwakeableFuture {
 	_va := make([]interface{}, len(_a0))
 	for _i := range _a0 {
 		_va[_i] = _a0[_i]
@@ -94,12 +92,12 @@ func (_m *MockContext) Awakeable(_a0 ...options.AwakeableOption) state.Awakeable
 		panic("no return value specified for Awakeable")
 	}
 
-	var r0 state.AwakeableFuture
-	if rf, ok := ret.Get(0).(func(...options.AwakeableOption) state.AwakeableFuture); ok {
+	var r0 restatecontext.AwakeableFuture
+	if rf, ok := ret.Get(0).(func(...options.AwakeableOption) restatecontext.AwakeableFuture); ok {
 		r0 = rf(_a0...)
 	} else {
 		if ret.Get(0) != nil {
-			r0 = ret.Get(0).(state.AwakeableFuture)
+			r0 = ret.Get(0).(restatecontext.AwakeableFuture)
 		}
 	}
 
@@ -131,12 +129,12 @@ func (_c *MockContext_Awakeable_Call) Run(run func(_a0 ...options.AwakeableOptio
 	return _c
 }
 
-func (_c *MockContext_Awakeable_Call) Return(_a0 state.AwakeableFuture) *MockContext_Awakeable_Call {
+func (_c *MockContext_Awakeable_Call) Return(_a0 restatecontext.AwakeableFuture) *MockContext_Awakeable_Call {
 	_c.Call.Return(_a0)
 	return _c
 }
 
-func (_c *MockContext_Awakeable_Call) RunAndReturn(run func(...options.AwakeableOption) state.AwakeableFuture) *MockContext_Awakeable_Call {
+func (_c *MockContext_Awakeable_Call) RunAndReturn(run func(...options.AwakeableOption) restatecontext.AwakeableFuture) *MockContext_Awakeable_Call {
 	_c.Call.Return(run)
 	return _c
 }
@@ -575,7 +573,7 @@ func (_c *MockContext_Log_Call) RunAndReturn(run func() *slog.Logger) *MockConte
 }
 
 // Object provides a mock function with given fields: service, key, method, _a3
-func (_m *MockContext) Object(service string, key string, method string, _a3 ...options.ClientOption) state.Client {
+func (_m *MockContext) Object(service string, key string, method string, _a3 ...options.ClientOption) restatecontext.Client {
 	_va := make([]interface{}, len(_a3))
 	for _i := range _a3 {
 		_va[_i] = _a3[_i]
@@ -589,12 +587,12 @@ func (_m *MockContext) Object(service string, key string, method string, _a3 ...
 		panic("no return value specified for Object")
 	}
 
-	var r0 state.Client
-	if rf, ok := ret.Get(0).(func(string, string, string, ...options.ClientOption) state.Client); ok {
+	var r0 restatecontext.Client
+	if rf, ok := ret.Get(0).(func(string, string, string, ...options.ClientOption) restatecontext.Client); ok {
 		r0 = rf(service, key, method, _a3...)
 	} else {
 		if ret.Get(0) != nil {
-			r0 = ret.Get(0).(state.Client)
+			r0 = ret.Get(0).(restatecontext.Client)
 		}
 	}
 
@@ -629,18 +627,18 @@ func (_c *MockContext_Object_Call) Run(run func(service string, key string, meth
 	return _c
 }
 
-func (_c *MockContext_Object_Call) Return(_a0 state.Client) *MockContext_Object_Call {
+func (_c *MockContext_Object_Call) Return(_a0 restatecontext.Client) *MockContext_Object_Call {
 	_c.Call.Return(_a0)
 	return _c
 }
 
-func (_c *MockContext_Object_Call) RunAndReturn(run func(string, string, string, ...options.ClientOption) state.Client) *MockContext_Object_Call {
+func (_c *MockContext_Object_Call) RunAndReturn(run func(string, string, string, ...options.ClientOption) restatecontext.Client) *MockContext_Object_Call {
 	_c.Call.Return(run)
 	return _c
 }
 
 // Promise provides a mock function with given fields: name, _a1
-func (_m *MockContext) Promise(name string, _a1 ...options.PromiseOption) state.DurablePromise {
+func (_m *MockContext) Promise(name string, _a1 ...options.PromiseOption) restatecontext.DurablePromise {
 	_va := make([]interface{}, len(_a1))
 	for _i := range _a1 {
 		_va[_i] = _a1[_i]
@@ -654,12 +652,12 @@ func (_m *MockContext) Promise(name string, _a1 ...options.PromiseOption) state.
 		panic("no return value specified for Promise")
 	}
 
-	var r0 state.DurablePromise
-	if rf, ok := ret.Get(0).(func(string, ...options.PromiseOption) state.DurablePromise); ok {
+	var r0 restatecontext.DurablePromise
+	if rf, ok := ret.Get(0).(func(string, ...options.PromiseOption) restatecontext.DurablePromise); ok {
 		r0 = rf(name, _a1...)
 	} else {
 		if ret.Get(0) != nil {
-			r0 = ret.Get(0).(state.DurablePromise)
+			r0 = ret.Get(0).(restatecontext.DurablePromise)
 		}
 	}
 
@@ -692,12 +690,12 @@ func (_c *MockContext_Promise_Call) Run(run func(name string, _a1 ...options.Pro
 	return _c
 }
 
-func (_c *MockContext_Promise_Call) Return(_a0 state.DurablePromise) *MockContext_Promise_Call {
+func (_c *MockContext_Promise_Call) Return(_a0 restatecontext.DurablePromise) *MockContext_Promise_Call {
 	_c.Call.Return(_a0)
 	return _c
 }
 
-func (_c *MockContext_Promise_Call) RunAndReturn(run func(string, ...options.PromiseOption) state.DurablePromise) *MockContext_Promise_Call {
+func (_c *MockContext_Promise_Call) RunAndReturn(run func(string, ...options.PromiseOption) restatecontext.DurablePromise) *MockContext_Promise_Call {
 	_c.Call.Return(run)
 	return _c
 }
@@ -784,19 +782,19 @@ func (_c *MockContext_RejectAwakeable_Call) RunAndReturn(run func(string, error)
 }
 
 // Request provides a mock function with no fields
-func (_m *MockContext) Request() *state.Request {
+func (_m *MockContext) Request() *restatecontext.Request {
 	ret := _m.Called()
 
 	if len(ret) == 0 {
 		panic("no return value specified for Request")
 	}
 
-	var r0 *state.Request
-	if rf, ok := ret.Get(0).(func() *state.Request); ok {
+	var r0 *restatecontext.Request
+	if rf, ok := ret.Get(0).(func() *restatecontext.Request); ok {
 		r0 = rf()
 	} else {
 		if ret.Get(0) != nil {
-			r0 = ret.Get(0).(*state.Request)
+			r0 = ret.Get(0).(*restatecontext.Request)
 		}
 	}
 
@@ -820,12 +818,12 @@ func (_c *MockContext_Request_Call) Run(run func()) *MockContext_Request_Call {
 	return _c
 }
 
-func (_c *MockContext_Request_Call) Return(_a0 *state.Request) *MockContext_Request_Call {
+func (_c *MockContext_Request_Call) Return(_a0 *restatecontext.Request) *MockContext_Request_Call {
 	_c.Call.Return(_a0)
 	return _c
 }
 
-func (_c *MockContext_Request_Call) RunAndReturn(run func() *state.Request) *MockContext_Request_Call {
+func (_c *MockContext_Request_Call) RunAndReturn(run func() *restatecontext.Request) *MockContext_Request_Call {
 	_c.Call.Return(run)
 	return _c
 }
@@ -880,7 +878,7 @@ func (_c *MockContext_ResolveAwakeable_Call) RunAndReturn(run func(string, any, 
 }
 
 // Run provides a mock function with given fields: fn, output, _a2
-func (_m *MockContext) Run(fn func(state.RunContext) (any, error), output any, _a2 ...options.RunOption) error {
+func (_m *MockContext) Run(fn func(restatecontext.RunContext) (any, error), output any, _a2 ...options.RunOption) error {
 	_va := make([]interface{}, len(_a2))
 	for _i := range _a2 {
 		_va[_i] = _a2[_i]
@@ -895,7 +893,7 @@ func (_m *MockContext) Run(fn func(state.RunContext) (any, error), output any, _
 	}
 
 	var r0 error
-	if rf, ok := ret.Get(0).(func(func(state.RunContext) (any, error), any, ...options.RunOption) error); ok {
+	if rf, ok := ret.Get(0).(func(func(restatecontext.RunContext) (any, error), any, ...options.RunOption) error); ok {
 		r0 = rf(fn, output, _a2...)
 	} else {
 		r0 = ret.Error(0)
@@ -910,7 +908,7 @@ type MockContext_Run_Call struct {
 }
 
 // Run is a helper method to define mock.On call
-//   - fn func(state.RunContext)(any , error)
+//   - fn func(restatecontext.RunContext)(any , error)
 //   - output any
 //   - _a2 ...options.RunOption
 func (_e *MockContext_Expecter) Run(fn interface{}, output interface{}, _a2 ...interface{}) *MockContext_Run_Call {
@@ -918,7 +916,7 @@ func (_e *MockContext_Expecter) Run(fn interface{}, output interface{}, _a2 ...i
 		append([]interface{}{fn, output}, _a2...)...)}
 }
 
-func (_c *MockContext_Run_Call) Run(run func(fn func(state.RunContext) (any, error), output any, _a2 ...options.RunOption)) *MockContext_Run_Call {
+func (_c *MockContext_Run_Call) Run(run func(fn func(restatecontext.RunContext) (any, error), output any, _a2 ...options.RunOption)) *MockContext_Run_Call {
 	_c.Call.Run(func(args mock.Arguments) {
 		variadicArgs := make([]options.RunOption, len(args)-2)
 		for i, a := range args[2:] {
@@ -926,7 +924,7 @@ func (_c *MockContext_Run_Call) Run(run func(fn func(state.RunContext) (any, err
 				variadicArgs[i] = a.(options.RunOption)
 			}
 		}
-		run(args[0].(func(state.RunContext) (any, error)), args[1].(any), variadicArgs...)
+		run(args[0].(func(restatecontext.RunContext) (any, error)), args[1].(any), variadicArgs...)
 	})
 	return _c
 }
@@ -936,13 +934,13 @@ func (_c *MockContext_Run_Call) Return(_a0 error) *MockContext_Run_Call {
 	return _c
 }
 
-func (_c *MockContext_Run_Call) RunAndReturn(run func(func(state.RunContext) (any, error), any, ...options.RunOption) error) *MockContext_Run_Call {
+func (_c *MockContext_Run_Call) RunAndReturn(run func(func(restatecontext.RunContext) (any, error), any, ...options.RunOption) error) *MockContext_Run_Call {
 	_c.Call.Return(run)
 	return _c
 }
 
 // Select provides a mock function with given fields: futs
-func (_m *MockContext) Select(futs ...futures.Selectable) state.Selector {
+func (_m *MockContext) Select(futs ...restatecontext.Selectable) restatecontext.Selector {
 	_va := make([]interface{}, len(futs))
 	for _i := range futs {
 		_va[_i] = futs[_i]
@@ -955,12 +953,12 @@ func (_m *MockContext) Select(futs ...futures.Selectable) state.Selector {
 		panic("no return value specified for Select")
 	}
 
-	var r0 state.Selector
-	if rf, ok := ret.Get(0).(func(...futures.Selectable) state.Selector); ok {
+	var r0 restatecontext.Selector
+	if rf, ok := ret.Get(0).(func(...restatecontext.Selectable) restatecontext.Selector); ok {
 		r0 = rf(futs...)
 	} else {
 		if ret.Get(0) != nil {
-			r0 = ret.Get(0).(state.Selector)
+			r0 = ret.Get(0).(restatecontext.Selector)
 		}
 	}
 
@@ -973,18 +971,18 @@ type MockContext_Select_Call struct {
 }
 
 // Select is a helper method to define mock.On call
-//   - futs ...futures.Selectable
+//   - futs ...restatecontext.Selectable
 func (_e *MockContext_Expecter) Select(futs ...interface{}) *MockContext_Select_Call {
 	return &MockContext_Select_Call{Call: _e.mock.On("Select",
 		append([]interface{}{}, futs...)...)}
 }
 
-func (_c *MockContext_Select_Call) Run(run func(futs ...futures.Selectable)) *MockContext_Select_Call {
+func (_c *MockContext_Select_Call) Run(run func(futs ...restatecontext.Selectable)) *MockContext_Select_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		variadicArgs := make([]futures.Selectable, len(args)-0)
+		variadicArgs := make([]restatecontext.Selectable, len(args)-0)
 		for i, a := range args[0:] {
 			if a != nil {
-				variadicArgs[i] = a.(futures.Selectable)
+				variadicArgs[i] = a.(restatecontext.Selectable)
 			}
 		}
 		run(variadicArgs...)
@@ -992,18 +990,18 @@ func (_c *MockContext_Select_Call) Run(run func(futs ...futures.Selectable)) *Mo
 	return _c
 }
 
-func (_c *MockContext_Select_Call) Return(_a0 state.Selector) *MockContext_Select_Call {
+func (_c *MockContext_Select_Call) Return(_a0 restatecontext.Selector) *MockContext_Select_Call {
 	_c.Call.Return(_a0)
 	return _c
 }
 
-func (_c *MockContext_Select_Call) RunAndReturn(run func(...futures.Selectable) state.Selector) *MockContext_Select_Call {
+func (_c *MockContext_Select_Call) RunAndReturn(run func(...restatecontext.Selectable) restatecontext.Selector) *MockContext_Select_Call {
 	_c.Call.Return(run)
 	return _c
 }
 
 // Service provides a mock function with given fields: service, method, _a2
-func (_m *MockContext) Service(service string, method string, _a2 ...options.ClientOption) state.Client {
+func (_m *MockContext) Service(service string, method string, _a2 ...options.ClientOption) restatecontext.Client {
 	_va := make([]interface{}, len(_a2))
 	for _i := range _a2 {
 		_va[_i] = _a2[_i]
@@ -1017,12 +1015,12 @@ func (_m *MockContext) Service(service string, method string, _a2 ...options.Cli
 		panic("no return value specified for Service")
 	}
 
-	var r0 state.Client
-	if rf, ok := ret.Get(0).(func(string, string, ...options.ClientOption) state.Client); ok {
+	var r0 restatecontext.Client
+	if rf, ok := ret.Get(0).(func(string, string, ...options.ClientOption) restatecontext.Client); ok {
 		r0 = rf(service, method, _a2...)
 	} else {
 		if ret.Get(0) != nil {
-			r0 = ret.Get(0).(state.Client)
+			r0 = ret.Get(0).(restatecontext.Client)
 		}
 	}
 
@@ -1056,12 +1054,12 @@ func (_c *MockContext_Service_Call) Run(run func(service string, method string, 
 	return _c
 }
 
-func (_c *MockContext_Service_Call) Return(_a0 state.Client) *MockContext_Service_Call {
+func (_c *MockContext_Service_Call) Return(_a0 restatecontext.Client) *MockContext_Service_Call {
 	_c.Call.Return(_a0)
 	return _c
 }
 
-func (_c *MockContext_Service_Call) RunAndReturn(run func(string, string, ...options.ClientOption) state.Client) *MockContext_Service_Call {
+func (_c *MockContext_Service_Call) RunAndReturn(run func(string, string, ...options.ClientOption) restatecontext.Client) *MockContext_Service_Call {
 	_c.Call.Return(run)
 	return _c
 }
@@ -1210,7 +1208,7 @@ func (_c *MockContext_Value_Call) RunAndReturn(run func(any) any) *MockContext_V
 }
 
 // Workflow provides a mock function with given fields: seservice, workflowID, method, _a3
-func (_m *MockContext) Workflow(seservice string, workflowID string, method string, _a3 ...options.ClientOption) state.Client {
+func (_m *MockContext) Workflow(seservice string, workflowID string, method string, _a3 ...options.ClientOption) restatecontext.Client {
 	_va := make([]interface{}, len(_a3))
 	for _i := range _a3 {
 		_va[_i] = _a3[_i]
@@ -1224,12 +1222,12 @@ func (_m *MockContext) Workflow(seservice string, workflowID string, method stri
 		panic("no return value specified for Workflow")
 	}
 
-	var r0 state.Client
-	if rf, ok := ret.Get(0).(func(string, string, string, ...options.ClientOption) state.Client); ok {
+	var r0 restatecontext.Client
+	if rf, ok := ret.Get(0).(func(string, string, string, ...options.ClientOption) restatecontext.Client); ok {
 		r0 = rf(seservice, workflowID, method, _a3...)
 	} else {
 		if ret.Get(0) != nil {
-			r0 = ret.Get(0).(state.Client)
+			r0 = ret.Get(0).(restatecontext.Client)
 		}
 	}
 
@@ -1264,12 +1262,12 @@ func (_c *MockContext_Workflow_Call) Run(run func(seservice string, workflowID s
 	return _c
 }
 
-func (_c *MockContext_Workflow_Call) Return(_a0 state.Client) *MockContext_Workflow_Call {
+func (_c *MockContext_Workflow_Call) Return(_a0 restatecontext.Client) *MockContext_Workflow_Call {
 	_c.Call.Return(_a0)
 	return _c
 }
 
-func (_c *MockContext_Workflow_Call) RunAndReturn(run func(string, string, string, ...options.ClientOption) state.Client) *MockContext_Workflow_Call {
+func (_c *MockContext_Workflow_Call) RunAndReturn(run func(string, string, string, ...options.ClientOption) restatecontext.Client) *MockContext_Workflow_Call {
 	_c.Call.Return(run)
 	return _c
 }

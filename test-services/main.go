@@ -10,6 +10,14 @@ import (
 )
 
 func main() {
+	// Accommodating for verification tests here
+	logging := strings.ToLower(os.Getenv("RESTATE_LOGGING"))
+	if logging == "error" {
+		slog.SetLogLoggerLevel(slog.LevelError)
+	} else if logging == "warn" {
+		slog.SetLogLoggerLevel(slog.LevelWarn)
+	}
+
 	services := "*"
 	if os.Getenv("SERVICES") != "" {
 		services = os.Getenv("SERVICES")

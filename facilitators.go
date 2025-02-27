@@ -1,13 +1,12 @@
 package restate
 
 import (
+	"github.com/restatedev/sdk-go/internal/converters"
+	"github.com/restatedev/sdk-go/internal/restatecontext"
 	"time"
 
-	"github.com/restatedev/sdk-go/internal/converters"
-	"github.com/restatedev/sdk-go/internal/futures"
 	"github.com/restatedev/sdk-go/internal/options"
 	"github.com/restatedev/sdk-go/internal/rand"
-	"github.com/restatedev/sdk-go/internal/state"
 )
 
 // Rand returns a random source which will give deterministic results for a given invocation
@@ -31,7 +30,7 @@ func After(ctx Context, d time.Duration) AfterFuture {
 
 // After is a handle on a Sleep operation which allows you to do other work concurrently
 // with the sleep.
-type AfterFuture = state.AfterFuture
+type AfterFuture = restatecontext.AfterFuture
 
 // Service gets a Service request client by service and method name
 func Service[O any](ctx Context, service string, method string, options ...options.ClientOption) Client[any, O] {
@@ -79,7 +78,7 @@ type SendClient[I any] interface {
 }
 
 type outputClient[O any] struct {
-	inner state.Client
+	inner restatecontext.Client
 }
 
 func (t outputClient[O]) Request(input any, options ...options.RequestOption) (output O, err error) {
@@ -125,7 +124,7 @@ type ResponseFuture[O any] interface {
 	// It is *not* safe to call this in a goroutine - use Context.Select if you
 	// want to wait on multiple results at once.
 	Response() (O, error)
-	futures.Selectable
+	restatecontext.Selectable
 }
 
 // Awakeable returns a Restate awakeable; a 'promise' to a future
@@ -143,7 +142,7 @@ type AwakeableFuture[T any] interface {
 	// It is *not* safe to call this in a goroutine - use Context.Select if you
 	// want to wait on multiple results at once.
 	Result() (T, error)
-	futures.Selectable
+	restatecontext.Selectable
 }
 
 // ResolveAwakeable allows an awakeable (not necessarily from this service) to be
@@ -158,16 +157,16 @@ func RejectAwakeable(ctx Context, id string, reason error) {
 	ctx.inner().RejectAwakeable(id, reason)
 }
 
-func Select(ctx Context, futs ...futures.Selectable) Selector {
+func Select(ctx Context, futs ...restatecontext.Selectable) Selector {
 	return ctx.inner().Select(futs...)
 }
 
 // Selectable is a marker interface for futures that can be selected over with [Select]
-type Selectable = futures.Selectable
+type Selectable = restatecontext.Selectable
 
 // Selector is an iterator over a list of blocking Restate operations that are running
 // in the background.
-type Selector = state.Selector
+type Selector = restatecontext.Selector
 
 // Run runs the function (fn), storing final results (including terminal errors)
 // durably in the journal, or otherwise for transient errors stopping execution
@@ -240,11 +239,11 @@ type DurablePromise[T any] interface {
 	// Reject rejects the promise with an error, returning an error if it was already completed
 	// or if the invocation was cancelled.
 	Reject(reason error) error
-	futures.Selectable
+	restatecontext.Selectable
 }
 
 type durablePromise[T any] struct {
-	state.DurablePromise
+	restatecontext.DurablePromise
 }
 
 func (t durablePromise[T]) Result() (output T, err error) {

@@ -5,6 +5,10 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	pbinternal "github.com/restatedev/sdk-go/internal/generated"
+	"github.com/restatedev/sdk-go/internal/restatecontext"
+	"github.com/restatedev/sdk-go/internal/statemachine"
+	"io"
 	"log/slog"
 	"net"
 	"net/http"
@@ -13,20 +17,31 @@ import (
 	"strings"
 
 	restate "github.com/restatedev/sdk-go"
-	protocol "github.com/restatedev/sdk-go/generated/dev/restate/service"
 	"github.com/restatedev/sdk-go/internal"
 	"github.com/restatedev/sdk-go/internal/identity"
 	"github.com/restatedev/sdk-go/internal/log"
-	"github.com/restatedev/sdk-go/internal/state"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/propagation"
 	"golang.org/x/net/http2"
 )
 
-const minServiceProtocolVersion protocol.ServiceProtocolVersion = protocol.ServiceProtocolVersion_V1
-const maxServiceProtocolVersion protocol.ServiceProtocolVersion = protocol.ServiceProtocolVersion_V1
-const minServiceDiscoveryProtocolVersion protocol.ServiceDiscoveryProtocolVersion = protocol.ServiceDiscoveryProtocolVersion_V1
-const maxServiceDiscoveryProtocolVersion protocol.ServiceDiscoveryProtocolVersion = protocol.ServiceDiscoveryProtocolVersion_V1
+type ServiceProtocolVersion int32
+type ServiceDiscoveryProtocolVersion int32
+
+const (
+	ServiceProtocolVersion_SERVICE_PROTOCOL_VERSION_UNSPECIFIED                    ServiceProtocolVersion          = 0
+	ServiceProtocolVersion_V1                                                      ServiceProtocolVersion          = 1
+	ServiceProtocolVersion_V2                                                      ServiceProtocolVersion          = 2
+	ServiceProtocolVersion_V3                                                      ServiceProtocolVersion          = 3
+	ServiceProtocolVersion_V4                                                      ServiceProtocolVersion          = 4
+	ServiceDiscoveryProtocolVersion_SERVICE_DISCOVERY_PROTOCOL_VERSION_UNSPECIFIED ServiceDiscoveryProtocolVersion = 0
+	ServiceDiscoveryProtocolVersion_V1                                             ServiceDiscoveryProtocolVersion = 1
+	ServiceDiscoveryProtocolVersion_V2                                             ServiceDiscoveryProtocolVersion = 2
+	minServiceProtocolVersion                                                                                      = ServiceProtocolVersion_V4
+	maxServiceProtocolVersion                                                                                      = ServiceProtocolVersion_V4
+	minServiceDiscoveryProtocolVersion                                                                             = ServiceDiscoveryProtocolVersion_V1
+	maxServiceDiscoveryProtocolVersion                                                                             = ServiceDiscoveryProtocolVersion_V2
+)
 
 var xRestateServer = `restate-sdk-go/unknown`
 
@@ -115,7 +130,7 @@ func (r *Restate) discover() (resource *internal.Endpoint, err error) {
 	resource = &internal.Endpoint{
 		ProtocolMode:       r.protocolMode,
 		MinProtocolVersion: int32(minServiceProtocolVersion),
-		MaxProtocolVersion: int32(maxServiceDiscoveryProtocolVersion),
+		MaxProtocolVersion: int32(maxServiceProtocolVersion),
 		Services:           make([]internal.Service, 0, len(r.definitions)),
 	}
 
@@ -146,7 +161,7 @@ func (r *Restate) discover() (resource *internal.Endpoint, err error) {
 	return
 }
 
-func (r *Restate) discoverHandler(writer http.ResponseWriter, req *http.Request) {
+func (r *Restate) handleDiscoveryRequest(writer http.ResponseWriter, req *http.Request) {
 	r.systemLog.DebugContext(req.Context(), "Processing discovery request")
 
 	acceptVersionsString := req.Header.Get("accept")
@@ -159,7 +174,7 @@ func (r *Restate) discoverHandler(writer http.ResponseWriter, req *http.Request)
 
 	serviceDiscoveryProtocolVersion := selectSupportedServiceDiscoveryProtocolVersion(acceptVersionsString)
 
-	if serviceDiscoveryProtocolVersion == protocol.ServiceDiscoveryProtocolVersion_SERVICE_DISCOVERY_PROTOCOL_VERSION_UNSPECIFIED {
+	if serviceDiscoveryProtocolVersion == ServiceDiscoveryProtocolVersion_SERVICE_DISCOVERY_PROTOCOL_VERSION_UNSPECIFIED {
 		writer.WriteHeader(http.StatusUnsupportedMediaType)
 		writer.Write([]byte(fmt.Sprintf("Unsupported service discovery protocol version '%s'", acceptVersionsString)))
 		return
@@ -181,15 +196,14 @@ func (r *Restate) discoverHandler(writer http.ResponseWriter, req *http.Request)
 		return
 	}
 
-	writer.Header().Add("x-restate-server", xRestateServer)
 	writer.Header().Add("Content-Type", serviceDiscoveryProtocolVersionToHeaderValue(serviceDiscoveryProtocolVersion))
 	if _, err := writer.Write(bytes); err != nil {
 		r.systemLog.LogAttrs(req.Context(), slog.LevelError, "Failed to write discovery information", log.Error(err))
 	}
 }
 
-func selectSupportedServiceDiscoveryProtocolVersion(accept string) protocol.ServiceDiscoveryProtocolVersion {
-	maxVersion := protocol.ServiceDiscoveryProtocolVersion_SERVICE_DISCOVERY_PROTOCOL_VERSION_UNSPECIFIED
+func selectSupportedServiceDiscoveryProtocolVersion(accept string) ServiceDiscoveryProtocolVersion {
+	maxVersion := ServiceDiscoveryProtocolVersion_SERVICE_DISCOVERY_PROTOCOL_VERSION_UNSPECIFIED
 
 	for _, versionString := range strings.Split(accept, ",") {
 		version := parseServiceDiscoveryProtocolVersion(versionString)
@@ -201,42 +215,62 @@ func selectSupportedServiceDiscoveryProtocolVersion(accept string) protocol.Serv
 	return maxVersion
 }
 
-func parseServiceDiscoveryProtocolVersion(versionString string) protocol.ServiceDiscoveryProtocolVersion {
+func parseServiceDiscoveryProtocolVersion(versionString string) ServiceDiscoveryProtocolVersion {
 	if strings.TrimSpace(versionString) == "application/vnd.restate.endpointmanifest.v1+json" {
-		return protocol.ServiceDiscoveryProtocolVersion_V1
+		return ServiceDiscoveryProtocolVersion_V1
+	}
+	if strings.TrimSpace(versionString) == "application/vnd.restate.endpointmanifest.v2+json" {
+		return ServiceDiscoveryProtocolVersion_V2
 	}
 
-	return protocol.ServiceDiscoveryProtocolVersion_SERVICE_DISCOVERY_PROTOCOL_VERSION_UNSPECIFIED
+	return ServiceDiscoveryProtocolVersion_SERVICE_DISCOVERY_PROTOCOL_VERSION_UNSPECIFIED
 }
 
-func isServiceDiscoveryProtocolVersionSupported(version protocol.ServiceDiscoveryProtocolVersion) bool {
+func isServiceDiscoveryProtocolVersionSupported(version ServiceDiscoveryProtocolVersion) bool {
 	return version >= minServiceDiscoveryProtocolVersion && version <= maxServiceDiscoveryProtocolVersion
 }
 
-func serviceDiscoveryProtocolVersionToHeaderValue(serviceDiscoveryProtocolVersion protocol.ServiceDiscoveryProtocolVersion) string {
+func serviceDiscoveryProtocolVersionToHeaderValue(serviceDiscoveryProtocolVersion ServiceDiscoveryProtocolVersion) string {
 	switch serviceDiscoveryProtocolVersion {
-	case protocol.ServiceDiscoveryProtocolVersion_V1:
+	case ServiceDiscoveryProtocolVersion_V1:
 		return "application/vnd.restate.endpointmanifest.v1+json"
+	case ServiceDiscoveryProtocolVersion_V2:
+		return "application/vnd.restate.endpointmanifest.v2+json"
 	}
 	panic(fmt.Sprintf("unexpected service discovery protocol version %d", serviceDiscoveryProtocolVersion))
 }
 
-func parseServiceProtocolVersion(versionString string) protocol.ServiceProtocolVersion {
+func parseServiceProtocolVersion(versionString string) ServiceProtocolVersion {
 	if strings.TrimSpace(versionString) == "application/vnd.restate.invocation.v1" {
-		return protocol.ServiceProtocolVersion_V1
+		return ServiceProtocolVersion_V1
+	}
+	if strings.TrimSpace(versionString) == "application/vnd.restate.invocation.v2" {
+		return ServiceProtocolVersion_V2
+	}
+	if strings.TrimSpace(versionString) == "application/vnd.restate.invocation.v3" {
+		return ServiceProtocolVersion_V3
+	}
+	if strings.TrimSpace(versionString) == "application/vnd.restate.invocation.v4" {
+		return ServiceProtocolVersion_V4
 	}
 
-	return protocol.ServiceProtocolVersion_SERVICE_PROTOCOL_VERSION_UNSPECIFIED
+	return ServiceProtocolVersion_SERVICE_PROTOCOL_VERSION_UNSPECIFIED
 }
 
-func isServiceProtocolVersionSupported(version protocol.ServiceProtocolVersion) bool {
+func isServiceProtocolVersionSupported(version ServiceProtocolVersion) bool {
 	return version >= minServiceProtocolVersion && version <= maxServiceProtocolVersion
 }
 
-func serviceProtocolVersionToHeaderValue(serviceProtocolVersion protocol.ServiceProtocolVersion) string {
+func serviceProtocolVersionToHeaderValue(serviceProtocolVersion ServiceProtocolVersion) string {
 	switch serviceProtocolVersion {
-	case protocol.ServiceProtocolVersion_V1:
+	case ServiceProtocolVersion_V1:
 		return "application/vnd.restate.invocation.v1"
+	case ServiceProtocolVersion_V2:
+		return "application/vnd.restate.invocation.v2"
+	case ServiceProtocolVersion_V3:
+		return "application/vnd.restate.invocation.v3"
+	case ServiceProtocolVersion_V4:
+		return "application/vnd.restate.invocation.v4"
 	}
 	panic(fmt.Sprintf("unexpected service protocol version %d", serviceProtocolVersion))
 }
@@ -247,46 +281,117 @@ type serviceMethod struct {
 }
 
 // takes care of function call
-func (r *Restate) callHandler(serviceProtocolVersion protocol.ServiceProtocolVersion, service, method string, writer http.ResponseWriter, request *http.Request) {
+func (r *Restate) handleInvokeRequest(service, method string, writer http.ResponseWriter, request *http.Request) {
+	ctx := request.Context()
 	serviceMethod := fmt.Sprintf("%s/%s", service, method)
-
 	logger := r.systemLog.With("method", slog.StringValue(serviceMethod))
-
-	writer.Header().Add("x-restate-server", xRestateServer)
-	writer.Header().Add("content-type", serviceProtocolVersionToHeaderValue(serviceProtocolVersion))
 
 	definition, ok := r.definitions[service]
 	if !ok {
-		logger.WarnContext(request.Context(), "Service not found")
+		logger.WarnContext(ctx, "Service not found")
 		writer.WriteHeader(http.StatusNotFound)
 		return
 	}
 	handler, ok := definition.Handlers()[method]
 	if !ok {
-		logger.WarnContext(request.Context(), "Method not found on service")
+		logger.WarnContext(ctx, "Method not found on service")
 		writer.WriteHeader(http.StatusNotFound)
 	}
 
-	writer.WriteHeader(200)
+	// Instantiate vm
+	core, err := statemachine.NewCore(ctx)
+	if err != nil {
+		return
+	}
+	var headers []*pbinternal.Header
+	for k, v := range request.Header {
+		header := pbinternal.Header{}
+		header.SetKey(k)
+		header.SetValue(v[0])
+		headers = append(headers, &header)
+	}
+	stateMachine, err := core.NewStateMachine(ctx, headers)
+	if err != nil {
+		logger.WarnContext(ctx, "Error when instantiating the state machine", slog.Any("err", err))
+		writer.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+
+	// Free state machine at the end of the request
+	defer func() {
+		if err = stateMachine.Free(ctx); err != nil {
+			logger.WarnContext(ctx, "Error when freeing the state machine", slog.Any("err", err))
+		}
+		if err = core.Close(ctx); err != nil {
+			logger.WarnContext(ctx, "Error when closing the core", slog.Any("err", err))
+		}
+	}()
+
+	// Write response headers
+	responseHeaders, err := stateMachine.GetResponseHead(ctx)
+	if err != nil {
+		logger.WarnContext(ctx, "Error when getting response head from the state machine", slog.Any("err", err))
+		writer.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+	for _, h := range responseHeaders.GetHeaders() {
+		writer.Header().Add(h.GetKey(), h.GetValue())
+	}
 
 	conn := newConnection(writer, request)
 
-	defer conn.Close()
+	// Now buffer input entries until the state machine is ready to execute
+	buf := make([]byte, 1024)
+	for {
+		isReadyToExecute, err := stateMachine.IsReadyToExecute(ctx)
+		if err != nil {
+			logger.WarnContext(ctx, "Error when preparing the state machine", slog.Any("err", err))
+			writer.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+		if isReadyToExecute {
+			break
+		}
+		read, err := conn.Read(buf)
+		if err == io.EOF {
+			if err = stateMachine.NotifyInputClosed(ctx); err != nil {
+				logger.WarnContext(ctx, "Error when notifying input closed to the state machine", slog.Any("err", err))
+				writer.WriteHeader(http.StatusInternalServerError)
+				return
+			}
+		} else if err != nil {
+			logger.WarnContext(ctx, "Error when reading the input stream", slog.Any("err", err))
+			writer.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+		if read != 0 {
+			if err = stateMachine.NotifyInput(ctx, buf[0:read]); err != nil {
+				logger.WarnContext(ctx, "Error when notifying input to the state machine", slog.Any("err", err))
+				writer.WriteHeader(http.StatusInternalServerError)
+				return
+			}
+		}
+	}
 
-	machine := state.NewMachine(handler, conn, request.Header)
+	// From this point on, we're good,
+	// let's send back 200 and start processing
+	writer.WriteHeader(200)
 
 	logHandler := r.logHandler.WithAttrs([]slog.Attr{
 		slog.String("method", serviceMethod),
 	})
 
-	if err := machine.Start(request.Context(), r.dropReplayLogs, logHandler); err != nil {
-		r.systemLog.LogAttrs(request.Context(), slog.LevelError, "Failed to handle invocation", log.Error(err))
+	// Run the handler
+	if err := restatecontext.ExecuteInvocation(ctx, logger, stateMachine, conn, handler, r.dropReplayLogs, logHandler, request.Header, buf); err != nil {
+		r.systemLog.LogAttrs(ctx, slog.LevelError, "Failed to handle invocation", log.Error(err))
 	}
 }
 
 func (r *Restate) handler(writer http.ResponseWriter, request *http.Request) {
 	ctx := otel.GetTextMapPropagator().Extract(request.Context(), propagation.HeaderCarrier(request.Header))
 	request = request.WithContext(ctx)
+
+	writer.Header().Add("x-restate-server", xRestateServer)
 
 	if r.keySet != nil {
 		if err := identity.ValidateRequestIdentity(r.keySet, request.RequestURI, request.Header); err != nil {
@@ -300,7 +405,7 @@ func (r *Restate) handler(writer http.ResponseWriter, request *http.Request) {
 	}
 
 	if request.RequestURI == "/discover" {
-		r.discoverHandler(writer, request)
+		r.handleDiscoveryRequest(writer, request)
 		return
 	}
 
@@ -327,17 +432,6 @@ func (r *Restate) handler(writer http.ResponseWriter, request *http.Request) {
 		return
 	}
 
-	serviceProtocolVersion := parseServiceProtocolVersion(serviceProtocolVersionString)
-
-	if !isServiceProtocolVersionSupported(serviceProtocolVersion) {
-		r.systemLog.LogAttrs(request.Context(), slog.LevelError, "Unsupported service protocol version", slog.String("version", serviceProtocolVersionString))
-
-		writer.WriteHeader(http.StatusUnsupportedMediaType)
-		writer.Write([]byte(fmt.Sprintf("Unsupported service protocol version '%s'", serviceProtocolVersionString)))
-
-		return
-	}
-
 	// we expecting the uri to be something like `/invoke/{service}/{method}`
 	// so
 	if !strings.HasPrefix(request.RequestURI, "/invoke/") {
@@ -354,7 +448,7 @@ func (r *Restate) handler(writer http.ResponseWriter, request *http.Request) {
 		return
 	}
 
-	r.callHandler(serviceProtocolVersion, parts[0], parts[1], writer, request)
+	r.handleInvokeRequest(parts[0], parts[1], writer, request)
 }
 
 // Handler obtains a [http.HandlerFunc] representing the bound services which can be passed to other types of server.
@@ -385,6 +479,8 @@ func (r *Restate) Start(ctx context.Context, address string) error {
 	if err != nil {
 		return fmt.Errorf("failed to listen on address %s: %w", address, err)
 	}
+
+	slog.Info(fmt.Sprintf("Started listening on %s", listener.Addr()))
 
 	var h2server http2.Server
 

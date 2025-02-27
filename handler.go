@@ -2,12 +2,12 @@ package restate
 
 import (
 	"fmt"
+	"github.com/restatedev/sdk-go/internal/restatecontext"
 	"net/http"
 
 	"github.com/restatedev/sdk-go/encoding"
 	"github.com/restatedev/sdk-go/internal"
 	"github.com/restatedev/sdk-go/internal/options"
-	"github.com/restatedev/sdk-go/internal/state"
 )
 
 // Void is a placeholder to signify 'no value' where a type is otherwise needed. It can be used in several contexts:
@@ -39,7 +39,7 @@ type serviceHandler[I any, O any] struct {
 	options options.HandlerOptions
 }
 
-var _ state.Handler = (*serviceHandler[struct{}, struct{}])(nil)
+var _ restatecontext.Handler = (*serviceHandler[struct{}, struct{}])(nil)
 
 // NewServiceHandler converts a function of signature [ServiceHandlerFn] into a handler on a Restate service.
 func NewServiceHandler[I any, O any](fn ServiceHandlerFn[I, O], opts ...options.HandlerOption) *serviceHandler[I, O] {
@@ -53,7 +53,7 @@ func NewServiceHandler[I any, O any](fn ServiceHandlerFn[I, O], opts ...options.
 	}
 }
 
-func (h *serviceHandler[I, O]) Call(ctx state.Context, bytes []byte) ([]byte, error) {
+func (h *serviceHandler[I, O]) Call(ctx restatecontext.Context, bytes []byte) ([]byte, error) {
 	var input I
 	if err := encoding.Unmarshal(h.options.Codec, bytes, &input); err != nil {
 		return nil, TerminalError(fmt.Errorf("request could not be decoded into handler input type: %w", err), http.StatusBadRequest)
@@ -102,7 +102,7 @@ type objectHandler[I any, O any] struct {
 	handlerType internal.ServiceHandlerType
 }
 
-var _ state.Handler = (*objectHandler[struct{}, struct{}])(nil)
+var _ restatecontext.Handler = (*objectHandler[struct{}, struct{}])(nil)
 
 // NewObjectHandler converts a function of signature [ObjectHandlerFn] into an exclusive-mode handler on a Virtual Object.
 // The handler will have access to a full [ObjectContext] which may mutate state.
@@ -133,10 +133,10 @@ func NewObjectSharedHandler[I any, O any](fn ObjectSharedHandlerFn[I, O], opts .
 }
 
 type ctxWrapper struct {
-	state.Context
+	restatecontext.Context
 }
 
-func (o ctxWrapper) inner() state.Context {
+func (o ctxWrapper) inner() restatecontext.Context {
 	return o.Context
 }
 func (o ctxWrapper) object()          {}
@@ -144,7 +144,7 @@ func (o ctxWrapper) exclusiveObject() {}
 func (o ctxWrapper) workflow()        {}
 func (o ctxWrapper) runWorkflow()     {}
 
-func (h *objectHandler[I, O]) Call(ctx state.Context, bytes []byte) ([]byte, error) {
+func (h *objectHandler[I, O]) Call(ctx restatecontext.Context, bytes []byte) ([]byte, error) {
 	var input I
 	if err := encoding.Unmarshal(h.options.Codec, bytes, &input); err != nil {
 		return nil, TerminalError(fmt.Errorf("request could not be decoded into handler input type: %w", err), http.StatusBadRequest)
@@ -203,7 +203,7 @@ type workflowHandler[I any, O any] struct {
 	handlerType internal.ServiceHandlerType
 }
 
-var _ state.Handler = (*workflowHandler[struct{}, struct{}])(nil)
+var _ restatecontext.Handler = (*workflowHandler[struct{}, struct{}])(nil)
 
 // NewWorkflowHandler converts a function of signature [WorkflowHandlerFn] into the 'Run' handler on a Workflow.
 // The handler will have access to a full [WorkflowContext] which may mutate state.
@@ -233,7 +233,7 @@ func NewWorkflowSharedHandler[I any, O any](fn WorkflowSharedHandlerFn[I, O], op
 	}
 }
 
-func (h *workflowHandler[I, O]) Call(ctx state.Context, bytes []byte) ([]byte, error) {
+func (h *workflowHandler[I, O]) Call(ctx restatecontext.Context, bytes []byte) ([]byte, error) {
 	var input I
 	if err := encoding.Unmarshal(h.options.Codec, bytes, &input); err != nil {
 		return nil, TerminalError(fmt.Errorf("request could not be decoded into handler input type: %w", err), http.StatusBadRequest)

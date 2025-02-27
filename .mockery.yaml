@@ -4,17 +4,16 @@ resolve-type-alias: false
 dir: mocks
 outPkg: mocks
 packages:
-  github.com/restatedev/sdk-go/internal/state:
+  github.com/restatedev/sdk-go/internal/restatecontext:
     interfaces:
       # these have been manually edited. If you want to regenerate, uncomment here,
       # generate, and then make sure the previous diffs are carried over!
-      # AfterFuture:
-      # AwakeableFuture:
-      # Client:
-      # Context:
-      # DurablePromise:
-      # ResponseFuture
-      Rand:
+      AfterFuture:
+      AwakeableFuture:
+      Client:
+      Context:
+      DurablePromise:
+      ResponseFuture:
       Selector:
   github.com/restatedev/sdk-go/internal/rand:
     interfaces:

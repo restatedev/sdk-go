@@ -3,7 +3,7 @@
 package mocks
 
 import (
-	futures "github.com/restatedev/sdk-go/internal/futures"
+	"github.com/restatedev/sdk-go/internal/restatecontext"
 	mock "github.com/stretchr/testify/mock"
 )
 
@@ -66,19 +66,19 @@ func (_c *MockSelector_Remaining_Call) RunAndReturn(run func() bool) *MockSelect
 }
 
 // Select provides a mock function with no fields
-func (_m *MockSelector) Select() futures.Selectable {
+func (_m *MockSelector) Select() restatecontext.Selectable {
 	ret := _m.Called()
 
 	if len(ret) == 0 {
 		panic("no return value specified for Select")
 	}
 
-	var r0 futures.Selectable
-	if rf, ok := ret.Get(0).(func() futures.Selectable); ok {
+	var r0 restatecontext.Selectable
+	if rf, ok := ret.Get(0).(func() restatecontext.Selectable); ok {
 		r0 = rf()
 	} else {
 		if ret.Get(0) != nil {
-			r0 = ret.Get(0).(futures.Selectable)
+			r0 = ret.Get(0).(restatecontext.Selectable)
 		}
 	}
 
@@ -102,12 +102,12 @@ func (_c *MockSelector_Select_Call) Run(run func()) *MockSelector_Select_Call {
 	return _c
 }
 
-func (_c *MockSelector_Select_Call) Return(_a0 futures.Selectable) *MockSelector_Select_Call {
+func (_c *MockSelector_Select_Call) Return(_a0 restatecontext.Selectable) *MockSelector_Select_Call {
 	_c.Call.Return(_a0)
 	return _c
 }
 
-func (_c *MockSelector_Select_Call) RunAndReturn(run func() futures.Selectable) *MockSelector_Select_Call {
+func (_c *MockSelector_Select_Call) RunAndReturn(run func() restatecontext.Selectable) *MockSelector_Select_Call {
 	_c.Call.Return(run)
 	return _c
 }

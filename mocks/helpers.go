@@ -1,13 +1,13 @@
 package mocks
 
 import (
+	"github.com/restatedev/sdk-go/internal/restatecontext"
 	"reflect"
 	"time"
 
 	restate "github.com/restatedev/sdk-go"
 	"github.com/restatedev/sdk-go/internal/converters"
 	options "github.com/restatedev/sdk-go/internal/options"
-	state "github.com/restatedev/sdk-go/internal/state"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 )
@@ -18,7 +18,7 @@ func pointerType(value any) string {
 
 // RunAndReturn is a helper method to mock a typical 'Run' call; return a concrete value or an error
 func (_e *MockContext_Expecter) RunAndReturn(value any, err error) *MockContext_Run_Call {
-	return _e.Run(mock.Anything, mock.AnythingOfType(pointerType(value))).RunAndReturn(func(f func(state.RunContext) (any, error), i any, ro ...options.RunOption) error {
+	return _e.Run(mock.Anything, mock.AnythingOfType(pointerType(value))).RunAndReturn(func(f func(restatecontext.RunContext) (any, error), i any, ro ...options.RunOption) error {
 		if err != nil {
 			return err
 		}
@@ -30,8 +30,8 @@ func (_e *MockContext_Expecter) RunAndReturn(value any, err error) *MockContext_
 
 // RunAndExpect is a helper method to mock a 'Run' call where you want to execute the function provided to Run. Non terminal errors will be retried
 // indefinitely, subject to a 1 second delay between retries. The final result or terminal error will be compared to the provided values.
-func (_e *MockContext_Expecter) RunAndExpect(ctx state.RunContext, expectedValue any, expectedErr error) *MockContext_Run_Call {
-	return _e.Run(mock.Anything, mock.Anything).RunAndReturn(func(f func(state.RunContext) (any, error), i any, ro ...options.RunOption) error {
+func (_e *MockContext_Expecter) RunAndExpect(ctx restatecontext.RunContext, expectedValue any, expectedErr error) *MockContext_Run_Call {
+	return _e.Run(mock.Anything, mock.Anything).RunAndReturn(func(f func(restatecontext.RunContext) (any, error), i any, ro ...options.RunOption) error {
 		var value any
 		var err error
 		for {

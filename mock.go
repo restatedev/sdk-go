@@ -1,14 +1,14 @@
 package restate
 
 import (
-	"github.com/restatedev/sdk-go/internal/state"
+	"github.com/restatedev/sdk-go/internal/restatecontext"
 )
 
 type mockContext struct {
-	state.Context
+	restatecontext.Context
 }
 
-func (m mockContext) inner() state.Context {
+func (m mockContext) inner() restatecontext.Context {
 	return m.Context
 }
 func (m mockContext) object()          {}
@@ -24,6 +24,6 @@ var _ WorkflowSharedContext = mockContext{}
 var _ WorkflowContext = mockContext{}
 
 // WithMockContext allows providing a mocked state.Context to handlers
-func WithMockContext(ctx state.Context) mockContext {
+func WithMockContext(ctx restatecontext.Context) mockContext {
 	return mockContext{ctx}
 }

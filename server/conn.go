@@ -51,7 +51,8 @@ func (c *connection) Read(data []byte) (int, error) {
 	return n, err
 }
 
-func (c *connection) Close() {
+func (c *connection) Close() error {
 	c.cancel()
 	c.r.Close() // unblock readers
+	return nil
 }

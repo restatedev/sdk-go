@@ -5,9 +5,8 @@ managed:
     - file_option: go_package_prefix
       value: github.com/restatedev/sdk-go/generated
 plugins:
-  - remote: buf.build/protocolbuffers/go:v1.34.2
+  - remote: buf.build/protocolbuffers/go:v1.36.5
     out: generated
     opt: paths=source_relative
 inputs:
-  - module: buf.build/restatedev/service-protocol
-  - directory: proto
+  - proto_file: proto/dev/restate/sdk/go.proto

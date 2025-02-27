@@ -1,10 +1,10 @@
 package mocks
 
 import (
+	"github.com/restatedev/sdk-go/internal/restatecontext"
 	"testing"
 
 	options "github.com/restatedev/sdk-go/internal/options"
-	state "github.com/restatedev/sdk-go/internal/state"
 	mock "github.com/stretchr/testify/mock"
 )
 
@@ -86,7 +86,7 @@ func (_c *MockClient_Request_Call) RunAndReturn(run func(any, any, ...options.Re
 }
 
 // RequestFuture provides a mock function with given fields: input, opts
-func (_m *MockClient) RequestFuture(input any, opts ...options.RequestOption) state.ResponseFuture {
+func (_m *MockClient) RequestFuture(input any, opts ...options.RequestOption) restatecontext.ResponseFuture {
 	_va := make([]interface{}, len(opts))
 	for _i := range opts {
 		_va[_i] = opts[_i]
@@ -100,12 +100,12 @@ func (_m *MockClient) RequestFuture(input any, opts ...options.RequestOption) st
 		panic("no return value specified for RequestFuture")
 	}
 
-	var r0 state.ResponseFuture
-	if rf, ok := ret.Get(0).(func(any, ...options.RequestOption) state.ResponseFuture); ok {
+	var r0 restatecontext.ResponseFuture
+	if rf, ok := ret.Get(0).(func(any, ...options.RequestOption) restatecontext.ResponseFuture); ok {
 		r0 = rf(input, opts...)
 	} else {
 		if ret.Get(0) != nil {
-			r0 = ret.Get(0).(state.ResponseFuture)
+			r0 = ret.Get(0).(restatecontext.ResponseFuture)
 		}
 	}
 
@@ -138,12 +138,12 @@ func (_c *MockClient_RequestFuture_Call) Run(run func(input any, opts ...options
 	return _c
 }
 
-func (_c *MockClient_RequestFuture_Call) Return(_a0 state.ResponseFuture) *MockClient_RequestFuture_Call {
+func (_c *MockClient_RequestFuture_Call) Return(_a0 restatecontext.ResponseFuture) *MockClient_RequestFuture_Call {
 	_c.Call.Return(_a0)
 	return _c
 }
 
-func (_c *MockClient_RequestFuture_Call) RunAndReturn(run func(any, ...options.RequestOption) state.ResponseFuture) *MockClient_RequestFuture_Call {
+func (_c *MockClient_RequestFuture_Call) RunAndReturn(run func(any, ...options.RequestOption) restatecontext.ResponseFuture) *MockClient_RequestFuture_Call {
 	_c.Call.Return(run)
 	return _c
 }

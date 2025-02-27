@@ -1,0 +1,7 @@
+[build]
+target = "wasm32-unknown-unknown"
+rustflags = [
+    # Make stack size of 1 WASM page,
+    # to avoid allocating like crazy on module instantiation
+    "-C", "link-arg=-zstack-size=65536"
+]

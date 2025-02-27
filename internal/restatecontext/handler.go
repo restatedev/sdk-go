@@ -1,4 +1,4 @@
-package state
+package restatecontext
 
 import (
 	"github.com/restatedev/sdk-go/encoding"

@@ -1,0 +1,250 @@
+/*
+ * Copyright (c) 2025 - Restate Software, Inc., Restate GmbH
+ *
+ * This file is part of the Restate SDK for Go,
+ * which is released under the MIT license.
+ *
+ * You can find a copy of the license in file LICENSE in the root
+ * directory of this repository or package, or at
+ * https://github.com/restatedev/sdk-typescript/blob/main/LICENSE
+ */
+
+syntax = "proto3";
+
+option go_package = "github.com/restatedev/sdk-go/internal/generated";
+
+message Empty {}
+
+message Header {
+  string key = 1;
+  string value = 2;
+}
+
+message Failure {
+  uint32 code = 1;
+  string message = 2;
+}
+
+message VmNewParameters {
+  repeated Header headers = 1;
+}
+
+message VmNewReturn {
+  oneof result {
+    uint32 pointer = 1;
+    Failure failure = 2;
+  }
+}
+
+message VmGetResponseHeadReturn {
+  uint32 status_code = 1;
+  repeated Header headers = 2;
+}
+
+message VmNotifyError {
+  string message = 1;
+  string stacktrace = 2;
+}
+
+message VmTakeOutputReturn {
+  oneof result {
+    bytes bytes = 1;
+    Empty EOF = 2;
+  }
+}
+
+message VmIsReadyToExecuteReturn {
+  oneof result {
+    bool ready = 1;
+    Failure failure = 2;
+  }
+}
+
+message VmDoProgressParameters {
+  repeated uint32 handles = 1;
+}
+
+message VmDoProgressReturn {
+  oneof result {
+    Empty any_completed = 1;
+    Empty read_from_input = 2;
+    Empty waiting_pending_run = 3;
+    uint32 execute_run = 4;
+    Empty cancel_signal_received = 5;
+    Empty suspended = 6;
+    Failure failure = 7;
+  }
+}
+
+message Value {
+  message StateKeys {
+    repeated string keys = 1;
+  }
+
+  oneof value {
+    Empty void = 1;
+    bytes success =  2;
+    Failure failure = 3;
+    StateKeys state_keys = 4;
+    string invocation_id = 5;
+  }
+}
+
+message VmTakeNotificationReturn {
+  oneof result {
+    Empty not_ready = 1;
+    Value value = 2;
+    Empty suspended = 3;
+    Failure failure = 4;
+  }
+}
+
+message VmSysInputReturn {
+  message Input {
+    string invocation_id = 1;
+    string key = 2;
+    repeated Header headers = 3;
+    bytes input = 4;
+  }
+
+  oneof result {
+    Input ok = 1;
+    Failure failure = 2;
+  }
+}
+
+message VmSysStateGetParameters {
+  string key = 1;
+}
+
+message VmSysStateSetParameters {
+  string key = 1;
+  bytes value = 2;
+}
+
+message VmSysStateClearParameters {
+  string key = 1;
+}
+
+message VmSysSleepParameters {
+    uint64 wake_up_time_since_unix_epoch_millis = 1;
+    uint64 now_since_unix_epoch_millis = 2;
+}
+
+message VmSysAwakeableReturn {
+  message Awakeable {
+    string id = 1;
+    uint32 handle = 2;
+  }
+
+  oneof result {
+    Awakeable ok = 1;
+    Failure failure = 2;
+  }
+}
+
+message VmSysCompleteAwakeableParameters {
+  string id = 1;
+
+  oneof result {
+    bytes success = 2;
+    Failure failure = 3;
+  }
+}
+
+message VmSysCallParameters {
+  string service = 1;
+  string handler = 2;
+  optional string key = 3;
+  optional string idempotency_key = 4;
+  repeated Header headers = 5;
+
+  bytes input = 6;
+}
+
+message VmSysCallReturn {
+  message CallHandles {
+    uint32 invocation_id_handle = 1;
+    uint32 result_handle = 2;
+  }
+
+  oneof result {
+    CallHandles ok = 1;
+    Failure failure = 2;
+  }
+}
+
+message VmSysSendParameters {
+  string service = 1;
+  string handler = 2;
+  optional string key = 3;
+  optional string idempotency_key = 4;
+  repeated Header headers = 5;
+
+  bytes input = 6;
+
+  optional uint64 execution_time_since_unix_epoch_millis = 7;
+}
+
+message VmSysPromiseGetParameters {
+  string key = 1;
+}
+
+message VmSysPromisePeekParameters {
+  string key = 1;
+}
+
+message VmSysPromiseCompleteParameters {
+  string id = 1;
+
+  oneof result {
+    bytes success = 2;
+    Failure failure = 3;
+  }
+}
+
+message VmSysRunParameters {
+  string name = 1;
+}
+
+message VmProposeRunCompletionParameters {
+  message RetryPolicy {
+    uint64 initial_internal_millis = 1;
+    float factor = 2;
+    optional uint64 max_interval_millis = 3;
+    optional uint32 max_attempts = 4;
+    optional uint64 max_duration_millis = 5;
+  }
+
+  uint32 handle = 1;
+
+  oneof result {
+    bytes success = 2;
+    Failure terminal_failure = 3;
+    Failure retryable_failure = 4;
+  }
+
+  RetryPolicy retry_policy = 5;
+  uint64 attempt_duration_millis = 6;
+}
+
+message VmSysWriteOutputParameters {
+  oneof result {
+    bytes success = 1;
+    Failure failure = 2;
+  }
+}
+
+message SimpleSysAsyncResultReturn {
+  oneof result {
+    uint32 handle = 1;
+    Failure failure = 2;
+  }
+}
+
+message GenericEmptyReturn {
+  oneof result {
+    Empty ok = 1;
+    Failure failure = 2;
+  }
+}
