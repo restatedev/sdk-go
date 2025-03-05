@@ -39,7 +39,7 @@ func (r *Registry) Register(fqdns map[string]struct{}, e *server.Restate) {
 	for fqdn := range fqdns {
 		c, ok := r.components[fqdn]
 		if !ok {
-			log.Fatalf("unknown fqdn %s. Did you remember to import the test at app.ts?", fqdn)
+			log.Fatalf("unknown fqdn %s. Did you remember to register it?", fqdn)
 		}
 		c.Binder(e)
 	}

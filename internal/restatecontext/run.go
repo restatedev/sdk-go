@@ -42,7 +42,7 @@ func (restateCtx *ctx) Run(fn func(ctx RunContext) (any, error), output any, opt
 		proposal.SetAttemptDurationMillis(uint64(time.Now().Sub(now).Milliseconds()))
 
 		// Set retry policy if any of the retry policy config options are set
-		if o.MaxRetryAttempts != nil && o.MaxRetryInterval != nil && o.MaxRetryDuration != nil && o.RetryIntervalFactor != nil && o.InitialRetryInterval != nil {
+		if o.MaxRetryAttempts != nil || o.MaxRetryInterval != nil || o.MaxRetryDuration != nil || o.RetryIntervalFactor != nil || o.InitialRetryInterval != nil {
 			retryPolicy := pbinternal.VmProposeRunCompletionParameters_RetryPolicy{}
 			retryPolicy.SetInitialInternalMillis(50)
 			retryPolicy.SetFactor(2)
@@ -63,6 +63,7 @@ func (restateCtx *ctx) Run(fn func(ctx RunContext) (any, error), output any, opt
 			if o.InitialRetryInterval != nil {
 				retryPolicy.SetInitialInternalMillis(uint64((*o.InitialRetryInterval).Milliseconds()))
 			}
+			proposal.SetRetryPolicy(&retryPolicy)
 		}
 
 		if errors.IsTerminalError(err) {
@@ -73,7 +74,7 @@ func (restateCtx *ctx) Run(fn func(ctx RunContext) (any, error), output any, opt
 			proposal.SetTerminalFailure(&failure)
 		} else if err != nil {
 			// Retryable error
-			failure := pbinternal.Failure{}
+			failure := pbinternal.FailureWithStacktrace{}
 			failure.SetCode(uint32(errors.ErrorCode(err)))
 			failure.SetMessage(err.Error())
 			proposal.SetRetryableFailure(&failure)

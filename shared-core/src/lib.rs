@@ -733,7 +733,7 @@ fn vm_propose_run_completion(
     };
 
     let retry_policy = match input.retry_policy {
-        None => RetryPolicy::None,
+        None => RetryPolicy::default(),
         Some(rp) => RetryPolicy::Exponential {
             initial_interval: Duration::from_millis(rp.initial_internal_millis),
             factor: rp.factor,
@@ -912,6 +912,12 @@ impl From<Error> for pb::Failure {
 impl From<pb::Failure> for Error {
     fn from(value: pb::Failure) -> Self {
         Self::new(value.code as u16, value.message)
+    }
+}
+
+impl From<pb::FailureWithStacktrace> for Error {
+    fn from(value: pb::FailureWithStacktrace) -> Self {
+        Self::new(value.code as u16, value.message).with_stacktrace(value.stacktrace)
     }
 }
 

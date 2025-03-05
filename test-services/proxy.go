@@ -2,6 +2,8 @@ package main
 
 import (
 	restate "github.com/restatedev/sdk-go"
+	"github.com/restatedev/sdk-go/internal/options"
+	"time"
 )
 
 type ProxyRequest struct {
@@ -9,7 +11,9 @@ type ProxyRequest struct {
 	VirtualObjectKey *string `json:"virtualObjectKey,omitempty"`
 	HandlerName      string  `json:"handlerName"`
 	// We need to use []int because Golang takes the opinionated choice of treating []byte as Base64
-	Message []int `json:"message"`
+	Message        []int   `json:"message"`
+	IdempotencyKey *string `json:"idempotencyKey,omitempty"`
+	DelayMillis    *uint64 `json:"delayMillis,omitempty"`
 }
 
 func (req *ProxyRequest) ToTarget(ctx restate.Context) restate.Client[[]byte, []byte] {
@@ -42,15 +46,27 @@ func init() {
 				// We need to use []int because Golang takes the opinionated choice of treating []byte as Base64
 				func(ctx restate.Context, req ProxyRequest) ([]int, error) {
 					input := intArrayToByteArray(req.Message)
-					bytes, err := req.ToTarget(ctx).Request(input)
+					var opts []options.RequestOption
+					if req.IdempotencyKey != nil {
+						opts = append(opts, restate.WithIdempotencyKey(*req.IdempotencyKey))
+					}
+					bytes, err := req.ToTarget(ctx).Request(input, opts...)
 					return byteArrayToIntArray(bytes), err
 				})).
 			Handler("oneWayCall", restate.NewServiceHandler(
 				// We need to use []int because Golang takes the opinionated choice of treating []byte as Base64
-				func(ctx restate.Context, req ProxyRequest) (restate.Void, error) {
+				func(ctx restate.Context, req ProxyRequest) (string, error) {
 					input := intArrayToByteArray(req.Message)
-					req.ToTarget(ctx).Send(input)
-					return restate.Void{}, nil
+					var opts []options.SendOption
+					if req.IdempotencyKey != nil {
+						opts = append(opts, restate.WithIdempotencyKey(*req.IdempotencyKey))
+					}
+					if req.DelayMillis != nil {
+						opts = append(opts, restate.WithDelay(time.Millisecond*time.Duration(*req.DelayMillis)))
+					}
+					req.ToTarget(ctx).Send(input, opts...)
+					// TODO this should return the invocation id, when the API will be available
+					return "invocationid", nil
 				})).
 			Handler("manyCalls", restate.NewServiceHandler(
 				// We need to use []int because Golang takes the opinionated choice of treating []byte as Base64
@@ -60,9 +76,20 @@ func init() {
 					for _, req := range requests {
 						input := intArrayToByteArray(req.ProxyRequest.Message)
 						if req.OneWayCall {
-							req.ProxyRequest.ToTarget(ctx).Send(input)
+							var opts []options.SendOption
+							if req.ProxyRequest.IdempotencyKey != nil {
+								opts = append(opts, restate.WithIdempotencyKey(*req.ProxyRequest.IdempotencyKey))
+							}
+							if req.ProxyRequest.DelayMillis != nil {
+								opts = append(opts, restate.WithDelay(time.Millisecond*time.Duration(*req.ProxyRequest.DelayMillis)))
+							}
+							req.ProxyRequest.ToTarget(ctx).Send(input, opts...)
 						} else {
-							fut := req.ProxyRequest.ToTarget(ctx).RequestFuture(input)
+							var opts []options.RequestOption
+							if req.ProxyRequest.IdempotencyKey != nil {
+								opts = append(opts, restate.WithIdempotencyKey(*req.ProxyRequest.IdempotencyKey))
+							}
+							fut := req.ProxyRequest.ToTarget(ctx).RequestFuture(input, opts...)
 							if req.AwaitAtTheEnd {
 								toAwait = append(toAwait, fut)
 							}
