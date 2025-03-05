@@ -832,7 +832,7 @@ func (sm *StateMachine) SysSend(ctx context.Context, input *pbinternal.VmSysSend
 	sm.core.callStack[0] = sm.vmPointer
 	sm.core.callStack[1] = inputPtr
 	sm.core.callStack[2] = inputLen
-	err := sm.core.vmSysCall.CallWithStack(ctx, sm.core.callStack)
+	err := sm.core.vmSysSend.CallWithStack(ctx, sm.core.callStack)
 	if err != nil {
 		return 0, fmt.Errorf("error when calling vm_sys_send: %e", err)
 	}

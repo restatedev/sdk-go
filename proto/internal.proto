@@ -25,6 +25,12 @@ message Failure {
   string message = 2;
 }
 
+message FailureWithStacktrace {
+  uint32 code = 1;
+  string message = 2;
+  string stacktrace = 3;
+}
+
 message VmNewParameters {
   repeated Header headers = 1;
 }
@@ -221,7 +227,7 @@ message VmProposeRunCompletionParameters {
   oneof result {
     bytes success = 2;
     Failure terminal_failure = 3;
-    Failure retryable_failure = 4;
+    FailureWithStacktrace retryable_failure = 4;
   }
 
   RetryPolicy retry_policy = 5;

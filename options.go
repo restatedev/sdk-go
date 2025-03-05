@@ -216,3 +216,18 @@ func (w withMaxRetryInterval) BeforeRun(opts *options.RunOptions) {
 func WithMaxRetryInterval(maxRetryInterval time.Duration) withMaxRetryInterval {
 	return withMaxRetryInterval{maxRetryInterval}
 }
+
+type withName struct {
+	name string
+}
+
+var _ options.RunOption = withName{}
+
+func (w withName) BeforeRun(opts *options.RunOptions) {
+	opts.Name = w.name
+}
+
+// WithName sets the run name, shown in the UI and other Restate observability tools.
+func WithName(name string) withName {
+	return withName{name}
+}

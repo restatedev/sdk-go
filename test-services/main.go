@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"github.com/restatedev/sdk-go/internal/log"
 	"log/slog"
 	"os"
 	"strings"
@@ -16,6 +17,12 @@ func main() {
 		slog.SetLogLoggerLevel(slog.LevelError)
 	} else if logging == "warn" {
 		slog.SetLogLoggerLevel(slog.LevelWarn)
+	} else if logging == "info" {
+		slog.SetLogLoggerLevel(slog.LevelInfo)
+	} else if logging == "debug" {
+		slog.SetLogLoggerLevel(slog.LevelDebug)
+	} else if logging == "trace" {
+		slog.SetLogLoggerLevel(log.LevelTrace)
 	}
 
 	services := "*"
