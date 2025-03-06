@@ -29,18 +29,13 @@ type ServiceProtocolVersion int32
 type ServiceDiscoveryProtocolVersion int32
 
 const (
-	ServiceProtocolVersion_SERVICE_PROTOCOL_VERSION_UNSPECIFIED                    ServiceProtocolVersion          = 0
-	ServiceProtocolVersion_V1                                                      ServiceProtocolVersion          = 1
-	ServiceProtocolVersion_V2                                                      ServiceProtocolVersion          = 2
-	ServiceProtocolVersion_V3                                                      ServiceProtocolVersion          = 3
-	ServiceProtocolVersion_V4                                                      ServiceProtocolVersion          = 4
 	ServiceDiscoveryProtocolVersion_SERVICE_DISCOVERY_PROTOCOL_VERSION_UNSPECIFIED ServiceDiscoveryProtocolVersion = 0
 	ServiceDiscoveryProtocolVersion_V1                                             ServiceDiscoveryProtocolVersion = 1
 	ServiceDiscoveryProtocolVersion_V2                                             ServiceDiscoveryProtocolVersion = 2
-	minServiceProtocolVersion                                                                                      = ServiceProtocolVersion_V4
-	maxServiceProtocolVersion                                                                                      = ServiceProtocolVersion_V4
 	minServiceDiscoveryProtocolVersion                                                                             = ServiceDiscoveryProtocolVersion_V1
 	maxServiceDiscoveryProtocolVersion                                                                             = ServiceDiscoveryProtocolVersion_V2
+	minServiceProtocolVersion                                                                                      = 5
+	maxServiceProtocolVersion                                                                                      = 5
 )
 
 var xRestateServer = `restate-sdk-go/unknown`
@@ -238,46 +233,6 @@ func serviceDiscoveryProtocolVersionToHeaderValue(serviceDiscoveryProtocolVersio
 		return "application/vnd.restate.endpointmanifest.v2+json"
 	}
 	panic(fmt.Sprintf("unexpected service discovery protocol version %d", serviceDiscoveryProtocolVersion))
-}
-
-func parseServiceProtocolVersion(versionString string) ServiceProtocolVersion {
-	if strings.TrimSpace(versionString) == "application/vnd.restate.invocation.v1" {
-		return ServiceProtocolVersion_V1
-	}
-	if strings.TrimSpace(versionString) == "application/vnd.restate.invocation.v2" {
-		return ServiceProtocolVersion_V2
-	}
-	if strings.TrimSpace(versionString) == "application/vnd.restate.invocation.v3" {
-		return ServiceProtocolVersion_V3
-	}
-	if strings.TrimSpace(versionString) == "application/vnd.restate.invocation.v4" {
-		return ServiceProtocolVersion_V4
-	}
-
-	return ServiceProtocolVersion_SERVICE_PROTOCOL_VERSION_UNSPECIFIED
-}
-
-func isServiceProtocolVersionSupported(version ServiceProtocolVersion) bool {
-	return version >= minServiceProtocolVersion && version <= maxServiceProtocolVersion
-}
-
-func serviceProtocolVersionToHeaderValue(serviceProtocolVersion ServiceProtocolVersion) string {
-	switch serviceProtocolVersion {
-	case ServiceProtocolVersion_V1:
-		return "application/vnd.restate.invocation.v1"
-	case ServiceProtocolVersion_V2:
-		return "application/vnd.restate.invocation.v2"
-	case ServiceProtocolVersion_V3:
-		return "application/vnd.restate.invocation.v3"
-	case ServiceProtocolVersion_V4:
-		return "application/vnd.restate.invocation.v4"
-	}
-	panic(fmt.Sprintf("unexpected service protocol version %d", serviceProtocolVersion))
-}
-
-type serviceMethod struct {
-	service string
-	method  string
 }
 
 // takes care of function call
