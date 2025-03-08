@@ -12,6 +12,7 @@ import (
 	"runtime/debug"
 	"slices"
 	"strings"
+	"time"
 
 	restate "github.com/restatedev/sdk-go"
 	"github.com/restatedev/sdk-go/internal"
@@ -440,8 +441,11 @@ func (r *Restate) Start(ctx context.Context, address string) error {
 
 	go func() {
 		<-ctx.Done()
-		if err := server.Shutdown(context.Background()); err != nil {
-			slog.Error("Server shutdown error", "error", err)
+		shutdownCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer cancel()
+
+		if err := server.Shutdown(shutdownCtx); err != nil {
+			r.systemLog.Error("Server shutdown error", "error", err)
 		}
 	}()
 
