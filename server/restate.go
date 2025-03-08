@@ -5,9 +5,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	pbinternal "github.com/restatedev/sdk-go/internal/generated"
-	"github.com/restatedev/sdk-go/internal/restatecontext"
-	"github.com/restatedev/sdk-go/internal/statemachine"
 	"io"
 	"log/slog"
 	"net"
@@ -18,8 +15,11 @@ import (
 
 	restate "github.com/restatedev/sdk-go"
 	"github.com/restatedev/sdk-go/internal"
+	pbinternal "github.com/restatedev/sdk-go/internal/generated"
 	"github.com/restatedev/sdk-go/internal/identity"
 	"github.com/restatedev/sdk-go/internal/log"
+	"github.com/restatedev/sdk-go/internal/restatecontext"
+	"github.com/restatedev/sdk-go/internal/statemachine"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/propagation"
 	"golang.org/x/net/http2"
@@ -62,6 +62,10 @@ type Restate struct {
 	keyIDs         []string
 	keySet         identity.KeySetV1
 	protocolMode   internal.ProtocolMode
+
+	listener net.Listener
+	server   *http2.Server
+	cancel   context.CancelFunc
 }
 
 // NewRestate creates a new instance of Restate server
@@ -434,22 +438,53 @@ func (r *Restate) Start(ctx context.Context, address string) error {
 	if err != nil {
 		return fmt.Errorf("failed to listen on address %s: %w", address, err)
 	}
+	r.listener = listener
+
+	ctx, cancel := context.WithCancel(ctx)
+	r.cancel = cancel
 
 	slog.Info(fmt.Sprintf("Started listening on %s", listener.Addr()))
 
-	var h2server http2.Server
+	r.server = &http2.Server{}
 
 	opts := &http2.ServeConnOpts{
 		Context: ctx,
 		Handler: handler,
 	}
 
-	for {
-		con, err := listener.Accept()
-		if err != nil {
-			return fmt.Errorf("failed to accept connection: %w", err)
-		}
+	go func() {
+		for {
+			conn, err := listener.Accept()
+			if err != nil {
+				if ctx.Err() != nil {
+					// Context was canceled, server is shutting down
+					return
+				}
+				r.systemLog.Error("Failed to accept connection", "error", err)
+				continue
+			}
 
-		go h2server.ServeConn(con, opts)
+			go r.server.ServeConn(conn, opts)
+		}
+	}()
+
+	return nil
+}
+
+// Stop gracefully shuts down the Restate server.
+func (r *Restate) Stop() error {
+	if r.cancel != nil {
+		r.cancel()
 	}
+
+	if r.listener != nil {
+		err := r.listener.Close()
+		r.listener = nil
+		if err != nil {
+			return fmt.Errorf("failed to close listener: %w", err)
+		}
+	}
+
+	r.server = nil
+	return nil
 }
