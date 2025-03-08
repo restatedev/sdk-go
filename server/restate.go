@@ -22,7 +22,6 @@ import (
 	"github.com/restatedev/sdk-go/internal/statemachine"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/propagation"
-	"golang.org/x/net/http2"
 )
 
 type ServiceProtocolVersion int32
@@ -437,9 +436,6 @@ func (r *Restate) Start(ctx context.Context, address string) error {
 		Handler:   handler,
 		Addr:      address,
 		Protocols: &protocols,
-	}
-	if err := http2.ConfigureServer(server, &http2.Server{}); err != nil {
-		return fmt.Errorf("failed to configure HTTP/2: %w", err)
 	}
 
 	go func() {
