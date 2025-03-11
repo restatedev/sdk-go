@@ -36,8 +36,8 @@ type Context interface {
 
 	// available outside of .Run()
 	Rand() rand.Rand
-	Sleep(time.Duration) error
-	After(time.Duration) AfterFuture
+	Sleep(d time.Duration, opts ...options.SleepOption) error
+	After(d time.Duration, opts ...options.SleepOption) AfterFuture
 	Service(service, method string, options ...options.ClientOption) Client
 	Object(service, key, method string, options ...options.ClientOption) Client
 	Workflow(seservice, workflowID, method string, options ...options.ClientOption) Client

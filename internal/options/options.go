@@ -6,6 +6,15 @@ import (
 	"github.com/restatedev/sdk-go/encoding"
 )
 
+type SleepOptions struct {
+	// Name used for observability.
+	Name string
+}
+
+type SleepOption interface {
+	BeforeSleep(*SleepOptions)
+}
+
 type AwakeableOptions struct {
 	Codec encoding.Codec
 }

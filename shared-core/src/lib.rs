@@ -487,6 +487,7 @@ fn vm_sys_sleep(
 ) -> pb::SimpleSysAsyncResultReturn {
     VM::sys_sleep(
         &mut rc_vm.borrow_mut().vm,
+        input.name,
         Duration::from_millis(input.wake_up_time_since_unix_epoch_millis),
         Some(Duration::from_millis(input.now_since_unix_epoch_millis)),
     )
