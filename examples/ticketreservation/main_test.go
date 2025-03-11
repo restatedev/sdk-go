@@ -80,7 +80,7 @@ func TestAddTicket(t *testing.T) {
 	mockCtx.EXPECT().GetAndReturn("tickets", []string{"ticket1"})
 	mockCtx.EXPECT().Set("tickets", []string{"ticket1", "ticket2"})
 	mockCtx.EXPECT().MockObjectClient(UserSessionServiceName, "userID", "ExpireTicket").
-		Send("ticket2", restate.WithDelay(15*time.Minute))
+		MockSend("ticket2", restate.WithDelay(15*time.Minute))
 
 	ok, err := (&userSession{}).AddTicket(restate.WithMockContext(mockCtx), "ticket2")
 	assert.NoError(t, err)
@@ -93,7 +93,7 @@ func TestExpireTicket(t *testing.T) {
 	mockCtx.EXPECT().GetAndReturn("tickets", []string{"ticket1", "ticket2"})
 	mockCtx.EXPECT().Set("tickets", []string{"ticket1"})
 
-	mockCtx.EXPECT().MockObjectClient(TicketServiceName, "ticket2", "Unreserve").Send(restate.Void{})
+	mockCtx.EXPECT().MockObjectClient(TicketServiceName, "ticket2", "Unreserve").MockSend(restate.Void{})
 
 	_, err := (&userSession{}).ExpireTicket(restate.WithMockContext(mockCtx), "ticket2")
 	assert.NoError(t, err)
@@ -116,7 +116,7 @@ func TestCheckout(t *testing.T) {
 
 	mockResponseFuture.EXPECT().ResponseAndReturn(PaymentResponse{ID: "paymentID", Price: 30}, nil)
 
-	mockCtx.EXPECT().MockObjectClient(TicketServiceName, "ticket1", "MarkAsSold").Send(restate.Void{})
+	mockCtx.EXPECT().MockObjectClient(TicketServiceName, "ticket1", "MarkAsSold").MockSend(restate.Void{})
 
 	mockCtx.EXPECT().Clear("tickets")
 

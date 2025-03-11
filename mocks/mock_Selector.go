@@ -3,7 +3,7 @@
 package mocks
 
 import (
-	"github.com/restatedev/sdk-go/internal/restatecontext"
+	restatecontext "github.com/restatedev/sdk-go/internal/restatecontext"
 	mock "github.com/stretchr/testify/mock"
 )
 
