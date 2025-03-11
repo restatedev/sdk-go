@@ -122,8 +122,9 @@ type AttachOption interface {
 }
 
 type HandlerOptions struct {
-	Codec    encoding.PayloadCodec
-	Metadata map[string]string
+	Codec         encoding.PayloadCodec
+	Metadata      map[string]string
+	Documentation string
 }
 
 type HandlerOption interface {
@@ -131,8 +132,9 @@ type HandlerOption interface {
 }
 
 type ServiceDefinitionOptions struct {
-	DefaultCodec encoding.PayloadCodec
-	Metadata     map[string]string
+	DefaultCodec  encoding.PayloadCodec
+	Metadata      map[string]string
+	Documentation string
 }
 
 type ServiceDefinitionOption interface {
