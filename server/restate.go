@@ -32,7 +32,7 @@ const (
 	ServiceDiscoveryProtocolVersion_SERVICE_DISCOVERY_PROTOCOL_VERSION_UNSPECIFIED ServiceDiscoveryProtocolVersion = 0
 	ServiceDiscoveryProtocolVersion_V1                                             ServiceDiscoveryProtocolVersion = 1
 	ServiceDiscoveryProtocolVersion_V2                                             ServiceDiscoveryProtocolVersion = 2
-	minServiceDiscoveryProtocolVersion                                                                             = ServiceDiscoveryProtocolVersion_V1
+	minServiceDiscoveryProtocolVersion                                                                             = ServiceDiscoveryProtocolVersion_V2
 	maxServiceDiscoveryProtocolVersion                                                                             = ServiceDiscoveryProtocolVersion_V2
 	minServiceProtocolVersion                                                                                      = 5
 	maxServiceProtocolVersion                                                                                      = 5
