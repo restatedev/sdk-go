@@ -130,18 +130,28 @@ func (r *Restate) discover() (resource *internal.Endpoint, err error) {
 	}
 
 	for name, definition := range r.definitions {
+		var metadata map[string]string
+		if definition.GetOptions() != nil {
+			metadata = definition.GetOptions().Metadata
+		}
 		service := internal.Service{
 			Name:     name,
 			Ty:       definition.Type(),
 			Handlers: make([]internal.Handler, 0, len(definition.Handlers())),
+			Metadata: metadata,
 		}
 
 		for name, handler := range definition.Handlers() {
+			var metadata map[string]string
+			if handler.GetOptions() != nil {
+				metadata = handler.GetOptions().Metadata
+			}
 			service.Handlers = append(service.Handlers, internal.Handler{
-				Name:   name,
-				Input:  handler.InputPayload(),
-				Output: handler.OutputPayload(),
-				Ty:     handler.HandlerType(),
+				Name:     name,
+				Input:    handler.InputPayload(),
+				Output:   handler.OutputPayload(),
+				Ty:       handler.HandlerType(),
+				Metadata: metadata,
 			})
 		}
 		slices.SortFunc(service.Handlers, func(a, b internal.Handler) int {

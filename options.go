@@ -240,8 +240,12 @@ var _ options.ServiceDefinitionOption = withMetadata{}
 var _ options.HandlerOption = withMetadata{}
 
 func (w withMetadata) BeforeServiceDefinition(opts *options.ServiceDefinitionOptions) {
-	for k, v := range w.metadata {
-		opts.Metadata[k] = v
+	if opts.Metadata == nil {
+		opts.Metadata = w.metadata
+	} else {
+		for k, v := range w.metadata {
+			opts.Metadata[k] = v
+		}
 	}
 }
 
