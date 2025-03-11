@@ -38,7 +38,6 @@ func NewMockClient(t *testing.T) *MockClient {
 }
 
 // NewMockContext creates a new instance of MockContext. It also registers a testing interface on the mock and a cleanup function to assert the mocks expectations.
-// The first argument is typically a *testing.T value.
 func NewMockContext(t *testing.T) *MockContext {
 	mock := &MockContext{}
 	mock.Mock.Test(t)
