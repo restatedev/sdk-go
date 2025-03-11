@@ -155,6 +155,12 @@ func (_e *MockClient_Expecter) MockSend(input interface{}, opts ...interface{}) 
 	return mockInvocation
 }
 
+// MockResponseFuture is a mock type for the ResponseFuture type
+type MockResponseFuture struct {
+	restatecontext.Selectable
+	mock.Mock
+}
+
 // ResponseAndReturn is a helper method to mock a typical 'Response' call on a ResponseFuture; return a concrete value or an error
 func (_e *MockResponseFuture_Expecter) ResponseAndReturn(value any, err error) *MockResponseFuture_Response_Call {
 	return _e.Response(mock.AnythingOfType(pointerType(value))).RunAndReturn(func(i interface{}) error {
@@ -167,6 +173,12 @@ func (_e *MockResponseFuture_Expecter) ResponseAndReturn(value any, err error) *
 	})
 }
 
+// MockAttachFuture is a mock type for the AttachFuture type
+type MockAttachFuture struct {
+	restatecontext.Selectable
+	mock.Mock
+}
+
 // ResponseAndReturn is a helper method to mock a typical 'Response' call on a AttachFuture; return a concrete value or an error
 func (_e *MockAttachFuture_Expecter) ResponseAndReturn(value any, err error) *MockAttachFuture_Response_Call {
 	return _e.Response(mock.AnythingOfType(pointerType(value))).RunAndReturn(func(i interface{}) error {
@@ -177,6 +189,12 @@ func (_e *MockAttachFuture_Expecter) ResponseAndReturn(value any, err error) *Mo
 		reflect.ValueOf(i).Elem().Set(reflect.ValueOf(value))
 		return nil
 	})
+}
+
+// MockAwakeableFuture is a mock type for the AwakeableFuture type
+type MockAwakeableFuture struct {
+	restatecontext.Selectable
+	mock.Mock
 }
 
 // ResultAndReturn is a helper method to mock a typical 'Result' call on a AwakeableFuture; return a concrete value or an error
@@ -195,6 +213,12 @@ func (_e *MockContext_Expecter) PromiseByName(promiseName string) *MockDurablePr
 	mockPromise := NewMockDurablePromise(getT(_e.mock))
 	_e.Promise(promiseName).Once().Return(mockPromise)
 	return mockPromise.EXPECT()
+}
+
+// MockDurablePromise is a mock type for the DurablePromise type
+type MockDurablePromise struct {
+	restatecontext.Selectable
+	mock.Mock
 }
 
 // PeekAndReturn is a helper method to mock a typical 'Peek' call on a DurablePromise; return a concrete value, no value, or an error
@@ -230,6 +254,12 @@ func (_e *MockContext_Expecter) MockAfter(duration interface{}) *MockAfterFuture
 	mockAfter := NewMockAfterFuture(getT(_e.mock))
 	_e.After(duration).Once().Return(mockAfter)
 	return mockAfter
+}
+
+// MockAfterFuture is a mock type for the AfterFuture type
+type MockAfterFuture struct {
+	restatecontext.Selectable
+	mock.Mock
 }
 
 // MockSelector is a helper method to mock a typical 'Select' call on a ctx; return a mocked Selector object

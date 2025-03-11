@@ -20,7 +20,7 @@ type MockContext struct {
 }
 
 type MockContext_Expecter struct {
-	mock   *mock.Mock
+	mock *mock.Mock
 }
 
 func (_m *MockContext) EXPECT() *MockContext_Expecter {
@@ -1394,3 +1394,19 @@ func (_c *MockContext_Workflow_Call) RunAndReturn(run func(string, string, strin
 	_c.Call.Return(run)
 	return _c
 }
+
+/* moved to helpers.go
+// NewMockContext creates a new instance of MockContext. It also registers a testing interface on the mock and a cleanup function to assert the mocks expectations.
+// The first argument is typically a *testing.T value.
+func NewMockContext(t interface {
+	mock.TestingT
+	Cleanup(func())
+}) *MockContext {
+	mock := &MockContext{}
+	mock.Mock.Test(t)
+
+	t.Cleanup(func() { mock.AssertExpectations(t) })
+
+	return mock
+}
+*/

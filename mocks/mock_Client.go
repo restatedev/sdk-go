@@ -208,3 +208,19 @@ func (_c *MockClient_Send_Call) RunAndReturn(run func(any, ...options.SendOption
 	_c.Call.Return(run)
 	return _c
 }
+
+/* moved to helpers.go
+// NewMockClient creates a new instance of MockClient. It also registers a testing interface on the mock and a cleanup function to assert the mocks expectations.
+// The first argument is typically a *testing.T value.
+func NewMockClient(t interface {
+	mock.TestingT
+	Cleanup(func())
+}) *MockClient {
+	mock := &MockClient{}
+	mock.Mock.Test(t)
+
+	t.Cleanup(func() { mock.AssertExpectations(t) })
+
+	return mock
+}
+*/
