@@ -23,7 +23,9 @@ var (
 	ProtoJSONCodec PayloadCodec = protoJSONCodec{}
 	// JSONCodec marshals any json.Marshallable type and unmarshals into any json.Unmarshallable type
 	// In handlers, it uses a content-type of application/json
-	JSONCodec PayloadCodec = jsonCodec{}
+	JSONCodec PayloadCodec = jsonCodec{
+		genJsonSchema: generateJsonSchema,
+	}
 
 	_ RestateMarshaler   = Void{}
 	_ RestateUnmarshaler = Void{}
@@ -162,14 +164,20 @@ func (j binaryCodec) Marshal(output any) ([]byte, error) {
 	}
 }
 
-type jsonCodec struct{}
+func JSONCodecWithCustomSchemaGenerator(genJsonSchema func(v any) interface{}) PayloadCodec {
+	return jsonCodec{genJsonSchema}
+}
+
+type jsonCodec struct {
+	genJsonSchema func(v any) interface{}
+}
 
 func (j jsonCodec) InputPayload(v any) *InputPayload {
-	return &InputPayload{Required: true, ContentType: proto.String("application/json"), JsonSchema: generateJsonSchema(v)}
+	return &InputPayload{Required: true, ContentType: proto.String("application/json"), JsonSchema: j.genJsonSchema(v)}
 }
 
 func (j jsonCodec) OutputPayload(v any) *OutputPayload {
-	return &OutputPayload{ContentType: proto.String("application/json"), JsonSchema: generateJsonSchema(v)}
+	return &OutputPayload{ContentType: proto.String("application/json"), JsonSchema: j.genJsonSchema(v)}
 }
 
 func (j jsonCodec) Unmarshal(data []byte, input any) (err error) {
