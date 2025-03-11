@@ -1,9 +1,10 @@
 package mocks
 
 import (
-	"github.com/restatedev/sdk-go/internal/restatecontext"
 	"reflect"
 	"time"
+
+	"github.com/restatedev/sdk-go/internal/restatecontext"
 
 	restate "github.com/restatedev/sdk-go"
 	"github.com/restatedev/sdk-go/internal/converters"
@@ -113,8 +114,28 @@ func (_e *MockClient_Expecter) MockResponseFuture(input interface{}, opts ...int
 	return mockResponseFuture
 }
 
+// MockResponseFuture is a helper method to mock a typical 'Send' call on a client; return a mocked Invocation object
+func (_e *MockClient_Expecter) MockSend(input interface{}, opts ...interface{}) *MockInvocation {
+	mockInvocation := NewMockInvocation(_e.parent.t)
+
+	_e.Send(input, opts...).Once().Return(mockInvocation)
+	return mockInvocation
+}
+
 // ResponseAndReturn is a helper method to mock a typical 'Response' call on a ResponseFuture; return a concrete value or an error
 func (_e *MockResponseFuture_Expecter) ResponseAndReturn(value any, err error) *MockResponseFuture_Response_Call {
+	return _e.Response(mock.AnythingOfType(pointerType(value))).RunAndReturn(func(i interface{}) error {
+		if err != nil {
+			return err
+		}
+
+		reflect.ValueOf(i).Elem().Set(reflect.ValueOf(value))
+		return nil
+	})
+}
+
+// ResponseAndReturn is a helper method to mock a typical 'Response' call on a AttachFuture; return a concrete value or an error
+func (_e *MockAttachFuture_Expecter) ResponseAndReturn(value any, err error) *MockAttachFuture_Response_Call {
 	return _e.Response(mock.AnythingOfType(pointerType(value))).RunAndReturn(func(i interface{}) error {
 		if err != nil {
 			return err

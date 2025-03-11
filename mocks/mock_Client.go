@@ -1,10 +1,10 @@
 package mocks
 
 import (
-	"github.com/restatedev/sdk-go/internal/restatecontext"
 	"testing"
 
 	options "github.com/restatedev/sdk-go/internal/options"
+	restatecontext "github.com/restatedev/sdk-go/internal/restatecontext"
 	mock "github.com/stretchr/testify/mock"
 )
 
@@ -157,9 +157,22 @@ func (_m *MockClient) Send(input any, opts ...options.SendOption) restatecontext
 	var _ca []interface{}
 	_ca = append(_ca, input)
 	_ca = append(_ca, _va...)
-	_m.Called(_ca...)
+	ret := _m.Called(_ca...)
 
-	return nil
+	if len(ret) == 0 {
+		panic("no return value specified for Send")
+	}
+
+	var r0 restatecontext.Invocation
+	if rf, ok := ret.Get(0).(func(any, ...options.SendOption) restatecontext.Invocation); ok {
+		r0 = rf(input, opts...)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(restatecontext.Invocation)
+		}
+	}
+
+	return r0
 }
 
 // MockClient_Send_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'Send'
@@ -188,13 +201,13 @@ func (_c *MockClient_Send_Call) Run(run func(input any, opts ...options.SendOpti
 	return _c
 }
 
-func (_c *MockClient_Send_Call) Return() *MockClient_Send_Call {
-	_c.Call.Return()
+func (_c *MockClient_Send_Call) Return(_a0 restatecontext.Invocation) *MockClient_Send_Call {
+	_c.Call.Return(_a0)
 	return _c
 }
 
-func (_c *MockClient_Send_Call) RunAndReturn(run func(any, ...options.SendOption)) *MockClient_Send_Call {
-	_c.Run(run)
+func (_c *MockClient_Send_Call) RunAndReturn(run func(any, ...options.SendOption) restatecontext.Invocation) *MockClient_Send_Call {
+	_c.Call.Return(run)
 	return _c
 }
 

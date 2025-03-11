@@ -1,14 +1,13 @@
 package mocks
 
 import (
-	"github.com/restatedev/sdk-go/internal/restatecontext"
 	"testing"
 
+	options "github.com/restatedev/sdk-go/internal/options"
+	rand "github.com/restatedev/sdk-go/internal/rand"
 	mock "github.com/stretchr/testify/mock"
 
-	options "github.com/restatedev/sdk-go/internal/options"
-
-	rand "github.com/restatedev/sdk-go/internal/rand"
+	restatecontext "github.com/restatedev/sdk-go/internal/restatecontext"
 
 	slog "log/slog"
 
@@ -21,16 +20,6 @@ type MockContext struct {
 	mock.Mock
 }
 
-func (_m *MockContext) CancelInvocation(invocationId string) {
-	//TODO implement me
-	panic("implement me")
-}
-
-func (_m *MockContext) AttachInvocation(invocationId string, opts ...options.AttachOption) restatecontext.AttachFuture {
-	//TODO implement me
-	panic("implement me")
-}
-
 type MockContext_Expecter struct {
 	parent *MockContext
 	mock   *mock.Mock
@@ -40,17 +29,24 @@ func (_m *MockContext) EXPECT() *MockContext_Expecter {
 	return &MockContext_Expecter{parent: _m, mock: &_m.Mock}
 }
 
-// After provides a mock function with given fields: _a0
-func (_m *MockContext) After(_a0 time.Duration, opts ...options.SleepOption) restatecontext.AfterFuture {
-	ret := _m.Called(_a0)
+// After provides a mock function with given fields: d, opts
+func (_m *MockContext) After(d time.Duration, opts ...options.SleepOption) restatecontext.AfterFuture {
+	_va := make([]interface{}, len(opts))
+	for _i := range opts {
+		_va[_i] = opts[_i]
+	}
+	var _ca []interface{}
+	_ca = append(_ca, d)
+	_ca = append(_ca, _va...)
+	ret := _m.Called(_ca...)
 
 	if len(ret) == 0 {
 		panic("no return value specified for After")
 	}
 
 	var r0 restatecontext.AfterFuture
-	if rf, ok := ret.Get(0).(func(time.Duration) restatecontext.AfterFuture); ok {
-		r0 = rf(_a0)
+	if rf, ok := ret.Get(0).(func(time.Duration, ...options.SleepOption) restatecontext.AfterFuture); ok {
+		r0 = rf(d, opts...)
 	} else {
 		if ret.Get(0) != nil {
 			r0 = ret.Get(0).(restatecontext.AfterFuture)
@@ -66,14 +62,22 @@ type MockContext_After_Call struct {
 }
 
 // After is a helper method to define mock.On call
-//   - _a0 time.Duration
-func (_e *MockContext_Expecter) After(_a0 interface{}) *MockContext_After_Call {
-	return &MockContext_After_Call{Call: _e.mock.On("After", _a0)}
+//   - d time.Duration
+//   - opts ...options.SleepOption
+func (_e *MockContext_Expecter) After(d interface{}, opts ...interface{}) *MockContext_After_Call {
+	return &MockContext_After_Call{Call: _e.mock.On("After",
+		append([]interface{}{d}, opts...)...)}
 }
 
-func (_c *MockContext_After_Call) Run(run func(_a0 time.Duration)) *MockContext_After_Call {
+func (_c *MockContext_After_Call) Run(run func(d time.Duration, opts ...options.SleepOption)) *MockContext_After_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(time.Duration))
+		variadicArgs := make([]options.SleepOption, len(args)-1)
+		for i, a := range args[1:] {
+			if a != nil {
+				variadicArgs[i] = a.(options.SleepOption)
+			}
+		}
+		run(args[0].(time.Duration), variadicArgs...)
 	})
 	return _c
 }
@@ -83,7 +87,70 @@ func (_c *MockContext_After_Call) Return(_a0 restatecontext.AfterFuture) *MockCo
 	return _c
 }
 
-func (_c *MockContext_After_Call) RunAndReturn(run func(time.Duration) restatecontext.AfterFuture) *MockContext_After_Call {
+func (_c *MockContext_After_Call) RunAndReturn(run func(time.Duration, ...options.SleepOption) restatecontext.AfterFuture) *MockContext_After_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// AttachInvocation provides a mock function with given fields: invocationId, opts
+func (_m *MockContext) AttachInvocation(invocationId string, opts ...options.AttachOption) restatecontext.AttachFuture {
+	_va := make([]interface{}, len(opts))
+	for _i := range opts {
+		_va[_i] = opts[_i]
+	}
+	var _ca []interface{}
+	_ca = append(_ca, invocationId)
+	_ca = append(_ca, _va...)
+	ret := _m.Called(_ca...)
+
+	if len(ret) == 0 {
+		panic("no return value specified for AttachInvocation")
+	}
+
+	var r0 restatecontext.AttachFuture
+	if rf, ok := ret.Get(0).(func(string, ...options.AttachOption) restatecontext.AttachFuture); ok {
+		r0 = rf(invocationId, opts...)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(restatecontext.AttachFuture)
+		}
+	}
+
+	return r0
+}
+
+// MockContext_AttachInvocation_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'AttachInvocation'
+type MockContext_AttachInvocation_Call struct {
+	*mock.Call
+}
+
+// AttachInvocation is a helper method to define mock.On call
+//   - invocationId string
+//   - opts ...options.AttachOption
+func (_e *MockContext_Expecter) AttachInvocation(invocationId interface{}, opts ...interface{}) *MockContext_AttachInvocation_Call {
+	return &MockContext_AttachInvocation_Call{Call: _e.mock.On("AttachInvocation",
+		append([]interface{}{invocationId}, opts...)...)}
+}
+
+func (_c *MockContext_AttachInvocation_Call) Run(run func(invocationId string, opts ...options.AttachOption)) *MockContext_AttachInvocation_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		variadicArgs := make([]options.AttachOption, len(args)-1)
+		for i, a := range args[1:] {
+			if a != nil {
+				variadicArgs[i] = a.(options.AttachOption)
+			}
+		}
+		run(args[0].(string), variadicArgs...)
+	})
+	return _c
+}
+
+func (_c *MockContext_AttachInvocation_Call) Return(_a0 restatecontext.AttachFuture) *MockContext_AttachInvocation_Call {
+	_c.Call.Return(_a0)
+	return _c
+}
+
+func (_c *MockContext_AttachInvocation_Call) RunAndReturn(run func(string, ...options.AttachOption) restatecontext.AttachFuture) *MockContext_AttachInvocation_Call {
 	_c.Call.Return(run)
 	return _c
 }
@@ -146,6 +213,39 @@ func (_c *MockContext_Awakeable_Call) Return(_a0 restatecontext.AwakeableFuture)
 
 func (_c *MockContext_Awakeable_Call) RunAndReturn(run func(...options.AwakeableOption) restatecontext.AwakeableFuture) *MockContext_Awakeable_Call {
 	_c.Call.Return(run)
+	return _c
+}
+
+// CancelInvocation provides a mock function with given fields: invocationId
+func (_m *MockContext) CancelInvocation(invocationId string) {
+	_m.Called(invocationId)
+}
+
+// MockContext_CancelInvocation_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'CancelInvocation'
+type MockContext_CancelInvocation_Call struct {
+	*mock.Call
+}
+
+// CancelInvocation is a helper method to define mock.On call
+//   - invocationId string
+func (_e *MockContext_Expecter) CancelInvocation(invocationId interface{}) *MockContext_CancelInvocation_Call {
+	return &MockContext_CancelInvocation_Call{Call: _e.mock.On("CancelInvocation", invocationId)}
+}
+
+func (_c *MockContext_CancelInvocation_Call) Run(run func(invocationId string)) *MockContext_CancelInvocation_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(string))
+	})
+	return _c
+}
+
+func (_c *MockContext_CancelInvocation_Call) Return() *MockContext_CancelInvocation_Call {
+	_c.Call.Return()
+	return _c
+}
+
+func (_c *MockContext_CancelInvocation_Call) RunAndReturn(run func(string)) *MockContext_CancelInvocation_Call {
+	_c.Run(run)
 	return _c
 }
 
@@ -1123,17 +1223,24 @@ func (_c *MockContext_Set_Call) RunAndReturn(run func(string, any, ...options.Se
 	return _c
 }
 
-// Sleep provides a mock function with given fields: _a0
-func (_m *MockContext) Sleep(_a0 time.Duration, opts ...options.SleepOption) error {
-	ret := _m.Called(_a0)
+// Sleep provides a mock function with given fields: d, opts
+func (_m *MockContext) Sleep(d time.Duration, opts ...options.SleepOption) error {
+	_va := make([]interface{}, len(opts))
+	for _i := range opts {
+		_va[_i] = opts[_i]
+	}
+	var _ca []interface{}
+	_ca = append(_ca, d)
+	_ca = append(_ca, _va...)
+	ret := _m.Called(_ca...)
 
 	if len(ret) == 0 {
 		panic("no return value specified for Sleep")
 	}
 
 	var r0 error
-	if rf, ok := ret.Get(0).(func(time.Duration) error); ok {
-		r0 = rf(_a0)
+	if rf, ok := ret.Get(0).(func(time.Duration, ...options.SleepOption) error); ok {
+		r0 = rf(d, opts...)
 	} else {
 		r0 = ret.Error(0)
 	}
@@ -1147,14 +1254,22 @@ type MockContext_Sleep_Call struct {
 }
 
 // Sleep is a helper method to define mock.On call
-//   - _a0 time.Duration
-func (_e *MockContext_Expecter) Sleep(_a0 interface{}) *MockContext_Sleep_Call {
-	return &MockContext_Sleep_Call{Call: _e.mock.On("Sleep", _a0)}
+//   - d time.Duration
+//   - opts ...options.SleepOption
+func (_e *MockContext_Expecter) Sleep(d interface{}, opts ...interface{}) *MockContext_Sleep_Call {
+	return &MockContext_Sleep_Call{Call: _e.mock.On("Sleep",
+		append([]interface{}{d}, opts...)...)}
 }
 
-func (_c *MockContext_Sleep_Call) Run(run func(_a0 time.Duration)) *MockContext_Sleep_Call {
+func (_c *MockContext_Sleep_Call) Run(run func(d time.Duration, opts ...options.SleepOption)) *MockContext_Sleep_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(time.Duration))
+		variadicArgs := make([]options.SleepOption, len(args)-1)
+		for i, a := range args[1:] {
+			if a != nil {
+				variadicArgs[i] = a.(options.SleepOption)
+			}
+		}
+		run(args[0].(time.Duration), variadicArgs...)
 	})
 	return _c
 }
@@ -1164,7 +1279,7 @@ func (_c *MockContext_Sleep_Call) Return(_a0 error) *MockContext_Sleep_Call {
 	return _c
 }
 
-func (_c *MockContext_Sleep_Call) RunAndReturn(run func(time.Duration) error) *MockContext_Sleep_Call {
+func (_c *MockContext_Sleep_Call) RunAndReturn(run func(time.Duration, ...options.SleepOption) error) *MockContext_Sleep_Call {
 	_c.Call.Return(run)
 	return _c
 }
