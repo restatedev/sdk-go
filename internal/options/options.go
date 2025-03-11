@@ -102,9 +102,10 @@ type RunOptions struct {
 	// If any of the other retry options are set, this will be set by default to 2 seconds.
 	MaxRetryInterval *time.Duration
 
-	// Name used for observability
+	// Name used for observability.
 	Name string
 
+	// Codec used to encode/decode the run result.
 	Codec encoding.Codec
 }
 
@@ -113,7 +114,8 @@ type RunOption interface {
 }
 
 type HandlerOptions struct {
-	Codec encoding.PayloadCodec
+	Codec    encoding.PayloadCodec
+	Metadata map[string]string
 }
 
 type HandlerOption interface {
@@ -122,6 +124,7 @@ type HandlerOption interface {
 
 type ServiceDefinitionOptions struct {
 	DefaultCodec encoding.PayloadCodec
+	Metadata     map[string]string
 }
 
 type ServiceDefinitionOption interface {

@@ -231,3 +231,36 @@ func (w withName) BeforeRun(opts *options.RunOptions) {
 func WithName(name string) withName {
 	return withName{name}
 }
+
+type withMetadata struct {
+	metadata map[string]string
+}
+
+var _ options.ServiceDefinitionOption = withMetadata{}
+var _ options.HandlerOption = withMetadata{}
+
+func (w withMetadata) BeforeServiceDefinition(opts *options.ServiceDefinitionOptions) {
+	if opts.Metadata == nil {
+		opts.Metadata = w.metadata
+	} else {
+		for k, v := range w.metadata {
+			opts.Metadata[k] = v
+		}
+	}
+}
+
+func (w withMetadata) BeforeHandler(opts *options.HandlerOptions) {
+	for k, v := range w.metadata {
+		opts.Metadata[k] = v
+	}
+}
+
+// WithMetadataMap adds the given map to the metadata of a service/handler shown in the Admin API.
+func WithMetadataMap(metadata map[string]string) withMetadata {
+	return withMetadata{metadata}
+}
+
+// WithMetadata adds the given key/value to the metadata of a service/handler shown in the Admin API.
+func WithMetadata(metadataKey string, metadataValue string) withMetadata {
+	return withMetadata{map[string]string{metadataKey: metadataValue}}
+}

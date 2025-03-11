@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"reflect"
 
+	"github.com/invopop/jsonschema"
 	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/proto"
 )
@@ -22,7 +23,9 @@ var (
 	ProtoJSONCodec PayloadCodec = protoJSONCodec{}
 	// JSONCodec marshals any json.Marshallable type and unmarshals into any json.Unmarshallable type
 	// In handlers, it uses a content-type of application/json
-	JSONCodec PayloadCodec = jsonCodec{}
+	JSONCodec PayloadCodec = jsonCodec{
+		genJsonSchema: generateJsonSchema,
+	}
 
 	_ RestateMarshaler   = Void{}
 	_ RestateUnmarshaler = Void{}
@@ -161,14 +164,20 @@ func (j binaryCodec) Marshal(output any) ([]byte, error) {
 	}
 }
 
-type jsonCodec struct{}
-
-func (j jsonCodec) InputPayload(_ any) *InputPayload {
-	return &InputPayload{Required: true, ContentType: proto.String("application/json")}
+func JSONCodecWithCustomSchemaGenerator(genJsonSchema func(v any) interface{}) PayloadCodec {
+	return jsonCodec{genJsonSchema}
 }
 
-func (j jsonCodec) OutputPayload(_ any) *OutputPayload {
-	return &OutputPayload{ContentType: proto.String("application/json")}
+type jsonCodec struct {
+	genJsonSchema func(v any) interface{}
+}
+
+func (j jsonCodec) InputPayload(v any) *InputPayload {
+	return &InputPayload{Required: true, ContentType: proto.String("application/json"), JsonSchema: j.genJsonSchema(v)}
+}
+
+func (j jsonCodec) OutputPayload(v any) *OutputPayload {
+	return &OutputPayload{ContentType: proto.String("application/json"), JsonSchema: j.genJsonSchema(v)}
 }
 
 func (j jsonCodec) Unmarshal(data []byte, input any) (err error) {
@@ -186,7 +195,7 @@ func (p protoCodec) InputPayload(_ any) *InputPayload {
 }
 
 func (p protoCodec) OutputPayload(_ any) *OutputPayload {
-	return &OutputPayload{ContentType: proto.String("application/proto")}
+	return &OutputPayload{ContentType: proto.String("application/proto"), SetContentTypeIfEmpty: true}
 }
 
 func (p protoCodec) Unmarshal(data []byte, input any) (err error) {
@@ -264,4 +273,13 @@ func allocateProtoMessage(codecName string, input any) (proto.Message, error) {
 	default:
 		return nil, fmt.Errorf("%s.Unmarshal called with neither a proto.Message nor a non-nil pointer to a type that implements proto.Message.", codecName)
 	}
+}
+
+func generateJsonSchema(v any) interface{} {
+	reflector := jsonschema.Reflector{
+		// Unfortunately we can't enable this https://github.com/invopop/jsonschema/issues/163
+		// The generated schema it's correct though, just ugly without this option on
+		// ExpandedStruct: true,
+	}
+	return reflector.Reflect(v)
 }
