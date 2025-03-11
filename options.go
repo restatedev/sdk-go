@@ -266,3 +266,23 @@ func WithMetadataMap(metadata map[string]string) withMetadata {
 func WithMetadata(metadataKey string, metadataValue string) withMetadata {
 	return withMetadata{map[string]string{metadataKey: metadataValue}}
 }
+
+type withDocumentation struct {
+	documentation string
+}
+
+var _ options.ServiceDefinitionOption = withDocumentation{}
+var _ options.HandlerOption = withDocumentation{}
+
+func (w withDocumentation) BeforeServiceDefinition(opts *options.ServiceDefinitionOptions) {
+	opts.Documentation = w.documentation
+}
+
+func (w withDocumentation) BeforeHandler(opts *options.HandlerOptions) {
+	opts.Documentation = w.documentation
+}
+
+// WithDocumentation sets the handler/service documentation, shown in the UI and other Restate observability tools.
+func WithDocumentation(documentation string) withDocumentation {
+	return withDocumentation{documentation}
+}
