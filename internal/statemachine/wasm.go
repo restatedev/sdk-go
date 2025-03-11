@@ -747,7 +747,7 @@ func (sm *StateMachine) SysStateClearAll(ctx context.Context) error {
 	return nil
 }
 
-func (sm *StateMachine) SysSleep(ctx context.Context, duration time.Duration) (uint32, error) {
+func (sm *StateMachine) SysSleep(ctx context.Context, name string, duration time.Duration) (uint32, error) {
 	if !sm.core.coreMutex.TryLock() {
 		panic(concurrentContextUseError{})
 	}
@@ -757,6 +757,7 @@ func (sm *StateMachine) SysSleep(ctx context.Context, duration time.Duration) (u
 	params := pbinternal.VmSysSleepParameters{}
 	params.SetWakeUpTimeSinceUnixEpochMillis(uint64(now.Add(duration).UnixMilli()))
 	params.SetNowSinceUnixEpochMillis(uint64(now.UnixMilli()))
+	params.SetName(name)
 	inputPtr, inputLen := sm.core.transferInputStructToWasmMemory(ctx, &params)
 
 	sm.core.callStack[0] = sm.vmPointer

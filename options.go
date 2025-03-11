@@ -224,12 +224,17 @@ type withName struct {
 }
 
 var _ options.RunOption = withName{}
+var _ options.SleepOption = withName{}
 
 func (w withName) BeforeRun(opts *options.RunOptions) {
 	opts.Name = w.name
 }
 
-// WithName sets the run name, shown in the UI and other Restate observability tools.
+func (w withName) BeforeSleep(opts *options.SleepOptions) {
+	opts.Name = w.name
+}
+
+// WithName sets the operation name, shown in the UI and other Restate observability tools.
 func WithName(name string) withName {
 	return withName{name}
 }

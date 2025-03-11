@@ -41,7 +41,7 @@ func (_m *MockContext) EXPECT() *MockContext_Expecter {
 }
 
 // After provides a mock function with given fields: _a0
-func (_m *MockContext) After(_a0 time.Duration) restatecontext.AfterFuture {
+func (_m *MockContext) After(_a0 time.Duration, opts ...options.SleepOption) restatecontext.AfterFuture {
 	ret := _m.Called(_a0)
 
 	if len(ret) == 0 {
@@ -1124,7 +1124,7 @@ func (_c *MockContext_Set_Call) RunAndReturn(run func(string, any, ...options.Se
 }
 
 // Sleep provides a mock function with given fields: _a0
-func (_m *MockContext) Sleep(_a0 time.Duration) error {
+func (_m *MockContext) Sleep(_a0 time.Duration, opts ...options.SleepOption) error {
 	ret := _m.Called(_a0)
 
 	if len(ret) == 0 {

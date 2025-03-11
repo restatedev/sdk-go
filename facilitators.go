@@ -17,15 +17,15 @@ func Rand(ctx Context) rand.Rand {
 }
 
 // Sleep for the duration d. Can return a terminal error in the case where the invocation was cancelled mid-sleep.
-func Sleep(ctx Context, d time.Duration) error {
-	return ctx.inner().Sleep(d)
+func Sleep(ctx Context, d time.Duration, opts ...options.SleepOption) error {
+	return ctx.inner().Sleep(d, opts...)
 }
 
 // After is an alternative to [Sleep] which allows you to complete other tasks concurrently
 // with the sleep. This is particularly useful when combined with [Select] to race between
 // the sleep and other Selectable operations.
-func After(ctx Context, d time.Duration) AfterFuture {
-	return ctx.inner().After(d)
+func After(ctx Context, d time.Duration, opts ...options.SleepOption) AfterFuture {
+	return ctx.inner().After(d, opts...)
 }
 
 // After is a handle on a Sleep operation which allows you to do other work concurrently

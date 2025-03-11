@@ -135,6 +135,7 @@ message VmSysStateClearParameters {
 message VmSysSleepParameters {
     uint64 wake_up_time_since_unix_epoch_millis = 1;
     uint64 now_since_unix_epoch_millis = 2;
+    string name = 3;
 }
 
 message VmSysAwakeableReturn {
