@@ -21,6 +21,7 @@ var _ options.RunOption = withCodec{}
 var _ options.AwakeableOption = withCodec{}
 var _ options.ResolveAwakeableOption = withCodec{}
 var _ options.ClientOption = withCodec{}
+var _ options.AttachOption = withCodec{}
 
 func (w withCodec) BeforeGet(opts *options.GetOptions)             { opts.Codec = w.codec }
 func (w withCodec) BeforeSet(opts *options.SetOptions)             { opts.Codec = w.codec }
@@ -30,6 +31,7 @@ func (w withCodec) BeforeResolveAwakeable(opts *options.ResolveAwakeableOptions)
 	opts.Codec = w.codec
 }
 func (w withCodec) BeforeClient(opts *options.ClientOptions) { opts.Codec = w.codec }
+func (w withCodec) BeforeAttach(opts *options.AttachOptions) { opts.Codec = w.codec }
 
 // WithCodec is an option that can be provided to many different functions that perform (de)serialisation
 // in order to specify a custom codec with which to (de)serialise instead of the default of JSON.

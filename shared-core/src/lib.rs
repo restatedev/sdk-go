@@ -7,9 +7,9 @@ use alloc::borrow::Cow;
 use alloc::rc::Rc;
 use alloc::vec::Vec;
 use restate_sdk_shared_core::{
-    CoreVM, DoProgressResponse, Error, Header, HeaderMap, Input, NonEmptyValue, NotificationHandle,
-    ResponseHead, RetryPolicy, RunExitResult, SuspendedOrVMError, TakeOutputResult, Target,
-    TerminalFailure, Value, VM,
+    AttachInvocationTarget, CoreVM, DoProgressResponse, Error, Header, HeaderMap, Input,
+    NonEmptyValue, NotificationHandle, ResponseHead, RetryPolicy, RunExitResult,
+    SuspendedOrVMError, TakeOutputResult, Target, TerminalFailure, Value, VM,
 };
 use std::cell::RefCell;
 use std::convert::Infallible;
@@ -614,6 +614,48 @@ fn vm_sys_send(
             .map(Duration::from_millis),
     )
     .map(|s| s.invocation_id_notification_handle)
+    .into()
+}
+
+#[export_name = "vm_sys_cancel_invocation"]
+pub unsafe extern "C" fn _vm_sys_cancel_invocation(
+    vm_pointer: *const RefCell<WasmVM>,
+    ptr: *mut u8,
+    len: usize,
+) -> u64 {
+    let rc_vm = vm_ptr_to_rc(vm_pointer);
+    let input = ptr_to_input(ptr, len);
+    let res = vm_sys_cancel_invocation(&rc_vm, input);
+    output_to_ptr(res)
+}
+
+fn vm_sys_cancel_invocation(
+    rc_vm: &Rc<RefCell<WasmVM>>,
+    input: pb::VmSysCancelInvocation,
+) -> pb::GenericEmptyReturn {
+    VM::sys_cancel_invocation(&mut rc_vm.borrow_mut().vm, input.invocation_id).into()
+}
+
+#[export_name = "vm_sys_attach_invocation"]
+pub unsafe extern "C" fn _vm_sys_attach_invocation(
+    vm_pointer: *const RefCell<WasmVM>,
+    ptr: *mut u8,
+    len: usize,
+) -> u64 {
+    let rc_vm = vm_ptr_to_rc(vm_pointer);
+    let input = ptr_to_input(ptr, len);
+    let res = vm_sys_attach_invocation(&rc_vm, input);
+    output_to_ptr(res)
+}
+
+fn vm_sys_attach_invocation(
+    rc_vm: &Rc<RefCell<WasmVM>>,
+    input: pb::VmSysAttachInvocation,
+) -> pb::SimpleSysAsyncResultReturn {
+    VM::sys_attach_invocation(
+        &mut rc_vm.borrow_mut().vm,
+        AttachInvocationTarget::InvocationId(input.invocation_id),
+    )
     .into()
 }
 

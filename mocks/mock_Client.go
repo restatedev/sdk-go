@@ -149,7 +149,7 @@ func (_c *MockClient_RequestFuture_Call) RunAndReturn(run func(any, ...options.R
 }
 
 // Send provides a mock function with given fields: input, opts
-func (_m *MockClient) Send(input any, opts ...options.SendOption) {
+func (_m *MockClient) Send(input any, opts ...options.SendOption) restatecontext.Invocation {
 	_va := make([]interface{}, len(opts))
 	for _i := range opts {
 		_va[_i] = opts[_i]
@@ -158,6 +158,8 @@ func (_m *MockClient) Send(input any, opts ...options.SendOption) {
 	_ca = append(_ca, input)
 	_ca = append(_ca, _va...)
 	_m.Called(_ca...)
+
+	return nil
 }
 
 // MockClient_Send_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'Send'
