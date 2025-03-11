@@ -64,9 +64,7 @@ func init() {
 					if req.DelayMillis != nil {
 						opts = append(opts, restate.WithDelay(time.Millisecond*time.Duration(*req.DelayMillis)))
 					}
-					req.ToTarget(ctx).Send(input, opts...)
-					// TODO this should return the invocation id, when the API will be available
-					return "invocationid", nil
+					return req.ToTarget(ctx).Send(input, opts...).GetInvocationId(), nil
 				})).
 			Handler("manyCalls", restate.NewServiceHandler(
 				// We need to use []int because Golang takes the opinionated choice of treating []byte as Base64

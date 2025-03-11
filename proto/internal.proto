@@ -192,6 +192,14 @@ message VmSysSendParameters {
   optional uint64 execution_time_since_unix_epoch_millis = 7;
 }
 
+message VmSysCancelInvocation {
+  string invocation_id = 1;
+}
+
+message VmSysAttachInvocation {
+  string invocation_id = 1;
+}
+
 message VmSysPromiseGetParameters {
   string key = 1;
 }

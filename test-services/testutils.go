@@ -57,8 +57,9 @@ func init() {
 				})).
 			Handler("getEnvVariable", restate.NewServiceHandler(getEnvVariable)).
 			Handler("cancelInvocation", restate.NewServiceHandler(
-				func(ctx restate.Context, invocationId string) (string, error) {
-					return "", restate.TerminalErrorf("Cancel invocation not supported yet")
+				func(ctx restate.Context, invocationId string) (restate.Void, error) {
+					restate.CancelInvocation(ctx, invocationId)
+					return restate.Void{}, nil
 				})),
 	)
 }

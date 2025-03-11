@@ -143,6 +143,8 @@ type Core struct {
 	vmSysCompleteAwakeable api.Function
 	vmSysCall              api.Function
 	vmSysSend              api.Function
+	vmSysCancelInvocation  api.Function
+	vmSysAttachInvocation  api.Function
 	vmSysPromiseGet        api.Function
 	vmSysPromisePeek       api.Function
 	vmSysPromiseComplete   api.Function
@@ -207,6 +209,8 @@ func NewCore(ctx context.Context) (*Core, error) {
 		vmSysCompleteAwakeable: instance.ExportedFunction("vm_sys_complete_awakeable"),
 		vmSysCall:              instance.ExportedFunction("vm_sys_call"),
 		vmSysSend:              instance.ExportedFunction("vm_sys_send"),
+		vmSysCancelInvocation:  instance.ExportedFunction("vm_sys_cancel_invocation"),
+		vmSysAttachInvocation:  instance.ExportedFunction("vm_sys_attach_invocation"),
 		vmSysPromiseGet:        instance.ExportedFunction("vm_sys_promise_get"),
 		vmSysPromisePeek:       instance.ExportedFunction("vm_sys_promise_peek"),
 		vmSysPromiseComplete:   instance.ExportedFunction("vm_sys_promise_complete"),
@@ -835,6 +839,62 @@ func (sm *StateMachine) SysSend(ctx context.Context, input *pbinternal.VmSysSend
 	err := sm.core.vmSysSend.CallWithStack(ctx, sm.core.callStack)
 	if err != nil {
 		return 0, fmt.Errorf("error when calling vm_sys_send: %e", err)
+	}
+	out := sm.core.callStack[0]
+
+	output := pbinternal.SimpleSysAsyncResultReturn{}
+	sm.core.transferOutputStructFromWasmMemory(ctx, out, &output)
+
+	if output.HasFailure() {
+		return 0, wasmFailureToGoError(output.GetFailure())
+	}
+	return output.GetHandle(), nil
+}
+
+func (sm *StateMachine) SysCancelInvocation(ctx context.Context, invocationId string) error {
+	if !sm.core.coreMutex.TryLock() {
+		panic(concurrentContextUseError{})
+	}
+	defer sm.core.coreMutex.Unlock()
+
+	params := pbinternal.VmSysCancelInvocation{}
+	params.SetInvocationId(invocationId)
+	inputPtr, inputLen := sm.core.transferInputStructToWasmMemory(ctx, &params)
+
+	sm.core.callStack[0] = sm.vmPointer
+	sm.core.callStack[1] = inputPtr
+	sm.core.callStack[2] = inputLen
+	err := sm.core.vmSysCancelInvocation.CallWithStack(ctx, sm.core.callStack)
+	if err != nil {
+		return fmt.Errorf("error when calling vm_sys_cancel_invocation: %e", err)
+	}
+	out := sm.core.callStack[0]
+
+	output := pbinternal.GenericEmptyReturn{}
+	sm.core.transferOutputStructFromWasmMemory(ctx, out, &output)
+
+	if output.HasFailure() {
+		return wasmFailureToGoError(output.GetFailure())
+	}
+	return nil
+}
+
+func (sm *StateMachine) SysAttachInvocation(ctx context.Context, invocationId string) (uint32, error) {
+	if !sm.core.coreMutex.TryLock() {
+		panic(concurrentContextUseError{})
+	}
+	defer sm.core.coreMutex.Unlock()
+
+	params := pbinternal.VmSysAttachInvocation{}
+	params.SetInvocationId(invocationId)
+	inputPtr, inputLen := sm.core.transferInputStructToWasmMemory(ctx, &params)
+
+	sm.core.callStack[0] = sm.vmPointer
+	sm.core.callStack[1] = inputPtr
+	sm.core.callStack[2] = inputLen
+	err := sm.core.vmSysAttachInvocation.CallWithStack(ctx, sm.core.callStack)
+	if err != nil {
+		return 0, fmt.Errorf("error when calling vm_sys_attach_invocation: %e", err)
 	}
 	out := sm.core.callStack[0]
 

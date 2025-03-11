@@ -38,6 +38,10 @@ func (_m *MockResponseFuture) Response(output interface{}) error {
 	return r0
 }
 
+func (_m *MockResponseFuture) GetInvocationId() string {
+	return ""
+}
+
 // MockResponseFuture_Response_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'Response'
 type MockResponseFuture_Response_Call struct {
 	*mock.Call

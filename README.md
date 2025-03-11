@@ -85,3 +85,19 @@ The compatibility with Restate is described in the following table:
 We’re excited if you join the Restate community and start contributing!
 Whether it is feature requests, bug reports, ideas & feedback or PRs, we appreciate any and all contributions.
 We know that your time is precious and, therefore, deeply value any effort to contribute!
+
+### Internal core
+
+To rebuild the internal core:
+
+```shell
+cd shared-core
+cargo build --release
+mv target/wasm32-unknown-unknown/release/shared_core_golang_wasm_binding.wasm ../internal/statemachine
+```
+
+To regenerate the protobuf contract between core and SDK:
+
+```shell
+buf generate --template internal.buf.gen.yaml 
+```

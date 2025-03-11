@@ -41,6 +41,8 @@ type Context interface {
 	Service(service, method string, options ...options.ClientOption) Client
 	Object(service, key, method string, options ...options.ClientOption) Client
 	Workflow(seservice, workflowID, method string, options ...options.ClientOption) Client
+	CancelInvocation(invocationId string)
+	AttachInvocation(invocationId string, opts ...options.AttachOption) AttachFuture
 	Awakeable(options ...options.AwakeableOption) AwakeableFuture
 	ResolveAwakeable(id string, value any, options ...options.ResolveAwakeableOption)
 	RejectAwakeable(id string, reason error)

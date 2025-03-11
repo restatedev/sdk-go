@@ -10,10 +10,20 @@ import (
 	"github.com/restatedev/sdk-go/internal/options"
 )
 
+type ResponseFuture interface {
+	Selectable
+	Invocation
+	Response(output any) error
+}
+
+type Invocation interface {
+	GetInvocationId() string
+}
+
 type Client interface {
 	RequestFuture(input any, opts ...options.RequestOption) ResponseFuture
 	Request(input any, output any, opts ...options.RequestOption) error
-	Send(input any, opts ...options.SendOption)
+	Send(input any, opts ...options.SendOption) Invocation
 }
 
 type client struct {
@@ -57,25 +67,41 @@ func (c *client) RequestFuture(input any, opts ...options.RequestOption) Respons
 	}
 	inputParams.SetInput(inputBytes)
 
-	_, handle, err := c.restateContext.stateMachine.SysCall(c.restateContext, &inputParams)
+	invocationIdHandle, resultHandle, err := c.restateContext.stateMachine.SysCall(c.restateContext, &inputParams)
 	if err != nil {
 		panic(err)
 	}
 	c.restateContext.checkStateTransition()
 
 	return &responseFuture{
-		asyncResult: newAsyncResult(c.restateContext, handle),
-		options:     c.options,
+		asyncResult: newAsyncResult(c.restateContext, resultHandle),
+		invocation: invocation{
+			invocationIdAsyncResult: newAsyncResult(c.restateContext, invocationIdHandle),
+		},
+		options: c.options,
 	}
 }
 
-type ResponseFuture interface {
-	Selectable
-	Response(output any) error
+type invocation struct {
+	invocationIdAsyncResult asyncResult
+}
+
+var _ Invocation = (*invocation)(nil)
+
+func (s *invocation) GetInvocationId() string {
+	switch result := s.invocationIdAsyncResult.pollProgressAndLoadValue().(type) {
+	case statemachine.ValueInvocationId:
+		{
+			return result.InvocationId
+		}
+	default:
+		panic(fmt.Errorf("unexpected value %s", result))
+	}
 }
 
 type responseFuture struct {
 	asyncResult
+	invocation
 	options options.ClientOptions
 }
 
@@ -101,7 +127,7 @@ func (c *client) Request(input any, output any, opts ...options.RequestOption) e
 }
 
 // Send runs a call in the background afterFuture delay duration
-func (c *client) Send(input any, opts ...options.SendOption) {
+func (c *client) Send(input any, opts ...options.SendOption) Invocation {
 	o := options.SendOptions{}
 	for _, opt := range opts {
 		opt.BeforeSend(&o)
@@ -136,11 +162,15 @@ func (c *client) Send(input any, opts ...options.SendOption) {
 		inputParams.SetExecutionTimeSinceUnixEpochMillis(uint64(time.Now().Add(o.Delay).UnixMilli()))
 	}
 
-	_, err = c.restateContext.stateMachine.SysSend(c.restateContext, &inputParams)
+	invocationIdHandle, err := c.restateContext.stateMachine.SysSend(c.restateContext, &inputParams)
 	if err != nil {
 		panic(err)
 	}
 	c.restateContext.checkStateTransition()
+
+	return &invocation{
+		invocationIdAsyncResult: newAsyncResult(c.restateContext, invocationIdHandle),
+	}
 }
 
 func (restateCtx *ctx) Service(service, method string, opts ...options.ClientOption) Client {
@@ -193,5 +223,60 @@ func (restateCtx *ctx) Workflow(service, workflowID, method string, opts ...opti
 		service:        service,
 		key:            workflowID,
 		method:         method,
+	}
+}
+
+func (restateCtx *ctx) CancelInvocation(invocationId string) {
+	err := restateCtx.stateMachine.SysCancelInvocation(restateCtx, invocationId)
+	if err != nil {
+		panic(err)
+	}
+	restateCtx.checkStateTransition()
+}
+
+type AttachFuture interface {
+	Selectable
+	Response(output any) error
+}
+
+func (restateCtx *ctx) AttachInvocation(invocationId string, opts ...options.AttachOption) AttachFuture {
+	o := options.AttachOptions{}
+	for _, opt := range opts {
+		opt.BeforeAttach(&o)
+	}
+	if o.Codec == nil {
+		o.Codec = encoding.JSONCodec
+	}
+
+	handle, err := restateCtx.stateMachine.SysAttachInvocation(restateCtx, invocationId)
+	if err != nil {
+		panic(err)
+	}
+	restateCtx.checkStateTransition()
+
+	return &attachFuture{
+		asyncResult: newAsyncResult(restateCtx, handle),
+		codec:       o.Codec,
+	}
+}
+
+type attachFuture struct {
+	asyncResult
+	codec encoding.Codec
+}
+
+func (d *attachFuture) Response(output any) (err error) {
+	switch result := d.pollProgressAndLoadValue().(type) {
+	case statemachine.ValueSuccess:
+		{
+			if err := encoding.Unmarshal(d.codec, result.Success, output); err != nil {
+				panic(fmt.Errorf("failed to unmarshal call result into output: %w", err))
+			}
+			return nil
+		}
+	case statemachine.ValueFailure:
+		return errorFromFailure(result)
+	default:
+		panic(fmt.Errorf("unexpected value %s", result))
 	}
 }

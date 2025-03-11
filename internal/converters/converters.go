@@ -21,6 +21,19 @@ func (t ResponseFuture[O]) InnerFuture() restatecontext.Selectable {
 	return t.ResponseFuture
 }
 
+type AttachFuture[O any] struct {
+	restatecontext.AttachFuture
+}
+
+func (t AttachFuture[O]) Response() (output O, err error) {
+	err = t.AttachFuture.Response(&output)
+	return
+}
+
+func (t AttachFuture[O]) InnerFuture() restatecontext.Selectable {
+	return t.AttachFuture
+}
+
 type AwakeableFuture[T any] struct {
 	restatecontext.AwakeableFuture
 }

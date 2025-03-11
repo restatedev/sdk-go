@@ -21,6 +21,16 @@ type MockContext struct {
 	mock.Mock
 }
 
+func (_m *MockContext) CancelInvocation(invocationId string) {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (_m *MockContext) AttachInvocation(invocationId string, opts ...options.AttachOption) restatecontext.AttachFuture {
+	//TODO implement me
+	panic("implement me")
+}
+
 type MockContext_Expecter struct {
 	parent *MockContext
 	mock   *mock.Mock

@@ -112,6 +112,14 @@ type RunOption interface {
 	BeforeRun(*RunOptions)
 }
 
+type AttachOptions struct {
+	Codec encoding.Codec
+}
+
+type AttachOption interface {
+	BeforeAttach(*AttachOptions)
+}
+
 type HandlerOptions struct {
 	Codec encoding.PayloadCodec
 }
