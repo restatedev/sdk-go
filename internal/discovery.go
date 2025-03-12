@@ -28,15 +28,19 @@ const (
 type Handler struct {
 	Name string `json:"name,omitempty"`
 	// If unspecified, defaults to EXCLUSIVE for Virtual Object. This should be unset for Services.
-	Ty     *ServiceHandlerType     `json:"ty,omitempty"`
-	Input  *encoding.InputPayload  `json:"input,omitempty"`
-	Output *encoding.OutputPayload `json:"output,omitempty"`
+	Ty            *ServiceHandlerType     `json:"ty,omitempty"`
+	Input         *encoding.InputPayload  `json:"input,omitempty"`
+	Output        *encoding.OutputPayload `json:"output,omitempty"`
+	Metadata      map[string]string       `json:"metadata,omitempty"`
+	Documentation string                  `json:"documentation,omitempty"`
 }
 
 type Service struct {
-	Name     string      `json:"name"`
-	Ty       ServiceType `json:"ty"`
-	Handlers []Handler   `json:"handlers"`
+	Name          string            `json:"name"`
+	Ty            ServiceType       `json:"ty"`
+	Handlers      []Handler         `json:"handlers"`
+	Metadata      map[string]string `json:"metadata,omitempty"`
+	Documentation string            `json:"documentation,omitempty"`
 }
 
 type Endpoint struct {

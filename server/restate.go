@@ -32,7 +32,7 @@ const (
 	ServiceDiscoveryProtocolVersion_SERVICE_DISCOVERY_PROTOCOL_VERSION_UNSPECIFIED ServiceDiscoveryProtocolVersion = 0
 	ServiceDiscoveryProtocolVersion_V1                                             ServiceDiscoveryProtocolVersion = 1
 	ServiceDiscoveryProtocolVersion_V2                                             ServiceDiscoveryProtocolVersion = 2
-	minServiceDiscoveryProtocolVersion                                                                             = ServiceDiscoveryProtocolVersion_V1
+	minServiceDiscoveryProtocolVersion                                                                             = ServiceDiscoveryProtocolVersion_V2
 	maxServiceDiscoveryProtocolVersion                                                                             = ServiceDiscoveryProtocolVersion_V2
 	minServiceProtocolVersion                                                                                      = 5
 	maxServiceProtocolVersion                                                                                      = 5
@@ -130,18 +130,34 @@ func (r *Restate) discover() (resource *internal.Endpoint, err error) {
 	}
 
 	for name, definition := range r.definitions {
+		var metadata map[string]string
+		var documentation string
+		if definition.GetOptions() != nil {
+			metadata = definition.GetOptions().Metadata
+			documentation = definition.GetOptions().Documentation
+		}
 		service := internal.Service{
-			Name:     name,
-			Ty:       definition.Type(),
-			Handlers: make([]internal.Handler, 0, len(definition.Handlers())),
+			Name:          name,
+			Ty:            definition.Type(),
+			Handlers:      make([]internal.Handler, 0, len(definition.Handlers())),
+			Metadata:      metadata,
+			Documentation: documentation,
 		}
 
 		for name, handler := range definition.Handlers() {
+			var metadata map[string]string
+			var documentation string
+			if handler.GetOptions() != nil {
+				metadata = handler.GetOptions().Metadata
+				documentation = handler.GetOptions().Documentation
+			}
 			service.Handlers = append(service.Handlers, internal.Handler{
-				Name:   name,
-				Input:  handler.InputPayload(),
-				Output: handler.OutputPayload(),
-				Ty:     handler.HandlerType(),
+				Name:          name,
+				Input:         handler.InputPayload(),
+				Output:        handler.OutputPayload(),
+				Ty:            handler.HandlerType(),
+				Metadata:      metadata,
+				Documentation: documentation,
 			})
 		}
 		slices.SortFunc(service.Handlers, func(a, b internal.Handler) int {

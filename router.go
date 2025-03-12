@@ -13,6 +13,7 @@ type ServiceDefinition interface {
 	Type() internal.ServiceType
 	// Set of handlers associated with this service definition
 	Handlers() map[string]restatecontext.Handler
+	GetOptions() *options.ServiceDefinitionOptions
 }
 
 // serviceDefinition stores a list of handlers under a named service
@@ -33,6 +34,11 @@ func (r *serviceDefinition) Name() string {
 // Handlers returns the list of handlers in this service definition
 func (r *serviceDefinition) Handlers() map[string]restatecontext.Handler {
 	return r.handlers
+}
+
+// Options returns the configured options
+func (r *serviceDefinition) GetOptions() *options.ServiceDefinitionOptions {
+	return &r.options
 }
 
 // Type returns the type of this service definition (Service or Virtual Object)

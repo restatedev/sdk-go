@@ -21,6 +21,7 @@ var _ options.RunOption = withCodec{}
 var _ options.AwakeableOption = withCodec{}
 var _ options.ResolveAwakeableOption = withCodec{}
 var _ options.ClientOption = withCodec{}
+var _ options.AttachOption = withCodec{}
 
 func (w withCodec) BeforeGet(opts *options.GetOptions)             { opts.Codec = w.codec }
 func (w withCodec) BeforeSet(opts *options.SetOptions)             { opts.Codec = w.codec }
@@ -30,6 +31,7 @@ func (w withCodec) BeforeResolveAwakeable(opts *options.ResolveAwakeableOptions)
 	opts.Codec = w.codec
 }
 func (w withCodec) BeforeClient(opts *options.ClientOptions) { opts.Codec = w.codec }
+func (w withCodec) BeforeAttach(opts *options.AttachOptions) { opts.Codec = w.codec }
 
 // WithCodec is an option that can be provided to many different functions that perform (de)serialisation
 // in order to specify a custom codec with which to (de)serialise instead of the default of JSON.
@@ -222,12 +224,70 @@ type withName struct {
 }
 
 var _ options.RunOption = withName{}
+var _ options.SleepOption = withName{}
 
 func (w withName) BeforeRun(opts *options.RunOptions) {
 	opts.Name = w.name
 }
 
-// WithName sets the run name, shown in the UI and other Restate observability tools.
+func (w withName) BeforeSleep(opts *options.SleepOptions) {
+	opts.Name = w.name
+}
+
+// WithName sets the operation name, shown in the UI and other Restate observability tools.
 func WithName(name string) withName {
 	return withName{name}
+}
+
+type withMetadata struct {
+	metadata map[string]string
+}
+
+var _ options.ServiceDefinitionOption = withMetadata{}
+var _ options.HandlerOption = withMetadata{}
+
+func (w withMetadata) BeforeServiceDefinition(opts *options.ServiceDefinitionOptions) {
+	if opts.Metadata == nil {
+		opts.Metadata = w.metadata
+	} else {
+		for k, v := range w.metadata {
+			opts.Metadata[k] = v
+		}
+	}
+}
+
+func (w withMetadata) BeforeHandler(opts *options.HandlerOptions) {
+	for k, v := range w.metadata {
+		opts.Metadata[k] = v
+	}
+}
+
+// WithMetadataMap adds the given map to the metadata of a service/handler shown in the Admin API.
+func WithMetadataMap(metadata map[string]string) withMetadata {
+	return withMetadata{metadata}
+}
+
+// WithMetadata adds the given key/value to the metadata of a service/handler shown in the Admin API.
+func WithMetadata(metadataKey string, metadataValue string) withMetadata {
+	return withMetadata{map[string]string{metadataKey: metadataValue}}
+}
+
+type withDocumentation struct {
+	documentation string
+}
+
+var _ options.ServiceDefinitionOption = withDocumentation{}
+var _ options.HandlerOption = withDocumentation{}
+
+func (w withDocumentation) BeforeServiceDefinition(opts *options.ServiceDefinitionOptions) {
+	opts.Documentation = w.documentation
+}
+
+func (w withDocumentation) BeforeHandler(opts *options.HandlerOptions) {
+	opts.Documentation = w.documentation
+}
+
+// WithDocumentation sets the handler/service documentation, shown in the UI and other Restate observability tools.
+func WithDocumentation(documentation string) withDocumentation {
+	return withDocumentation{documentation}
 }

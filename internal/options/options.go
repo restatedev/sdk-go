@@ -6,6 +6,15 @@ import (
 	"github.com/restatedev/sdk-go/encoding"
 )
 
+type SleepOptions struct {
+	// Name used for observability.
+	Name string
+}
+
+type SleepOption interface {
+	BeforeSleep(*SleepOptions)
+}
+
 type AwakeableOptions struct {
 	Codec encoding.Codec
 }
@@ -102,9 +111,10 @@ type RunOptions struct {
 	// If any of the other retry options are set, this will be set by default to 2 seconds.
 	MaxRetryInterval *time.Duration
 
-	// Name used for observability
+	// Name used for observability.
 	Name string
 
+	// Codec used to encode/decode the run result.
 	Codec encoding.Codec
 }
 
@@ -112,8 +122,18 @@ type RunOption interface {
 	BeforeRun(*RunOptions)
 }
 
+type AttachOptions struct {
+	Codec encoding.Codec
+}
+
+type AttachOption interface {
+	BeforeAttach(*AttachOptions)
+}
+
 type HandlerOptions struct {
-	Codec encoding.PayloadCodec
+	Codec         encoding.PayloadCodec
+	Metadata      map[string]string
+	Documentation string
 }
 
 type HandlerOption interface {
@@ -121,7 +141,9 @@ type HandlerOption interface {
 }
 
 type ServiceDefinitionOptions struct {
-	DefaultCodec encoding.PayloadCodec
+	DefaultCodec  encoding.PayloadCodec
+	Metadata      map[string]string
+	Documentation string
 }
 
 type ServiceDefinitionOption interface {

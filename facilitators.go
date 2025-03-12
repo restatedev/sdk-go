@@ -17,15 +17,15 @@ func Rand(ctx Context) rand.Rand {
 }
 
 // Sleep for the duration d. Can return a terminal error in the case where the invocation was cancelled mid-sleep.
-func Sleep(ctx Context, d time.Duration) error {
-	return ctx.inner().Sleep(d)
+func Sleep(ctx Context, d time.Duration, opts ...options.SleepOption) error {
+	return ctx.inner().Sleep(d, opts...)
 }
 
 // After is an alternative to [Sleep] which allows you to complete other tasks concurrently
 // with the sleep. This is particularly useful when combined with [Select] to race between
 // the sleep and other Selectable operations.
-func After(ctx Context, d time.Duration) AfterFuture {
-	return ctx.inner().After(d)
+func After(ctx Context, d time.Duration, opts ...options.SleepOption) AfterFuture {
+	return ctx.inner().After(d, opts...)
 }
 
 // After is a handle on a Sleep operation which allows you to do other work concurrently
@@ -74,7 +74,7 @@ type Client[I any, O any] interface {
 // SendClient allows making one-way invocations
 type SendClient[I any] interface {
 	// Send makes a one-way call which is executed in the background
-	Send(input I, options ...options.SendOption)
+	Send(input I, options ...options.SendOption) Invocation
 }
 
 type outputClient[O any] struct {
@@ -90,8 +90,8 @@ func (t outputClient[O]) RequestFuture(input any, options ...options.RequestOpti
 	return converters.ResponseFuture[O]{ResponseFuture: t.inner.RequestFuture(input, options...)}
 }
 
-func (t outputClient[O]) Send(input any, options ...options.SendOption) {
-	t.inner.Send(input, options...)
+func (t outputClient[O]) Send(input any, options ...options.SendOption) Invocation {
+	return t.inner.Send(input, options...)
 }
 
 type client[I any, O any] struct {
@@ -114,8 +114,8 @@ func (t client[I, O]) RequestFuture(input I, options ...options.RequestOption) R
 	return t.inner.RequestFuture(input, options...)
 }
 
-func (t client[I, O]) Send(input I, options ...options.SendOption) {
-	t.inner.Send(input, options...)
+func (t client[I, O]) Send(input I, options ...options.SendOption) Invocation {
+	return t.inner.Send(input, options...)
 }
 
 // ResponseFuture is a handle on a potentially not-yet completed outbound call.
@@ -124,7 +124,30 @@ type ResponseFuture[O any] interface {
 	// It is *not* safe to call this in a goroutine - use Context.Select if you
 	// want to wait on multiple results at once.
 	Response() (O, error)
+	Invocation
 	restatecontext.Selectable
+}
+
+type Invocation = restatecontext.Invocation
+
+// CancelInvocation cancels the invocation with the given invocationId.
+// For more info about cancellations, see https://docs.restate.dev/operate/invocation/#cancelling-invocations
+func CancelInvocation(ctx Context, invocationId string) {
+	ctx.inner().CancelInvocation(invocationId)
+}
+
+// AttachFuture is a handle on a potentially not-yet completed call.
+type AttachFuture[O any] interface {
+	// Response blocks on the response to the call and returns it or the associated error
+	// It is *not* safe to call this in a goroutine - use Context.Select if you
+	// want to wait on multiple results at once.
+	Response() (O, error)
+	restatecontext.Selectable
+}
+
+// AttachInvocation attaches to the invocation with the given invocation id.
+func AttachInvocation[T any](ctx Context, invocationId string, options ...options.AttachOption) AttachFuture[T] {
+	return converters.AttachFuture[T]{AttachFuture: ctx.inner().AttachInvocation(invocationId, options...)}
 }
 
 // Awakeable returns a Restate awakeable; a 'promise' to a future

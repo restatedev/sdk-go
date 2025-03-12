@@ -2,12 +2,13 @@ package restatecontext
 
 import (
 	"fmt"
+	"github.com/restatedev/sdk-go/internal/options"
 	"github.com/restatedev/sdk-go/internal/statemachine"
 	"time"
 )
 
-func (restateCtx *ctx) Sleep(d time.Duration) error {
-	return restateCtx.After(d).Done()
+func (restateCtx *ctx) Sleep(d time.Duration, opts ...options.SleepOption) error {
+	return restateCtx.After(d, opts...).Done()
 }
 
 // After is a coreHandle on a Sleep operation which allows you to do other work concurrently
@@ -21,8 +22,13 @@ type AfterFuture interface {
 	Selectable
 }
 
-func (restateCtx *ctx) After(d time.Duration) AfterFuture {
-	handle, err := restateCtx.stateMachine.SysSleep(restateCtx, d)
+func (restateCtx *ctx) After(d time.Duration, opts ...options.SleepOption) AfterFuture {
+	o := options.SleepOptions{}
+	for _, opt := range opts {
+		opt.BeforeSleep(&o)
+	}
+
+	handle, err := restateCtx.stateMachine.SysSleep(restateCtx, o.Name, d)
 	if err != nil {
 		panic(err)
 	}
