@@ -4,6 +4,7 @@ import (
 	"context"
 	_ "embed"
 	"fmt"
+	"github.com/restatedev/sdk-go/internal/errors"
 	pbinternal "github.com/restatedev/sdk-go/internal/generated"
 	loginternal "github.com/restatedev/sdk-go/internal/log"
 	"github.com/tetratelabs/wazero"
@@ -1135,7 +1136,10 @@ func (sm *StateMachine) Free(ctx context.Context) error {
 // -- Memory tingling
 
 func wasmFailureToGoError(failure *pbinternal.Failure) error {
-	return fmt.Errorf("[%d] %s", failure.GetCode(), failure.GetMessage())
+	return &errors.CodeError{
+		Code:  errors.Code(failure.GetCode()),
+		Inner: fmt.Errorf("[%d] %s", failure.GetCode(), failure.GetMessage()),
+	}
 }
 
 func (core *Core) transferInputStructToWasmMemory(ctx context.Context, t proto.Message) (uint64, uint64) {

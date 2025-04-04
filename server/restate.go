@@ -284,7 +284,7 @@ func (r *Restate) handleInvokeRequest(service, method string, writer http.Respon
 	stateMachine, err := core.NewStateMachine(ctx, headers)
 	if err != nil {
 		logger.WarnContext(ctx, "Error when instantiating the state machine", slog.Any("err", err))
-		writer.WriteHeader(http.StatusInternalServerError)
+		writer.WriteHeader(int(restate.ErrorCode(err)))
 		return
 	}
 
@@ -302,7 +302,7 @@ func (r *Restate) handleInvokeRequest(service, method string, writer http.Respon
 	responseHeaders, err := stateMachine.GetResponseHead(ctx)
 	if err != nil {
 		logger.WarnContext(ctx, "Error when getting response head from the state machine", slog.Any("err", err))
-		writer.WriteHeader(http.StatusInternalServerError)
+		writer.WriteHeader(int(restate.ErrorCode(err)))
 		return
 	}
 	for _, h := range responseHeaders.GetHeaders() {
@@ -317,7 +317,7 @@ func (r *Restate) handleInvokeRequest(service, method string, writer http.Respon
 		isReadyToExecute, err := stateMachine.IsReadyToExecute(ctx)
 		if err != nil {
 			logger.WarnContext(ctx, "Error when preparing the state machine", slog.Any("err", err))
-			writer.WriteHeader(http.StatusInternalServerError)
+			writer.WriteHeader(int(restate.ErrorCode(err)))
 			return
 		}
 		if isReadyToExecute {
@@ -338,7 +338,7 @@ func (r *Restate) handleInvokeRequest(service, method string, writer http.Respon
 		if read != 0 {
 			if err = stateMachine.NotifyInput(ctx, buf[0:read]); err != nil {
 				logger.WarnContext(ctx, "Error when notifying input to the state machine", slog.Any("err", err))
-				writer.WriteHeader(http.StatusInternalServerError)
+				writer.WriteHeader(int(restate.ErrorCode(err)))
 				return
 			}
 		}
