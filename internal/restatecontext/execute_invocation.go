@@ -12,12 +12,12 @@ import (
 	"runtime/debug"
 )
 
-func ExecuteInvocation(ctx context.Context, logger *slog.Logger, stateMachine *statemachine.StateMachine, conn io.ReadWriteCloser, handler Handler, dropReplayLogs bool, logHandler slog.Handler, attemptHeaders map[string][]string, readTempBuf []byte) error {
+func ExecuteInvocation(ctx context.Context, logger *slog.Logger, stateMachine *statemachine.StateMachine, conn io.ReadWriteCloser, handler Handler, dropReplayLogs bool, logHandler slog.Handler, attemptHeaders map[string][]string) error {
 	// Let's read the input entry
 	invocationInput, err := stateMachine.SysInput(ctx)
 	if err != nil {
 		logger.WarnContext(ctx, "Error when reading invocation input", log.Error(err))
-		if err = statemachine.ConsumeOutput(ctx, stateMachine, conn); err != nil {
+		if err = consumeOutput(ctx, stateMachine, conn); err != nil {
 			logger.WarnContext(ctx, "Error when consuming output", log.Error(err))
 			return err
 		}
@@ -25,7 +25,7 @@ func ExecuteInvocation(ctx context.Context, logger *slog.Logger, stateMachine *s
 	}
 
 	// Instantiate the restate context
-	restateCtx := newContext(ctx, stateMachine, invocationInput, conn, attemptHeaders, dropReplayLogs, logHandler, readTempBuf)
+	restateCtx := newContext(ctx, stateMachine, invocationInput, conn, attemptHeaders, dropReplayLogs, logHandler)
 
 	// Invoke the handler
 	invoke(restateCtx, handler)
@@ -33,9 +33,8 @@ func ExecuteInvocation(ctx context.Context, logger *slog.Logger, stateMachine *s
 }
 
 func invoke(restateCtx *ctx, handler Handler) {
-	// always terminate the invocation with
-	// an end message.
-	// this will always terminate the connection
+	// Run read loop on a goroutine
+	go func(restateCtx *ctx) { restateCtx.readInputLoop() }(restateCtx)
 
 	defer func() {
 		// recover will return a non-nil object
@@ -62,7 +61,7 @@ func invoke(restateCtx *ctx, handler Handler) {
 		}
 
 		// Consume all the state restateContext output as last step
-		if err := statemachine.ConsumeOutput(restateCtx, restateCtx.stateMachine, restateCtx.conn); err != nil {
+		if err := consumeOutput(restateCtx, restateCtx.stateMachine, restateCtx.conn); err != nil {
 			restateCtx.internalLogger.WarnContext(restateCtx, "Error when consuming output", log.Error(err))
 		}
 	}()

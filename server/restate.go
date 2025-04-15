@@ -312,7 +312,7 @@ func (r *Restate) handleInvokeRequest(service, method string, writer http.Respon
 	conn := newConnection(writer, request)
 
 	// Now buffer input entries until the state machine is ready to execute
-	buf := make([]byte, 1024)
+	buf := restatecontext.BufPool.Get().([]byte)
 	for {
 		isReadyToExecute, err := stateMachine.IsReadyToExecute(ctx)
 		if err != nil {
@@ -352,8 +352,10 @@ func (r *Restate) handleInvokeRequest(service, method string, writer http.Respon
 		slog.String("method", serviceMethod),
 	})
 
+	restatecontext.BufPool.Put(buf)
+
 	// Run the handler
-	if err := restatecontext.ExecuteInvocation(ctx, logger, stateMachine, conn, handler, r.dropReplayLogs, logHandler, request.Header, buf); err != nil {
+	if err := restatecontext.ExecuteInvocation(ctx, logger, stateMachine, conn, handler, r.dropReplayLogs, logHandler, request.Header); err != nil {
 		r.systemLog.LogAttrs(ctx, slog.LevelError, "Failed to handle invocation", log.Error(err))
 	}
 }
