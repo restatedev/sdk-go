@@ -4,25 +4,25 @@ import (
 	"cmp"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
-	pbinternal "github.com/restatedev/sdk-go/internal/generated"
-	"github.com/restatedev/sdk-go/internal/restatecontext"
-	"github.com/restatedev/sdk-go/internal/statemachine"
 	"io"
 	"log/slog"
-	"net"
 	"net/http"
 	"runtime/debug"
 	"slices"
 	"strings"
+	"time"
 
 	restate "github.com/restatedev/sdk-go"
 	"github.com/restatedev/sdk-go/internal"
+	pbinternal "github.com/restatedev/sdk-go/internal/generated"
 	"github.com/restatedev/sdk-go/internal/identity"
 	"github.com/restatedev/sdk-go/internal/log"
+	"github.com/restatedev/sdk-go/internal/restatecontext"
+	"github.com/restatedev/sdk-go/internal/statemachine"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/propagation"
-	"golang.org/x/net/http2"
 )
 
 type ServiceProtocolVersion int32
@@ -448,26 +448,28 @@ func (r *Restate) Start(ctx context.Context, address string) error {
 		return err
 	}
 
-	listener, err := net.Listen("tcp", address)
-	if err != nil {
-		return fmt.Errorf("failed to listen on address %s: %w", address, err)
+	var protocols http.Protocols
+	protocols.SetUnencryptedHTTP2(true)
+
+	server := &http.Server{
+		Handler:   handler,
+		Addr:      address,
+		Protocols: &protocols,
 	}
 
-	slog.Info(fmt.Sprintf("Started listening on %s", listener.Addr()))
+	go func() {
+		<-ctx.Done()
+		shutdownCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer cancel()
 
-	var h2server http2.Server
-
-	opts := &http2.ServeConnOpts{
-		Context: ctx,
-		Handler: handler,
-	}
-
-	for {
-		con, err := listener.Accept()
-		if err != nil {
-			return fmt.Errorf("failed to accept connection: %w", err)
+		if err := server.Shutdown(shutdownCtx); err != nil {
+			r.systemLog.Error("Server shutdown error", "error", err)
 		}
+	}()
 
-		go h2server.ServeConn(con, opts)
+	if err := server.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+		return fmt.Errorf("server error: %w", err)
 	}
+
+	return nil
 }
