@@ -204,6 +204,29 @@ func Run[T any](ctx Context, fn func(ctx RunContext) (T, error), options ...opti
 	return
 }
 
+// RunAsync runs the function (fn), storing final results (including terminal errors)
+// durably in the journal, or otherwise for transient errors stopping execution
+// so Restate can retry the invocation. Replays will produce the same value, so
+// all non-deterministic operations (eg, generating a unique ID) *must* happen
+// inside Run blocks.
+//
+// This is similar to Run, but it returns a RunAsyncFuture instead that can be used within a Select.
+func RunAsync[T any](ctx Context, fn func(ctx RunContext) (T, error), options ...options.RunOption) RunAsyncFuture[T] {
+	return converters.RunAsyncFuture[T]{RunAsyncFuture: ctx.inner().RunAsync(func(ctx RunContext) (any, error) {
+		return fn(ctx)
+	}, options...)}
+}
+
+// RunAsyncFuture is a 'promise' for a RunAsync operation.
+type RunAsyncFuture[T any] interface {
+	// Result blocks on receiving the RunAsync result, returning the value it was
+	// resolved or otherwise returning the error it was rejected with.
+	// It is *not* safe to call this in a goroutine - use Context.Select if you
+	// want to wait on multiple results at once.
+	Result() (T, error)
+	restatecontext.Selectable
+}
+
 // Get gets the value for a key. If there is no associated value with key, the zero value is returned.
 // To check explicitly for this case pass a pointer eg *string as T.
 // If the invocation was cancelled while obtaining the state (only possible if eager state is disabled),

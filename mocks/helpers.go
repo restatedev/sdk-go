@@ -172,6 +172,24 @@ func (_e *MockResponseFuture_Expecter) ResponseAndReturn(value any, err error) *
 	})
 }
 
+// MockRunAsyncFuture is a mock type for the RunAsyncFuture type
+type MockRunAsyncFuture struct {
+	restatecontext.Selectable
+	mock.Mock
+}
+
+// ResponseAndReturn is a helper method to mock a typical 'Result' call on a RunAsyncFuture; return a concrete value or an error
+func (_e *MockRunAsyncFuture_Expecter) ResultAndReturn(value any, err error) *MockRunAsyncFuture_Result_Call {
+	return _e.Result(mock.AnythingOfType(pointerType(value))).RunAndReturn(func(i interface{}) error {
+		if err != nil {
+			return err
+		}
+
+		reflect.ValueOf(i).Elem().Set(reflect.ValueOf(value))
+		return nil
+	})
+}
+
 // MockAttachFuture is a mock type for the AttachFuture type
 type MockAttachFuture struct {
 	restatecontext.Selectable

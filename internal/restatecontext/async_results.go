@@ -5,6 +5,7 @@ import (
 	"github.com/restatedev/sdk-go/internal/errors"
 	pbinternal "github.com/restatedev/sdk-go/internal/generated"
 	"github.com/restatedev/sdk-go/internal/statemachine"
+	"io"
 	"sync"
 	"sync/atomic"
 )
@@ -78,7 +79,7 @@ func (a *asyncResult) pollProgressAndLoadValue() statemachine.Value {
 
 func (restateCtx *ctx) pollProgress(handles []uint32) bool {
 	// Pump output once
-	if err := statemachine.TakeOutputAndWriteOut(restateCtx, restateCtx.stateMachine, restateCtx.conn); err != nil {
+	if err := takeOutputAndWriteOut(restateCtx, restateCtx.stateMachine, restateCtx.conn); err != nil {
 		panic(err)
 	}
 
@@ -90,14 +91,45 @@ func (restateCtx *ctx) pollProgress(handles []uint32) bool {
 		if _, ok := progressResult.(statemachine.DoProgressAnyCompleted); ok {
 			return false
 		}
-		if _, ok := progressResult.(statemachine.DoProgressReadFromInput); ok {
-			if err := statemachine.ReadInputAndNotifyIt(restateCtx, restateCtx.readBuf, restateCtx.stateMachine, restateCtx.conn); err != nil {
-				panic(err)
+		_, isPendingRun := progressResult.(statemachine.DoProgressWaitingPendingRun)
+		_, isReadFromInput := progressResult.(statemachine.DoProgressReadFromInput)
+		if isPendingRun || isReadFromInput {
+			// Either wait for at least one read or for run proposals
+			select {
+			case readRes := <-restateCtx.readChan:
+				if readRes.err == io.EOF {
+					// Got EOF, notify and break
+					if err = restateCtx.stateMachine.NotifyInputClosed(restateCtx); err != nil {
+						panic(err)
+					}
+					break
+				} else if err != nil {
+					// Cannot read input anymore
+					panic(fmt.Errorf("error when reading the input stream %e", err))
+				}
+				if err = restateCtx.stateMachine.NotifyInput(restateCtx, readRes.buf[0:readRes.nRead]); err != nil {
+					panic(err)
+				}
+				BufPool.Put(readRes.buf)
+				break
+			case proposal := <-restateCtx.runClosureCompletions:
+				// Propose completion
+				if err := restateCtx.stateMachine.ProposeRunCompletion(restateCtx, proposal); err != nil {
+					panic(err)
+				}
+
+				// Pump output once. This is needed for the run completion to be effectively written
+				if err := takeOutputAndWriteOut(restateCtx, restateCtx.stateMachine, restateCtx.conn); err != nil {
+					panic(err)
+				}
+				break
+			case <-restateCtx.Done():
+				panic(restateCtx.Err())
 			}
 		}
 		if _, ok := progressResult.(statemachine.DoProgressCancelSignalReceived); ok {
 			// Pump output once. This is needed for cancel commands to be effectively written
-			if err := statemachine.TakeOutputAndWriteOut(restateCtx, restateCtx.stateMachine, restateCtx.conn); err != nil {
+			if err := takeOutputAndWriteOut(restateCtx, restateCtx.stateMachine, restateCtx.conn); err != nil {
 				panic(err)
 			}
 
@@ -109,23 +141,13 @@ func (restateCtx *ctx) pollProgress(handles []uint32) bool {
 				panic(fmt.Sprintf("Need to run a Run closure with coreHandle %d, but it doesn't exist. This is an SDK bug.", executeRun.Handle))
 			}
 
-			// Run closure
-			proposal := closure()
+			// Delete this closure from the running list
 			delete(restateCtx.runClosures, executeRun.Handle)
 
-			// Propose completion
-			if err := restateCtx.stateMachine.ProposeRunCompletion(restateCtx, proposal); err != nil {
-				panic(err)
-			}
-
-			// Pump output once. This is needed for the run completion to be effectively written
-			if err := statemachine.TakeOutputAndWriteOut(restateCtx, restateCtx.stateMachine, restateCtx.conn); err != nil {
-				panic(err)
-			}
-		}
-		if _, ok := progressResult.(statemachine.DoProgressWaitingPendingRun); ok {
-			// This can be returned only when using async context run
-			panic("It is not expected to return DoProgress WaitingPendingRun. This is an SDK bug.")
+			// Run closure in a separate goroutine, proposing the result to runClosureCompletions
+			go func(runClosureCompletions chan *pbinternal.VmProposeRunCompletionParameters, closure func() *pbinternal.VmProposeRunCompletionParameters) {
+				runClosureCompletions <- closure()
+			}(restateCtx.runClosureCompletions, closure)
 		}
 	}
 }

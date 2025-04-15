@@ -193,6 +193,12 @@ func awaitAnySuccessfulCommand(ctx restate.ObjectContext, commands []AwaitableCo
 				continue
 			}
 			return "sleep", err
+		case restate.RunAsyncFuture[string]:
+			res, err := selected.(restate.RunAsyncFuture[string]).Result()
+			if err != nil {
+				continue
+			}
+			return res, err
 		default:
 			panic("Unsupported future type")
 		}
@@ -208,6 +214,9 @@ func awaitableCommandResult(selected restate.Selectable) (string, error) {
 	case restate.AfterFuture:
 		err := selected.(restate.AfterFuture).Done()
 		return "sleep", err
+	case restate.RunAsyncFuture[string]:
+		res, err := selected.(restate.RunAsyncFuture[string]).Result()
+		return res, err
 	default:
 		panic("Unsupported future type")
 	}
@@ -224,7 +233,9 @@ func (cmd AwaitableCommand) toFuture(ctx restate.ObjectContext) restate.Selectab
 		restate.Set(ctx, awakeableStateKey(cmd.AwakeableKey), awk.Id())
 		return awk
 	case "runThrowTerminalException":
-		panic("runThrowTerminalException is not supported yet, as golang sdk doesn't support selectable run yet")
+		return restate.RunAsync[string](ctx, func(ctx restate.RunContext) (string, error) {
+			return "", restate.TerminalErrorf(cmd.Reason)
+		})
 	case "sleep":
 		return restate.After(ctx, time.Duration(cmd.TimeoutMillis)*time.Millisecond)
 	default:
