@@ -6,8 +6,11 @@ import (
 	"reflect"
 
 	"github.com/invopop/jsonschema"
+	"github.com/restatedev/sdk-go/encoding/internal/protojsonschema"
+	"github.com/restatedev/sdk-go/encoding/internal/util"
 	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/reflect/protoreflect"
 )
 
 var (
@@ -223,12 +226,23 @@ func (p protoCodec) Marshal(output any) (data []byte, err error) {
 
 type protoJSONCodec struct{}
 
-func (j protoJSONCodec) InputPayload(_ any) *InputPayload {
-	return &InputPayload{Required: true, ContentType: proto.String("application/json")}
+func (j protoJSONCodec) generateProtoJsonSchema(v any) interface{} {
+	_, msgOk := v.(protoreflect.ProtoMessage)
+	if !msgOk {
+		_, enumOk := v.(protoreflect.Enum)
+		if !enumOk {
+			return nil
+		}
+	}
+	return protojsonschema.GenerateSchema(v)
 }
 
-func (j protoJSONCodec) OutputPayload(_ any) *OutputPayload {
-	return &OutputPayload{ContentType: proto.String("application/json")}
+func (j protoJSONCodec) InputPayload(i any) *InputPayload {
+	return &InputPayload{Required: true, ContentType: proto.String("application/json"), JsonSchema: j.generateProtoJsonSchema(i)}
+}
+
+func (j protoJSONCodec) OutputPayload(o any) *OutputPayload {
+	return &OutputPayload{ContentType: proto.String("application/json"), JsonSchema: j.generateProtoJsonSchema(o)}
 }
 
 func (j protoJSONCodec) Unmarshal(data []byte, input any) (err error) {
@@ -277,9 +291,9 @@ func allocateProtoMessage(codecName string, input any) (proto.Message, error) {
 
 func generateJsonSchema(v any) interface{} {
 	reflector := jsonschema.Reflector{
-		// Unfortunately we can't enable this https://github.com/invopop/jsonschema/issues/163
-		// The generated schema it's correct though, just ugly without this option on
+		// Unfortunately we can't enable this due to a panic bug https://github.com/invopop/jsonschema/issues/163
+		// So we use expandSchema instead, which has the same effect but without the panic
 		// ExpandedStruct: true,
 	}
-	return reflector.Reflect(v)
+	return util.ExpandSchema(reflector.Reflect(v))
 }
