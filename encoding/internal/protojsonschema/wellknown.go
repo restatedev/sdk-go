@@ -22,7 +22,8 @@ var wellKnownToSchemaFns = map[string]func(protoreflect.Descriptor) *jsonschema.
 	},
 	"google.protobuf.Empty": func(d protoreflect.Descriptor) *jsonschema.Schema {
 		return &jsonschema.Schema{
-			Type: "object",
+			Type:                 "object",
+			AdditionalProperties: jsonschema.FalseSchema,
 		}
 	},
 	"google.protobuf.Any": func(d protoreflect.Descriptor) *jsonschema.Schema {
@@ -49,36 +50,12 @@ var wellKnownToSchemaFns = map[string]func(protoreflect.Descriptor) *jsonschema.
 
 	"google.protobuf.Struct": func(d protoreflect.Descriptor) *jsonschema.Schema {
 		return &jsonschema.Schema{
-			Type: "object",
-			AdditionalProperties: &jsonschema.Schema{
-				OneOf: []*jsonschema.Schema{
-					&jsonschema.Schema{Type: "null"},
-					&jsonschema.Schema{Type: "number"},
-					&jsonschema.Schema{Type: "string"},
-					&jsonschema.Schema{Type: "boolean"},
-					&jsonschema.Schema{Type: "array"},
-					&jsonschema.Schema{
-						Type:                 "object",
-						AdditionalProperties: jsonschema.TrueSchema,
-					},
-				},
-			},
+			Type:                 "object",
+			AdditionalProperties: jsonschema.TrueSchema,
 		}
 	},
 	"google.protobuf.Value": func(d protoreflect.Descriptor) *jsonschema.Schema {
-		return &jsonschema.Schema{
-			OneOf: []*jsonschema.Schema{
-				&jsonschema.Schema{Type: "null"},
-				&jsonschema.Schema{Type: "number"},
-				&jsonschema.Schema{Type: "string"},
-				&jsonschema.Schema{Type: "boolean"},
-				&jsonschema.Schema{Type: "array"},
-				&jsonschema.Schema{
-					Type:                 "object",
-					AdditionalProperties: jsonschema.TrueSchema,
-				},
-			},
-		}
+		return jsonschema.TrueSchema
 	},
 	"google.protobuf.NullValue": func(d protoreflect.Descriptor) *jsonschema.Schema {
 		return &jsonschema.Schema{

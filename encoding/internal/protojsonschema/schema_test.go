@@ -46,7 +46,7 @@ var testCases = []testCase{
 	{
 		desc:   "google.protobuf.Empty",
 		msg:    &emptypb.Empty{},
-		schema: `{"$schema":"https://json-schema.org/draft/2020-12/schema","$id":"https://google.golang.org/protobuf/types/known/emptypb/google.protobuf.Empty","type":"object"}`,
+		schema: `{"$schema":"https://json-schema.org/draft/2020-12/schema","$id":"https://google.golang.org/protobuf/types/known/emptypb/google.protobuf.Empty","additionalProperties":false,"type":"object"}`,
 	},
 	{
 		desc:   "google.protobuf.Any",
@@ -61,12 +61,12 @@ var testCases = []testCase{
 	{
 		desc:   "google.protobuf.Struct",
 		msg:    &structpb.Struct{},
-		schema: `{"$schema":"https://json-schema.org/draft/2020-12/schema","$id":"https://google.golang.org/protobuf/types/known/structpb/google.protobuf.Struct","additionalProperties":{"oneOf":[{"type":"null"},{"type":"number"},{"type":"string"},{"type":"boolean"},{"type":"array"},{"additionalProperties":true,"type":"object"}]},"type":"object"}`,
+		schema: `{"$schema":"https://json-schema.org/draft/2020-12/schema","$id":"https://google.golang.org/protobuf/types/known/structpb/google.protobuf.Struct","additionalProperties":true,"type":"object"}`,
 	},
 	{
 		desc:   "google.protobuf.Value",
 		msg:    &structpb.Value{},
-		schema: `{"$schema":"https://json-schema.org/draft/2020-12/schema","$id":"https://google.golang.org/protobuf/types/known/structpb/google.protobuf.Value","oneOf":[{"type":"null"},{"type":"number"},{"type":"string"},{"type":"boolean"},{"type":"array"},{"additionalProperties":true,"type":"object"}]}`,
+		schema: `true`,
 	},
 	{
 		desc:   "google.protobuf.StringValue",
