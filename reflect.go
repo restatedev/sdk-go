@@ -2,13 +2,13 @@ package restate
 
 import (
 	"fmt"
-	"github.com/restatedev/sdk-go/internal/restatecontext"
 	"net/http"
 	"reflect"
 
 	"github.com/restatedev/sdk-go/encoding"
 	"github.com/restatedev/sdk-go/internal"
 	"github.com/restatedev/sdk-go/internal/options"
+	"github.com/restatedev/sdk-go/internal/restatecontext"
 )
 
 type serviceNamer interface {
@@ -58,12 +58,20 @@ func Reflect(rcvr any, opts ...options.ServiceDefinitionOption) ServiceDefinitio
 	var definition ServiceDefinition
 	var foundWorkflowRun bool
 
+	type skippedMethod struct {
+		name   string
+		reason string
+	}
+
+	skipped := []skippedMethod{}
+
 	for m := 0; m < typ.NumMethod(); m++ {
 		method := typ.Method(m)
 		mtype := method.Type
 		mname := method.Name
 		// Method must be exported.
 		if !method.IsExported() {
+			skipped = append(skipped, skippedMethod{name: mname, reason: "not exported"})
 			continue
 		}
 		// Method needs 2-3 ins: receiver, Context, optionally I
@@ -76,6 +84,7 @@ func Reflect(rcvr any, opts ...options.ServiceDefinitionOption) ServiceDefinitio
 			// (ctx, I)
 			input = mtype.In(2)
 		default:
+			skipped = append(skipped, skippedMethod{name: mname, reason: "Incorrect number of parameters; should be 1 or 2"})
 			continue
 		}
 
@@ -121,6 +130,7 @@ func Reflect(rcvr any, opts ...options.ServiceDefinitionOption) ServiceDefinitio
 			handlerType = internal.ServiceHandlerType_SHARED
 		default:
 			// first parameter is not a context
+			skipped = append(skipped, skippedMethod{name: mname, reason: "First parameter is not a restate context object"})
 			continue
 		}
 
@@ -144,12 +154,14 @@ func Reflect(rcvr any, opts ...options.ServiceDefinitionOption) ServiceDefinitio
 			}
 		case 2:
 			if returnType := mtype.Out(1); returnType != typeOfError {
+				skipped = append(skipped, skippedMethod{name: mname, reason: "Two return parameters but the second is not an error"})
 				continue
 			}
 			// (O, error)
 			output = mtype.Out(0)
 			hasError = true
 		default:
+			skipped = append(skipped, skippedMethod{name: mname, reason: "More than two return parameters"})
 			continue
 		}
 
@@ -190,8 +202,8 @@ func Reflect(rcvr any, opts ...options.ServiceDefinitionOption) ServiceDefinitio
 		}
 	}
 
-	if definition == nil {
-		panic("no valid handlers could be found within the exported methods on this struct")
+	if definition == nil || len(definition.Handlers()) == 0 {
+		panic(fmt.Sprintf("no valid handlers could be found within the exported methods on this struct. Please ensure that methods are defined on the exact type T provided to .Reflect, and not on *T. Skipped handlers: %+v", skipped))
 	}
 
 	if definition.Type() == internal.ServiceType_WORKFLOW && !foundWorkflowRun {

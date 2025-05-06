@@ -48,6 +48,7 @@ var tests []reflectTestParams = []reflectTestParams{
 	}},
 	{rcvr: mixed{}, shouldPanic: true},
 	{rcvr: empty{}, shouldPanic: true},
+	{rcvr: invalidService{}, shouldPanic: true},
 }
 
 func TestReflect(t *testing.T) {
@@ -144,8 +145,8 @@ func (namedService) ServiceName() string {
 
 type validWorkflow struct{}
 
-func (validWorkflow) Run(ctx restate.WorkflowContext, _ string) (string, error) {
-	return "", nil
+func (validWorkflow) Run(ctx restate.WorkflowContext) error {
+	return nil
 }
 
 func (validWorkflow) Status(ctx restate.WorkflowSharedContext, _ string) (string, error) {
@@ -166,3 +167,16 @@ func (mixed) GreetShared(ctx restate.ObjectSharedContext, _ string) (string, err
 }
 
 type empty struct{}
+
+type invalidService struct{}
+
+func (invalidService) notExported(ctx restate.Context)                           {}
+func (invalidService) NoParams()                                                 {}
+func (invalidService) TooManyParams(ctx restate.Context, foo string, bar string) {}
+func (invalidService) FirstParamNotContext(foo string)                           {}
+func (invalidService) SecondReturnNotError(ctx restate.Context) (string, string) {
+	return "", ""
+}
+func (invalidService) TooManyReturns(ctx restate.Context) (string, string, string) {
+	return "", "", ""
+}
