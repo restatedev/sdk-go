@@ -2,13 +2,13 @@ package restate
 
 import (
 	"fmt"
-	"github.com/restatedev/sdk-go/internal/restatecontext"
 	"net/http"
 	"reflect"
 
 	"github.com/restatedev/sdk-go/encoding"
 	"github.com/restatedev/sdk-go/internal"
 	"github.com/restatedev/sdk-go/internal/options"
+	"github.com/restatedev/sdk-go/internal/restatecontext"
 )
 
 type serviceNamer interface {
@@ -58,29 +58,29 @@ func Reflect(rcvr any, opts ...options.ServiceDefinitionOption) ServiceDefinitio
 	var definition ServiceDefinition
 	var foundWorkflowRun bool
 
+	type skippedMethod struct {
+		name   string
+		reason string
+	}
+
+	skipped := []skippedMethod{}
+
 	for m := 0; m < typ.NumMethod(); m++ {
 		method := typ.Method(m)
 		mtype := method.Type
 		mname := method.Name
 		// Method must be exported.
 		if !method.IsExported() {
+			skipped = append(skipped, skippedMethod{name: mname, reason: "Not exported"})
 			continue
 		}
-		// Method needs 2-3 ins: receiver, Context, optionally I
-		var input reflect.Type
-		switch mtype.NumIn() {
-		case 2:
-			// (ctx)
-			input = nil
-		case 3:
-			// (ctx, I)
-			input = mtype.In(2)
-		default:
+
+		if mtype.NumIn() < 2 {
+			skipped = append(skipped, skippedMethod{name: mname, reason: "Incorrect number of parameters; should be 1 or 2"})
 			continue
 		}
 
 		var handlerType internal.ServiceHandlerType
-
 		switch mtype.In(1) {
 		case typeOfContext:
 			if definition == nil {
@@ -121,7 +121,23 @@ func Reflect(rcvr any, opts ...options.ServiceDefinitionOption) ServiceDefinitio
 			handlerType = internal.ServiceHandlerType_SHARED
 		default:
 			// first parameter is not a context
+			skipped = append(skipped, skippedMethod{name: mname, reason: "First parameter is not a restate context object"})
 			continue
+		}
+
+		// if we are here, we have an exported method with a restate context; most likely this was intended as a restate handler, so issues from here on should panic, not continue
+
+		// Method needs 2-3 ins: receiver, Context, optionally I
+		var input reflect.Type
+		switch mtype.NumIn() {
+		case 2:
+			// (ctx)
+			input = nil
+		case 3:
+			// (ctx, I)
+			input = mtype.In(2)
+		default:
+			panic(fmt.Sprintf("Incorrect number of arguments for method %s; a restate handler should have a ctx parameter and optionally *one* input parameter", mname))
 		}
 
 		// Method needs 0-2 outs: (), (O), (error), (O, error) are all valid
@@ -144,13 +160,13 @@ func Reflect(rcvr any, opts ...options.ServiceDefinitionOption) ServiceDefinitio
 			}
 		case 2:
 			if returnType := mtype.Out(1); returnType != typeOfError {
-				continue
+				panic(fmt.Sprintf("Incorrect returns for method %s; if returning two parameters from a restate handler, the second must be an error", mname))
 			}
 			// (O, error)
 			output = mtype.Out(0)
 			hasError = true
 		default:
-			continue
+			panic(fmt.Sprintf("Incorrect returns for method %s; at most 2 parameters are allowed in a restate handler (result and error)", mname))
 		}
 
 		switch def := definition.(type) {
@@ -190,8 +206,8 @@ func Reflect(rcvr any, opts ...options.ServiceDefinitionOption) ServiceDefinitio
 		}
 	}
 
-	if definition == nil {
-		panic("no valid handlers could be found within the exported methods on this struct")
+	if definition == nil || len(definition.Handlers()) == 0 {
+		panic(fmt.Sprintf("no valid handlers could be found within the exported methods on this struct. Please ensure that methods are defined on the exact type T provided to .Reflect, and not on *T. Skipped handlers: %+v", skipped))
 	}
 
 	if definition.Type() == internal.ServiceType_WORKFLOW && !foundWorkflowRun {
