@@ -71,25 +71,16 @@ func Reflect(rcvr any, opts ...options.ServiceDefinitionOption) ServiceDefinitio
 		mname := method.Name
 		// Method must be exported.
 		if !method.IsExported() {
-			skipped = append(skipped, skippedMethod{name: mname, reason: "not exported"})
+			skipped = append(skipped, skippedMethod{name: mname, reason: "Not exported"})
 			continue
 		}
-		// Method needs 2-3 ins: receiver, Context, optionally I
-		var input reflect.Type
-		switch mtype.NumIn() {
-		case 2:
-			// (ctx)
-			input = nil
-		case 3:
-			// (ctx, I)
-			input = mtype.In(2)
-		default:
+
+		if mtype.NumIn() < 2 {
 			skipped = append(skipped, skippedMethod{name: mname, reason: "Incorrect number of parameters; should be 1 or 2"})
 			continue
 		}
 
 		var handlerType internal.ServiceHandlerType
-
 		switch mtype.In(1) {
 		case typeOfContext:
 			if definition == nil {
@@ -134,6 +125,21 @@ func Reflect(rcvr any, opts ...options.ServiceDefinitionOption) ServiceDefinitio
 			continue
 		}
 
+		// if we are here, we have an exported method with a restate context; most likely this was intended as a restate handler, so issues from here on should panic, not continue
+
+		// Method needs 2-3 ins: receiver, Context, optionally I
+		var input reflect.Type
+		switch mtype.NumIn() {
+		case 2:
+			// (ctx)
+			input = nil
+		case 3:
+			// (ctx, I)
+			input = mtype.In(2)
+		default:
+			panic(fmt.Sprintf("Incorrect number of arguments for method %s; a restate handler should have a ctx parameter and optionally *one* input parameter", mname))
+		}
+
 		// Method needs 0-2 outs: (), (O), (error), (O, error) are all valid
 		var output reflect.Type
 		var hasError bool
@@ -154,15 +160,13 @@ func Reflect(rcvr any, opts ...options.ServiceDefinitionOption) ServiceDefinitio
 			}
 		case 2:
 			if returnType := mtype.Out(1); returnType != typeOfError {
-				skipped = append(skipped, skippedMethod{name: mname, reason: "Two return parameters but the second is not an error"})
-				continue
+				panic(fmt.Sprintf("Incorrect returns for method %s; if returning two parameters from a restate handler, the second must be an error", mname))
 			}
 			// (O, error)
 			output = mtype.Out(0)
 			hasError = true
 		default:
-			skipped = append(skipped, skippedMethod{name: mname, reason: "More than two return parameters"})
-			continue
+			panic(fmt.Sprintf("Incorrect returns for method %s; at most 2 parameters are allowed in a restate handler (result and error)", mname))
 		}
 
 		switch def := definition.(type) {
