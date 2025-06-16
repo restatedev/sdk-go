@@ -29,14 +29,14 @@ type ServiceProtocolVersion int32
 type ServiceDiscoveryProtocolVersion int32
 
 const (
-	ServiceDiscoveryProtocolVersion_SERVICE_DISCOVERY_PROTOCOL_VERSION_UNSPECIFIED ServiceDiscoveryProtocolVersion = 0
-	ServiceDiscoveryProtocolVersion_V1                                             ServiceDiscoveryProtocolVersion = 1
-	ServiceDiscoveryProtocolVersion_V2                                             ServiceDiscoveryProtocolVersion = 2
-	ServiceDiscoveryProtocolVersion_V3                                             ServiceDiscoveryProtocolVersion = 3
-	minServiceDiscoveryProtocolVersion                                                                             = ServiceDiscoveryProtocolVersion_V2
-	maxServiceDiscoveryProtocolVersion                                                                             = ServiceDiscoveryProtocolVersion_V3
-	minServiceProtocolVersion                                                                                      = 5
-	maxServiceProtocolVersion                                                                                      = 5
+	ServiceDiscoveryProtocolVersion_UNKNOWN ServiceDiscoveryProtocolVersion = 0
+	ServiceDiscoveryProtocolVersion_V1      ServiceDiscoveryProtocolVersion = 1
+	ServiceDiscoveryProtocolVersion_V2      ServiceDiscoveryProtocolVersion = 2
+	ServiceDiscoveryProtocolVersion_V3      ServiceDiscoveryProtocolVersion = 3
+	minServiceDiscoveryProtocolVersion                                      = ServiceDiscoveryProtocolVersion_V2
+	maxServiceDiscoveryProtocolVersion                                      = ServiceDiscoveryProtocolVersion_V3
+	minServiceProtocolVersion                                               = 5
+	maxServiceProtocolVersion                                               = 5
 )
 
 var xRestateServer = `restate-sdk-go/unknown`
@@ -122,7 +122,7 @@ func (r *Restate) Bind(definition restate.ServiceDefinition) *Restate {
 	return r
 }
 
-func (r *Restate) discover() (resource *internal.Endpoint, err error) {
+func (r *Restate) discover(protocolVersion ServiceDiscoveryProtocolVersion) (resource *internal.Endpoint, err error) {
 	resource = &internal.Endpoint{
 		ProtocolMode:       r.protocolMode,
 		MinProtocolVersion: minServiceProtocolVersion,
@@ -130,35 +130,152 @@ func (r *Restate) discover() (resource *internal.Endpoint, err error) {
 		Services:           make([]internal.Service, 0, len(r.definitions)),
 	}
 
-	for name, definition := range r.definitions {
+	for serviceName, definition := range r.definitions {
 		var metadata map[string]string
 		var documentation string
+		var abortTimeout *int
+		var enableLazyState *bool
+		var idempotencyRetention *int
+		var inactivityTimeout *int
+		var ingressPrivate *bool
+		var journalRetention *int
+
+		// Check if there's options to apply
 		if definition.GetOptions() != nil {
+			// Validate which fields are set
+			if protocolVersion < ServiceDiscoveryProtocolVersion_V3 {
+				if definition.GetOptions().AbortTimeout != nil {
+					return nil, fmt.Errorf("service %s: AbortTimeout option requires discovery protocol version 3 or higher", serviceName)
+				}
+				if definition.GetOptions().EnableLazyState != nil {
+					return nil, fmt.Errorf("service %s: EnableLazyState option requires discovery protocol version 3 or higher", serviceName)
+				}
+				if definition.GetOptions().IdempotencyRetention != nil {
+					return nil, fmt.Errorf("service %s: IdempotencyRetention option requires discovery protocol version 3 or higher", serviceName)
+				}
+				if definition.GetOptions().InactivityTimeout != nil {
+					return nil, fmt.Errorf("service %s: InactivityTimeout option requires discovery protocol version 3 or higher", serviceName)
+				}
+				if definition.GetOptions().IngressPrivate != nil {
+					return nil, fmt.Errorf("service %s: IngressPrivate option requires discovery protocol version 3 or higher", serviceName)
+				}
+				if definition.GetOptions().JournalRetention != nil {
+					return nil, fmt.Errorf("service %s: JournalRetention option requires discovery protocol version 3 or higher", serviceName)
+				}
+			}
+
 			metadata = definition.GetOptions().Metadata
 			documentation = definition.GetOptions().Documentation
+			if definition.GetOptions().AbortTimeout != nil {
+				abortTimeoutMs := int(definition.GetOptions().AbortTimeout.Milliseconds())
+				abortTimeout = &abortTimeoutMs
+			}
+			enableLazyState = definition.GetOptions().EnableLazyState
+			if definition.GetOptions().IdempotencyRetention != nil {
+				idempotencyRetentionMs := int(definition.GetOptions().IdempotencyRetention.Milliseconds())
+				idempotencyRetention = &idempotencyRetentionMs
+			}
+			if definition.GetOptions().InactivityTimeout != nil {
+				inactivityTimeoutMs := int(definition.GetOptions().InactivityTimeout.Milliseconds())
+				inactivityTimeout = &inactivityTimeoutMs
+			}
+			ingressPrivate = definition.GetOptions().IngressPrivate
+			if definition.GetOptions().JournalRetention != nil {
+				journalRetentionMs := int(definition.GetOptions().JournalRetention.Milliseconds())
+				journalRetention = &journalRetentionMs
+			}
 		}
 		service := internal.Service{
-			Name:          name,
-			Ty:            definition.Type(),
-			Handlers:      make([]internal.Handler, 0, len(definition.Handlers())),
-			Metadata:      metadata,
-			Documentation: &documentation,
+			Name:                 serviceName,
+			Ty:                   definition.Type(),
+			Handlers:             make([]internal.Handler, 0, len(definition.Handlers())),
+			Metadata:             metadata,
+			Documentation:        &documentation,
+			AbortTimeout:         abortTimeout,
+			EnableLazyState:      enableLazyState,
+			IdempotencyRetention: idempotencyRetention,
+			InactivityTimeout:    inactivityTimeout,
+			IngressPrivate:       ingressPrivate,
+			JournalRetention:     journalRetention,
 		}
 
-		for name, handler := range definition.Handlers() {
+		for handlerName, handler := range definition.Handlers() {
 			var metadata map[string]string
 			var documentation string
+			var abortTimeout *int
+			var enableLazyState *bool
+			var idempotencyRetention *int
+			var inactivityTimeout *int
+			var ingressPrivate *bool
+			var journalRetention *int
+			var workflowCompletionRetention *int
+
+			// Check if there's options to apply
 			if handler.GetOptions() != nil {
+				// Validate which fields are set
+				if protocolVersion < ServiceDiscoveryProtocolVersion_V3 {
+					if handler.GetOptions().AbortTimeout != nil {
+						return nil, fmt.Errorf("handler %s/%s: AbortTimeout option requires discovery protocol version 3 or higher", serviceName, handlerName)
+					}
+					if handler.GetOptions().EnableLazyState != nil {
+						return nil, fmt.Errorf("handler %s/%s: EnableLazyState option requires discovery protocol version 3 or higher", serviceName, handlerName)
+					}
+					if handler.GetOptions().IdempotencyRetention != nil {
+						return nil, fmt.Errorf("handler %s/%s: IdempotencyRetention option requires discovery protocol version 3 or higher", serviceName, handlerName)
+					}
+					if handler.GetOptions().InactivityTimeout != nil {
+						return nil, fmt.Errorf("handler %s/%s: InactivityTimeout option requires discovery protocol version 3 or higher", serviceName, handlerName)
+					}
+					if handler.GetOptions().IngressPrivate != nil {
+						return nil, fmt.Errorf("handler %s/%s: IngressPrivate option requires discovery protocol version 3 or higher", serviceName, handlerName)
+					}
+					if handler.GetOptions().JournalRetention != nil {
+						return nil, fmt.Errorf("handler %s/%s: JournalRetention option requires discovery protocol version 3 or higher", serviceName, handlerName)
+					}
+					if handler.GetOptions().WorkflowRetention != nil {
+						return nil, fmt.Errorf("handler %s/%s: WorkflowRetention option requires discovery protocol version 3 or higher", serviceName, handlerName)
+					}
+				}
+
 				metadata = handler.GetOptions().Metadata
 				documentation = handler.GetOptions().Documentation
+				if handler.GetOptions().AbortTimeout != nil {
+					abortTimeoutMs := int(handler.GetOptions().AbortTimeout.Milliseconds())
+					abortTimeout = &abortTimeoutMs
+				}
+				enableLazyState = handler.GetOptions().EnableLazyState
+				if handler.GetOptions().IdempotencyRetention != nil {
+					idempotencyRetentionMs := int(handler.GetOptions().IdempotencyRetention.Milliseconds())
+					idempotencyRetention = &idempotencyRetentionMs
+				}
+				if handler.GetOptions().InactivityTimeout != nil {
+					inactivityTimeoutMs := int(handler.GetOptions().InactivityTimeout.Milliseconds())
+					inactivityTimeout = &inactivityTimeoutMs
+				}
+				ingressPrivate = handler.GetOptions().IngressPrivate
+				if handler.GetOptions().JournalRetention != nil {
+					journalRetentionMs := int(handler.GetOptions().JournalRetention.Milliseconds())
+					journalRetention = &journalRetentionMs
+				}
+				if handler.GetOptions().WorkflowRetention != nil {
+					workflowCompletionRetentionMs := int(handler.GetOptions().WorkflowRetention.Milliseconds())
+					workflowCompletionRetention = &workflowCompletionRetentionMs
+				}
 			}
 			service.Handlers = append(service.Handlers, internal.Handler{
-				Name:          name,
-				Input:         handler.InputPayload(),
-				Output:        handler.OutputPayload(),
-				Ty:            handler.HandlerType(),
-				Metadata:      metadata,
-				Documentation: &documentation,
+				Name:                        handlerName,
+				Input:                       handler.InputPayload(),
+				Output:                      handler.OutputPayload(),
+				Ty:                          handler.HandlerType(),
+				Metadata:                    metadata,
+				Documentation:               &documentation,
+				AbortTimeout:                abortTimeout,
+				EnableLazyState:             enableLazyState,
+				IdempotencyRetention:        idempotencyRetention,
+				InactivityTimeout:           inactivityTimeout,
+				IngressPrivate:              ingressPrivate,
+				JournalRetention:            journalRetention,
+				WorkflowCompletionRetention: workflowCompletionRetention,
 			})
 		}
 		slices.SortFunc(service.Handlers, func(a, b internal.Handler) int {
@@ -186,13 +303,13 @@ func (r *Restate) handleDiscoveryRequest(writer http.ResponseWriter, req *http.R
 
 	serviceDiscoveryProtocolVersion := selectSupportedServiceDiscoveryProtocolVersion(acceptVersionsString)
 
-	if serviceDiscoveryProtocolVersion == ServiceDiscoveryProtocolVersion_SERVICE_DISCOVERY_PROTOCOL_VERSION_UNSPECIFIED {
+	if serviceDiscoveryProtocolVersion == ServiceDiscoveryProtocolVersion_UNKNOWN {
 		writer.WriteHeader(http.StatusUnsupportedMediaType)
 		writer.Write([]byte(fmt.Sprintf("Unsupported service discovery protocol version '%s'", acceptVersionsString)))
 		return
 	}
 
-	response, err := r.discover()
+	response, err := r.discover(serviceDiscoveryProtocolVersion)
 	if err != nil {
 		writer.WriteHeader(http.StatusInternalServerError)
 		writer.Write([]byte(err.Error()))
@@ -215,7 +332,7 @@ func (r *Restate) handleDiscoveryRequest(writer http.ResponseWriter, req *http.R
 }
 
 func selectSupportedServiceDiscoveryProtocolVersion(accept string) ServiceDiscoveryProtocolVersion {
-	maxVersion := ServiceDiscoveryProtocolVersion_SERVICE_DISCOVERY_PROTOCOL_VERSION_UNSPECIFIED
+	maxVersion := ServiceDiscoveryProtocolVersion_UNKNOWN
 
 	for _, versionString := range strings.Split(accept, ",") {
 		version := parseServiceDiscoveryProtocolVersion(versionString)
@@ -238,7 +355,7 @@ func parseServiceDiscoveryProtocolVersion(versionString string) ServiceDiscovery
 		return ServiceDiscoveryProtocolVersion_V3
 	}
 
-	return ServiceDiscoveryProtocolVersion_SERVICE_DISCOVERY_PROTOCOL_VERSION_UNSPECIFIED
+	return ServiceDiscoveryProtocolVersion_UNKNOWN
 }
 
 func isServiceDiscoveryProtocolVersionSupported(version ServiceDiscoveryProtocolVersion) bool {
