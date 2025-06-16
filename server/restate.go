@@ -32,8 +32,9 @@ const (
 	ServiceDiscoveryProtocolVersion_SERVICE_DISCOVERY_PROTOCOL_VERSION_UNSPECIFIED ServiceDiscoveryProtocolVersion = 0
 	ServiceDiscoveryProtocolVersion_V1                                             ServiceDiscoveryProtocolVersion = 1
 	ServiceDiscoveryProtocolVersion_V2                                             ServiceDiscoveryProtocolVersion = 2
+	ServiceDiscoveryProtocolVersion_V3                                             ServiceDiscoveryProtocolVersion = 3
 	minServiceDiscoveryProtocolVersion                                                                             = ServiceDiscoveryProtocolVersion_V2
-	maxServiceDiscoveryProtocolVersion                                                                             = ServiceDiscoveryProtocolVersion_V2
+	maxServiceDiscoveryProtocolVersion                                                                             = ServiceDiscoveryProtocolVersion_V3
 	minServiceProtocolVersion                                                                                      = 5
 	maxServiceProtocolVersion                                                                                      = 5
 )
@@ -124,8 +125,8 @@ func (r *Restate) Bind(definition restate.ServiceDefinition) *Restate {
 func (r *Restate) discover() (resource *internal.Endpoint, err error) {
 	resource = &internal.Endpoint{
 		ProtocolMode:       r.protocolMode,
-		MinProtocolVersion: int32(minServiceProtocolVersion),
-		MaxProtocolVersion: int32(maxServiceProtocolVersion),
+		MinProtocolVersion: minServiceProtocolVersion,
+		MaxProtocolVersion: maxServiceProtocolVersion,
 		Services:           make([]internal.Service, 0, len(r.definitions)),
 	}
 
@@ -141,7 +142,7 @@ func (r *Restate) discover() (resource *internal.Endpoint, err error) {
 			Ty:            definition.Type(),
 			Handlers:      make([]internal.Handler, 0, len(definition.Handlers())),
 			Metadata:      metadata,
-			Documentation: documentation,
+			Documentation: &documentation,
 		}
 
 		for name, handler := range definition.Handlers() {
@@ -157,7 +158,7 @@ func (r *Restate) discover() (resource *internal.Endpoint, err error) {
 				Output:        handler.OutputPayload(),
 				Ty:            handler.HandlerType(),
 				Metadata:      metadata,
-				Documentation: documentation,
+				Documentation: &documentation,
 			})
 		}
 		slices.SortFunc(service.Handlers, func(a, b internal.Handler) int {
@@ -233,6 +234,9 @@ func parseServiceDiscoveryProtocolVersion(versionString string) ServiceDiscovery
 	if strings.TrimSpace(versionString) == "application/vnd.restate.endpointmanifest.v2+json" {
 		return ServiceDiscoveryProtocolVersion_V2
 	}
+	if strings.TrimSpace(versionString) == "application/vnd.restate.endpointmanifest.v3+json" {
+		return ServiceDiscoveryProtocolVersion_V3
+	}
 
 	return ServiceDiscoveryProtocolVersion_SERVICE_DISCOVERY_PROTOCOL_VERSION_UNSPECIFIED
 }
@@ -247,6 +251,8 @@ func serviceDiscoveryProtocolVersionToHeaderValue(serviceDiscoveryProtocolVersio
 		return "application/vnd.restate.endpointmanifest.v1+json"
 	case ServiceDiscoveryProtocolVersion_V2:
 		return "application/vnd.restate.endpointmanifest.v2+json"
+	case ServiceDiscoveryProtocolVersion_V3:
+		return "application/vnd.restate.endpointmanifest.v3+json"
 	}
 	panic(fmt.Sprintf("unexpected service discovery protocol version %d", serviceDiscoveryProtocolVersion))
 }
