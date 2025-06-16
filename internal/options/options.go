@@ -131,9 +131,16 @@ type AttachOption interface {
 }
 
 type HandlerOptions struct {
-	Codec         encoding.PayloadCodec
-	Metadata      map[string]string
-	Documentation string
+	Codec                encoding.PayloadCodec
+	Metadata             map[string]string
+	Documentation        string
+	AbortTimeout         *time.Duration
+	EnableLazyState      *bool
+	IdempotencyRetention *time.Duration
+	InactivityTimeout    *time.Duration
+	IngressPrivate       *bool
+	JournalRetention     *time.Duration
+	WorkflowRetention    *time.Duration
 }
 
 type HandlerOption interface {
@@ -141,9 +148,15 @@ type HandlerOption interface {
 }
 
 type ServiceDefinitionOptions struct {
-	DefaultCodec  encoding.PayloadCodec
-	Metadata      map[string]string
-	Documentation string
+	DefaultCodec         encoding.PayloadCodec
+	Metadata             map[string]string
+	Documentation        string
+	AbortTimeout         *time.Duration
+	EnableLazyState      *bool
+	IdempotencyRetention *time.Duration
+	InactivityTimeout    *time.Duration
+	IngressPrivate       *bool
+	JournalRetention     *time.Duration
 }
 
 type ServiceDefinitionOption interface {

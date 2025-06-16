@@ -26,26 +26,102 @@ const (
 )
 
 type Handler struct {
-	Name string `json:"name,omitempty"`
-	// If unspecified, defaults to EXCLUSIVE for Virtual Object. This should be unset for Services.
-	Ty            *ServiceHandlerType     `json:"ty,omitempty"`
-	Input         *encoding.InputPayload  `json:"input,omitempty"`
-	Output        *encoding.OutputPayload `json:"output,omitempty"`
-	Metadata      map[string]string       `json:"metadata,omitempty"`
-	Documentation string                  `json:"documentation,omitempty"`
+	// Abort timeout duration, expressed in milliseconds.
+	AbortTimeout *int `json:"abortTimeout,omitempty" yaml:"abortTimeout,omitempty" mapstructure:"abortTimeout,omitempty"`
+
+	// Documentation for this handler definition. No format is enforced, but generally
+	// Markdown is assumed.
+	Documentation *string `json:"documentation,omitempty" yaml:"documentation,omitempty" mapstructure:"documentation,omitempty"`
+
+	// If true, lazy state is enabled.
+	EnableLazyState *bool `json:"enableLazyState,omitempty" yaml:"enableLazyState,omitempty" mapstructure:"enableLazyState,omitempty"`
+
+	// Idempotency retention duration, expressed in milliseconds. This is NOT VALID
+	// when HandlerType == WORKFLOW
+	IdempotencyRetention *int `json:"idempotencyRetention,omitempty" yaml:"idempotencyRetention,omitempty" mapstructure:"idempotencyRetention,omitempty"`
+
+	// Inactivity timeout duration, expressed in milliseconds.
+	InactivityTimeout *int `json:"inactivityTimeout,omitempty" yaml:"inactivityTimeout,omitempty" mapstructure:"inactivityTimeout,omitempty"`
+
+	// If true, the service cannot be invoked from the HTTP nor Kafka ingress.
+	IngressPrivate *bool `json:"ingressPrivate,omitempty" yaml:"ingressPrivate,omitempty" mapstructure:"ingressPrivate,omitempty"`
+
+	// Description of an input payload. This will be used by Restate to validate
+	// incoming requests.
+	Input *encoding.InputPayload `json:"input,omitempty" yaml:"input,omitempty" mapstructure:"input,omitempty"`
+
+	// Journal retention duration, expressed in milliseconds.
+	JournalRetention *int `json:"journalRetention,omitempty" yaml:"journalRetention,omitempty" mapstructure:"journalRetention,omitempty"`
+
+	// Custom metadata of this handler definition. This metadata is shown on the Admin
+	// API when querying the service/handler definition.
+	Metadata map[string]string `json:"metadata,omitempty" yaml:"metadata,omitempty" mapstructure:"metadata,omitempty"`
+
+	// Name corresponds to the JSON schema field "name".
+	Name string `json:"name" yaml:"name" mapstructure:"name"`
+
+	// Description of an output payload.
+	Output *encoding.OutputPayload `json:"output,omitempty" yaml:"output,omitempty" mapstructure:"output,omitempty"`
+
+	// If unspecified, defaults to EXCLUSIVE for Virtual Object or WORKFLOW for
+	// Workflows. This should be unset for Services.
+	Ty *ServiceHandlerType `json:"ty,omitempty" yaml:"ty,omitempty" mapstructure:"ty,omitempty"`
+
+	// Workflow completion retention duration, expressed in milliseconds. This is
+	// valid ONLY when HandlerType == WORKFLOW
+	WorkflowCompletionRetention *int `json:"workflowCompletionRetention,omitempty" yaml:"workflowCompletionRetention,omitempty" mapstructure:"workflowCompletionRetention,omitempty"`
 }
 
 type Service struct {
-	Name          string            `json:"name"`
-	Ty            ServiceType       `json:"ty"`
-	Handlers      []Handler         `json:"handlers"`
-	Metadata      map[string]string `json:"metadata,omitempty"`
-	Documentation string            `json:"documentation,omitempty"`
+	// Abort timeout duration, expressed in milliseconds.
+	AbortTimeout *int `json:"abortTimeout,omitempty" yaml:"abortTimeout,omitempty" mapstructure:"abortTimeout,omitempty"`
+
+	// Documentation for this service definition. No format is enforced, but generally
+	// Markdown is assumed.
+	Documentation *string `json:"documentation,omitempty" yaml:"documentation,omitempty" mapstructure:"documentation,omitempty"`
+
+	// If true, lazy state is enabled.
+	EnableLazyState *bool `json:"enableLazyState,omitempty" yaml:"enableLazyState,omitempty" mapstructure:"enableLazyState,omitempty"`
+
+	// Handlers corresponds to the JSON schema field "handlers".
+	Handlers []Handler `json:"handlers" yaml:"handlers" mapstructure:"handlers"`
+
+	// Idempotency retention duration, expressed in milliseconds. When ServiceType ==
+	// WORKFLOW, this option will be applied only to the shared handlers. See
+	// workflowCompletionRetention for more details.
+	IdempotencyRetention *int `json:"idempotencyRetention,omitempty" yaml:"idempotencyRetention,omitempty" mapstructure:"idempotencyRetention,omitempty"`
+
+	// Inactivity timeout duration, expressed in milliseconds.
+	InactivityTimeout *int `json:"inactivityTimeout,omitempty" yaml:"inactivityTimeout,omitempty" mapstructure:"inactivityTimeout,omitempty"`
+
+	// If true, the service cannot be invoked from the HTTP nor Kafka ingress.
+	IngressPrivate *bool `json:"ingressPrivate,omitempty" yaml:"ingressPrivate,omitempty" mapstructure:"ingressPrivate,omitempty"`
+
+	// Journal retention duration, expressed in milliseconds.
+	JournalRetention *int `json:"journalRetention,omitempty" yaml:"journalRetention,omitempty" mapstructure:"journalRetention,omitempty"`
+
+	// Custom metadata of this service definition. This metadata is shown on the Admin
+	// API when querying the service definition.
+	Metadata map[string]string `json:"metadata,omitempty" yaml:"metadata,omitempty" mapstructure:"metadata,omitempty"`
+
+	// Name corresponds to the JSON schema field "name".
+	Name string `json:"name" yaml:"name" mapstructure:"name"`
+
+	// Ty corresponds to the JSON schema field "ty".
+	Ty ServiceType `json:"ty" yaml:"ty" mapstructure:"ty"`
 }
 
+// Endpoint manifest v3
 type Endpoint struct {
-	ProtocolMode       ProtocolMode `json:"protocolMode"`
-	MinProtocolVersion int32        `json:"minProtocolVersion"`
-	MaxProtocolVersion int32        `json:"maxProtocolVersion"`
-	Services           []Service    `json:"services"`
+	// Maximum supported protocol version
+	MaxProtocolVersion int `json:"maxProtocolVersion" yaml:"maxProtocolVersion" mapstructure:"maxProtocolVersion"`
+
+	// Minimum supported protocol version
+	MinProtocolVersion int `json:"minProtocolVersion" yaml:"minProtocolVersion" mapstructure:"minProtocolVersion"`
+
+	// ProtocolMode corresponds to the JSON schema field "protocolMode".
+	ProtocolMode ProtocolMode `json:"protocolMode,omitempty" yaml:"protocolMode,omitempty" mapstructure:"protocolMode,omitempty"`
+
+	// Services corresponds to the JSON schema field "services".
+	Services []Service `json:"services" yaml:"services" mapstructure:"services"`
 }
