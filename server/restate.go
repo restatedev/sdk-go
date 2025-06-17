@@ -5,9 +5,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	pbinternal "github.com/restatedev/sdk-go/internal/generated"
-	"github.com/restatedev/sdk-go/internal/restatecontext"
-	"github.com/restatedev/sdk-go/internal/statemachine"
 	"io"
 	"log/slog"
 	"net"
@@ -18,8 +15,11 @@ import (
 
 	restate "github.com/restatedev/sdk-go"
 	"github.com/restatedev/sdk-go/internal"
+	pbinternal "github.com/restatedev/sdk-go/internal/generated"
 	"github.com/restatedev/sdk-go/internal/identity"
 	"github.com/restatedev/sdk-go/internal/log"
+	"github.com/restatedev/sdk-go/internal/restatecontext"
+	"github.com/restatedev/sdk-go/internal/statemachine"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/propagation"
 	"golang.org/x/net/http2"
@@ -447,6 +447,16 @@ func (r *Restate) handleInvokeRequest(service, method string, writer http.Respon
 			break
 		}
 		read, err := conn.Read(buf)
+		// from the io.Reader docs:
+		// Callers should always process the n > 0 bytes returned before considering the error err.
+		// Doing so correctly handles I/O errors that happen after reading some bytes and also both of the allowed EOF behaviors.
+		if read > 0 {
+			if err = stateMachine.NotifyInput(ctx, buf[0:read]); err != nil {
+				logger.WarnContext(ctx, "Error when notifying input to the state machine", slog.Any("err", err))
+				writer.WriteHeader(int(restate.ErrorCode(err)))
+				return
+			}
+		}
 		if err == io.EOF {
 			if err = stateMachine.NotifyInputClosed(ctx); err != nil {
 				logger.WarnContext(ctx, "Error when notifying input closed to the state machine", slog.Any("err", err))
@@ -457,13 +467,6 @@ func (r *Restate) handleInvokeRequest(service, method string, writer http.Respon
 			logger.WarnContext(ctx, "Error when reading the input stream", slog.Any("err", err))
 			writer.WriteHeader(http.StatusInternalServerError)
 			return
-		}
-		if read != 0 {
-			if err = stateMachine.NotifyInput(ctx, buf[0:read]); err != nil {
-				logger.WarnContext(ctx, "Error when notifying input to the state machine", slog.Any("err", err))
-				writer.WriteHeader(int(restate.ErrorCode(err)))
-				return
-			}
 		}
 	}
 
