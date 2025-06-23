@@ -34,19 +34,6 @@ func GenerateSchema(v any) *jsonschema.Schema {
 		KeyNamer: func(fieldName string) string {
 			return jsonCamelCase(fieldName)
 		},
-		Lookup: func(typ reflect.Type) jsonschema.ID {
-			desc := descriptor(typ)
-			if desc == nil {
-				return jsonschema.EmptyID
-			}
-
-			id := jsonschema.ID("https://" + typ.PkgPath())
-			if err := id.Validate(); err != nil {
-				return jsonschema.EmptyID
-			}
-
-			return id.Add(string(desc.FullName()))
-		},
 		Mapper: func(typ reflect.Type) *jsonschema.Schema {
 			desc := descriptor(typ)
 			if desc == nil {

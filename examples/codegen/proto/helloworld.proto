@@ -79,3 +79,9 @@ message StatusResponse {
 message FinishRequest {}
 
 message FinishResponse {}
+
+message Test {
+  Test inner = 1;
+  string primitive = 2;
+  WatchRequest another_inner = 3;
+}
