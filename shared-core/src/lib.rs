@@ -9,7 +9,7 @@ use alloc::vec::Vec;
 use restate_sdk_shared_core::{
     AttachInvocationTarget, CoreVM, DoProgressResponse, Error, Header, HeaderMap, Input,
     NonEmptyValue, NotificationHandle, ResponseHead, RetryPolicy, RunExitResult,
-    SuspendedOrVMError, TakeOutputResult, Target, TerminalFailure, Value, VM,
+     TakeOutputResult, Target, TerminalFailure, Value, VM,
 };
 use std::cell::RefCell;
 use std::convert::Infallible;
@@ -323,10 +323,10 @@ fn vm_do_progress(
                 Ok(DoProgressResponse::ExecuteRun(handle)) => {
                     pb::vm_do_progress_return::Result::ExecuteRun(handle.into())
                 }
-                Err(SuspendedOrVMError::Suspended(_)) => {
+                Err(e) if e.is_suspended_error() => {
                     pb::vm_do_progress_return::Result::Suspended(Default::default())
                 }
-                Err(SuspendedOrVMError::VM(e)) => {
+                Err(e) => {
                     pb::vm_do_progress_return::Result::Failure(e.into())
                 }
             },
@@ -363,10 +363,10 @@ fn vm_take_notification(
                         Value::InvocationId(s) => pb::value::Value::InvocationId(s),
                     }),
                 }),
-                Err(SuspendedOrVMError::Suspended(_)) => {
+                Err(e) if e.is_suspended_error() => {
                     pb::vm_take_notification_return::Result::Suspended(Default::default())
                 }
-                Err(SuspendedOrVMError::VM(e)) => {
+                Err(e) => {
                     pb::vm_take_notification_return::Result::Failure(e.into())
                 }
             },
