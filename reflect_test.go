@@ -48,7 +48,7 @@ var tests []reflectTestParams = []reflectTestParams{
 		"Run":    &workflowRun,
 		"Status": &shared,
 	}},
-	{rcvr: mixed{}, shouldPanic: true, panicContains: "found a mix of object context arguments and other context arguments"},
+	{rcvr: mixed{}, shouldPanic: true, panicContains: "error when adding handler 'mixed/GreetShared': the function declares restate.ObjectSharedContext as first parameter, but service type is 'SERVICE', only restate.Context are accepted"},
 	{rcvr: empty{}, shouldPanic: true, panicContains: "no valid handlers could be found"},
 	{rcvr: notExported{}, shouldPanic: true, panicContains: "no valid handlers could be found"},
 	{rcvr: firstParamNotContext{}, shouldPanic: true, panicContains: "no valid handlers could be found"},
