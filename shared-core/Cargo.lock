@@ -304,8 +304,7 @@ checksum = "2b15c43186be67a4fd63bee50d0303afffcef381492ebe2c5d87f324e1b8815c"
 [[package]]
 name = "restate-sdk-shared-core"
 version = "0.3.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "fbbd8a0c910f4c21f0ee9625b10debd0847ca4ef47294bf7c9ed80c8f9370646"
+source = "git+https://github.com/restatedev/sdk-shared-core.git?rev=96b78a6160880cc4b34c56750dd96652e11cd81c#96b78a6160880cc4b34c56750dd96652e11cd81c"
 dependencies = [
  "base64",
  "bytes",
