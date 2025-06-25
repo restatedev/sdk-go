@@ -9,6 +9,7 @@ require (
 	github.com/google/uuid v1.6.0
 	github.com/invopop/jsonschema v0.13.0
 	github.com/mr-tron/base58 v1.2.0
+	github.com/nsf/jsondiff v0.0.0-20230430225905-43f6cf3098c1
 	github.com/stretchr/testify v1.9.0
 	github.com/tetratelabs/wazero v1.9.0
 	github.com/wk8/go-ordered-map/v2 v2.1.8

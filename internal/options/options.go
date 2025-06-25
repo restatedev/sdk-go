@@ -162,3 +162,11 @@ type ServiceDefinitionOptions struct {
 type ServiceDefinitionOption interface {
 	BeforeServiceDefinition(*ServiceDefinitionOptions)
 }
+
+type IngressOptions struct {
+	BaseUrl string
+}
+
+type IngressOption interface {
+	BeforeIngress(*IngressOptions)
+}

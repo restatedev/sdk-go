@@ -482,3 +482,15 @@ func (w withWorkflowRetention) BeforeHandler(opts *options.HandlerOptions) {
 func WithWorkflowRetention(workflowCompletionRetention time.Duration) withWorkflowRetention {
 	return withWorkflowRetention{workflowCompletionRetention}
 }
+
+func WithBaseUrl(baseUrl string) withBaseUrl {
+	return withBaseUrl{baseUrl}
+}
+
+type withBaseUrl struct {
+	baseUrl string
+}
+
+func (w withBaseUrl) BeforeIngress(opts *options.IngressOptions) {
+	opts.BaseUrl = w.baseUrl
+}
