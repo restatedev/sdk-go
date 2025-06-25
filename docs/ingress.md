@@ -1,8 +1,8 @@
 Ingress SDK Usage
 =================
 
-When calling a handler or workflow outside of a restate context, the ingress service
-must be invoked via [http](https://docs.restate.dev/invoke/http). The following ingress 
+When calling a handler or workflow, or attaching to an invocation from outside of a restate context, 
+the ingress API must be called via [http](https://docs.restate.dev/invoke/http). The following ingress 
 functions provide an SDK for that purpose. These functions are analogous to the 
 [facilitator](https://github.com/restatedev/sdk-go/blob/main/facilitators.go) functions 
 that are used from within the restate context.

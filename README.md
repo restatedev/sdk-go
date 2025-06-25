@@ -70,7 +70,7 @@ curl localhost:8080/UserSession/azmy/Checkout
 
 ## Ingress SDK
 
-When you need to call a restate handlers or attaching to an invocation from outside of a restate context,
+When you need to call restate handlers or attach to invocations from outside of a restate context,
 use the [ingress SDK](docs/ingress.md).
 
 ## Versions
