@@ -170,3 +170,19 @@ type IngressOptions struct {
 type IngressOption interface {
 	BeforeIngress(*IngressOptions)
 }
+
+type CancelMode int
+
+const (
+	CancelModeCancel CancelMode = iota
+	CancelModeKill
+	CancelModePurge
+)
+
+type CancelOptions struct {
+	Mode CancelMode
+}
+
+type CancelOption interface {
+	BeforeCancel(*CancelOptions)
+}

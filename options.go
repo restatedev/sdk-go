@@ -494,3 +494,23 @@ type withBaseUrl struct {
 func (w withBaseUrl) BeforeIngress(opts *options.IngressOptions) {
 	opts.BaseUrl = w.baseUrl
 }
+
+type CancelMode = options.CancelMode
+
+const (
+	CancelModeCancel = options.CancelModeCancel
+	CancelModeKill   = options.CancelModeKill
+	CancelModePurge  = options.CancelModePurge
+)
+
+func WithCancelMode(mode CancelMode) withCancelMode {
+	return withCancelMode{mode}
+}
+
+type withCancelMode struct {
+	mode CancelMode
+}
+
+func (w withCancelMode) BeforeCancel(opts *options.CancelOptions) {
+	opts.Mode = w.mode
+}

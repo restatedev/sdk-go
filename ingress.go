@@ -21,7 +21,7 @@ type IngressSendClient[I any] interface {
 
 type IngressInvocationClient[O any] interface {
 	IngressAttachClient[O]
-	Cancel(ctx context.Context) error
+	Cancel(ctx context.Context, opts ...options.CancelOption) error
 }
 
 type IngressAttachClient[O any] interface {
@@ -222,7 +222,7 @@ func (c ingressInvocationClient[O]) Output(ctx context.Context) (O, error) {
 }
 
 // Cancel attempts to cancel the invocation. This call is made against the Admin API.
-func (c ingressInvocationClient[O]) Cancel(ctx context.Context) error {
+func (c ingressInvocationClient[O]) Cancel(ctx context.Context, opts ...options.CancelOption) error {
 	if c.params.InvocationID == "" {
 		return errors.New("cancel can only be called with an invocation ID")
 	}
@@ -231,8 +231,13 @@ func (c ingressInvocationClient[O]) Cancel(ctx context.Context) error {
 		opt.BeforeIngress(&ingOpts)
 	}
 
+	cancelOpts := options.CancelOptions{}
+	for _, opt := range opts {
+		opt.BeforeCancel(&cancelOpts)
+	}
+
 	ic := ingress.NewClient(ingOpts.BaseUrl)
-	return ic.Cancel(ctx, c.params.InvocationID)
+	return ic.Cancel(ctx, c.params.InvocationID, cancelOpts)
 }
 
 func (c ingressAttachClient[O]) Attach(ctx context.Context) (O, error) {

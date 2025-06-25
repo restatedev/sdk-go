@@ -83,8 +83,18 @@ func (c *Client) Output(ctx context.Context, params IngressAttachParams, output 
 	return c.do(ctx, http.MethodGet, fmt.Sprintf("%s/output", path), nil, output, ingressOpts{})
 }
 
-func (c *Client) Cancel(ctx context.Context, invocationID string) error {
+func (c *Client) Cancel(ctx context.Context, invocationID string, cancelOpts options.CancelOptions) error {
 	path := fmt.Sprintf("/invocations/%s", invocationID)
+	switch cancelOpts.Mode {
+	case options.CancelModeCancel:
+		path = fmt.Sprintf("%s?mode=Cancel", path)
+	case options.CancelModeKill:
+		path = fmt.Sprintf("%s?mode=Kill", path)
+	case options.CancelModePurge:
+		path = fmt.Sprintf("%s?mode=Purge", path)
+	default:
+		return errors.New("invalid cancel mode")
+	}
 	return c.do(ctx, http.MethodDelete, path, nil, nil, ingressOpts{})
 }
 
