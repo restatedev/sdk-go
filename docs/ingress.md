@@ -10,9 +10,11 @@ that are used from within the restate context.
 ## IngressService
 
 ```go
+client := restate.NewIngressClient("http://localhost:8080",
+	restate.WithAuthKey("authkey"))
 var input MyInputStruct
 output, err := restate.IngressService[*MyInputStruct, *MyOutputStruct](
-	serviceName, handlerName, restate.WithBaseUrl("http://localhost:8080")).
+	client serviceName, handlerName).
 	Request(ctx, &input, 
 		restate.WithIdempotencyKey("idem-key-1"),
 		restate.WithHeaders(map[string]string{"header-name","header-value"}))
@@ -21,9 +23,11 @@ output, err := restate.IngressService[*MyInputStruct, *MyOutputStruct](
 ## IngressServiceSend
 
 ```go
+client := restate.NewIngressClient("http://localhost:8080",
+	restate.WithAuthKey("authkey"))
 var input MyInputStruct
 invocation := restate.IngressServiceSend[*MyInputStruct](
-	serviceName, handlerName, restate.WithBaseUrl("http://localhost:8080")).
+	client, serviceName, handlerName).
 	Send(ctx, &input, 
 		restate.WithIdempotencyKey("idem-key-1"),
 		restate.WithDelay(time.Minute),
@@ -37,9 +41,11 @@ println(invocation.Id)
 ## IngressObject
 
 ```go
+client := restate.NewIngressClient("http://localhost:8080",
+	restate.WithAuthKey("authkey"))
 var input MyInputStruct
 output, err := restate.IngressObject[*MyInputStruct, *MyOutputStruct](
-	serviceName, objectKey, handlerName, restate.WithBaseUrl("http://localhost:8080")).
+	client, serviceName, objectKey, handlerName).
 	Request(ctx, &input, 
 		restate.WithIdempotencyKey("idem-key-1"),
 		restate.WithHeaders(map[string]string{"header-name","header-value"}))
@@ -48,9 +54,11 @@ output, err := restate.IngressObject[*MyInputStruct, *MyOutputStruct](
 ## IngressObjectSend
 
 ```go
+client := restate.NewIngressClient("http://localhost:8080",
+	restate.WithAuthKey("authkey"))
 var input MyInputStruct
 invocation := restate.IngressObjectSend[*MyInputStruct](
-	serviceName, objectKey, handlerName, restate.WithBaseUrl("http://localhost:8080")).
+	client, serviceName, objectKey, handlerName).
 	Send(ctx, &input, 
 		restate.WithIdempotencyKey("idem-key-1"),
 		restate.WithDelay(time.Minute),
@@ -64,9 +72,11 @@ println(invocation.Id)
 ## IngressWorkflow
 
 ```go
+client := restate.NewIngressClient("http://localhost:8080",
+	restate.WithAuthKey("authkey"))
 var input MyInputStruct
 output, err := restate.IngressWorkflow[*MyInputStruct, *MyOutputStruct](
-	serviceName, workflowId, "send", restate.WithBaseUrl("http://localhost:8080")).
+	client, serviceName, workflowId, "send").
 	Request(ctx, &input, 
 		restate.WithIdempotencyKey("idem-key-1"),
 		restate.WithHeaders(map[string]string{"header-name","header-value"}))
@@ -75,9 +85,11 @@ output, err := restate.IngressWorkflow[*MyInputStruct, *MyOutputStruct](
 ## IngressWorkflowSend
 
 ```go
+client := restate.NewIngressClient("http://localhost:8080",
+	restate.WithAuthKey("authkey"))
 var input MyInputStruct
 invocation := restate.IngressWorkflowSend[*MyInputStruct](
-	serviceName, workflowId, handlerName, restate.WithBaseUrl("http://localhost:8080")).
+	client, serviceName, workflowId, handlerName).
 	Send(ctx, &input, 
 		restate.WithIdempotencyKey("idem-key-1"),
 		restate.WithDelay(time.Minute),
@@ -92,39 +104,39 @@ println(invocation.Id)
 
 **Blocking until invocation returns output**
 ```go
+client := restate.NewIngressClient("http://localhost:8080",
+	restate.WithAuthKey("authkey"))
 output, err := restate.IngressAttachInvocation[*MyOutputStruct](
-	invocationId, restate.WithBaseUrl("http://localhost:8080")).
+	client, invocationId).
 	Attach(ctx)
 ```
 
 **Non-blocking, returns error if invocation is not found or not done**
 ```go
+client := restate.NewIngressClient("http://localhost:8080", 
+	restate.WithAuthKey("authkey"))
 output, err := restate.IngressAttachInvocation[*MyOutputStruct](
-	invocationId, restate.WithBaseUrl("http://localhost:8080")).
+	client, invocationId).
 	Output(ctx)
 ```
-
-**Cancel an invocation. NOTE: use the admin base URL here.**
-```go
-err := restate.IngressAttachInvocation[any](
-	invocationId, restate.WithBaseUrl("http://localhost:9070")).
-	Cancel(ctx, restate.WithCancelMode(mode))
-```
-Where `mode` is either `restate.CancelModelCancel`, `restate.CancelModeKill` or `restate.CancelModePurge`.
 
 ## IngressAttachService
 
 **Blocking until service invocation returns output**
 ```go
+client := restate.NewIngressClient("http://localhost:8080", 
+	restate.WithAuthKey("authkey"))
 output, err := restate.IngressAttachService[*MyOutputStruct](
-	serviceName, handlerName, idempotencyKey, restate.WithBaseUrl("http://localhost:8080")).
+	client, serviceName, handlerName, idempotencyKey).
 	Attach(ctx)
 ```
 
 **Non-blocking, returns error if service invocation is not found or not done**
 ```go
+client := restate.NewIngressClient("http://localhost:8080", 
+	restate.WithAuthKey("authkey"))
 output, err := restate.IngressAttachService[*MyOutputStruct](
-	serviceName, handlerName, idempotencyKey, restate.WithBaseUrl("http://localhost:8080")).
+	client, serviceName, handlerName, idempotencyKey).
 	Output(ctx)
 ```
 
@@ -132,15 +144,19 @@ output, err := restate.IngressAttachService[*MyOutputStruct](
 
 **Blocking until object invocation returns output**
 ```go
+client := restate.NewIngressClient("http://localhost:8080", 
+	restate.WithAuthKey("authkey"))
 output, err := restate.IngressAttachObject[*MyOutputStruct](
-	serviceName, objectKey, handlerName, idempotencyKey, restate.WithBaseUrl("http://localhost:8080")).
+	client, serviceName, objectKey, handlerName, idempotencyKey).
 	Attach(ctx)
 ```
 
 **Non-blocking, returns error if object invocation is not found or not done**
 ```go
+client := restate.NewIngressClient("http://localhost:8080", 
+	restate.WithAuthKey("authkey"))
 output, err := restate.IngressAttachObject[*MyOutputStruct](
-	serviceName, objectKey, handlerName, idempotencyKey, restate.WithBaseUrl("http://localhost:8080")).
+	client, serviceName, objectKey, handlerName, idempotencyKey).
 	Output(ctx)
 ```
 
@@ -148,14 +164,18 @@ output, err := restate.IngressAttachObject[*MyOutputStruct](
 
 **Blocking until workflow returns output**
 ```go
+client := restate.NewIngressClient("http://localhost:8080", 
+	restate.WithAuthKey("authkey"))
 output, err := restate.IngressAttachWorkflow[*MyOutputStruct](
-	serviceName, workflowId, restate.WithBaseUrl("http://localhost:8080")).
+	client, serviceName, workflowId).
 	Attach(ctx)
 ```
 
 **Non-blocking, returns error if workflow is not found or not done**
 ```go
+client := restate.NewIngressClient("http://localhost:8080", 
+	restate.WithAuthKey("authkey"))
 output, err := restate.IngressAttachWorkflow[*MyOutputStruct](
-	serviceName, workflowId, restate.WithBaseUrl("http://localhost:8080")).
+	client, serviceName, workflowId).
 	Output(ctx)
 ```

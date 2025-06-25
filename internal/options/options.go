@@ -1,6 +1,7 @@
 package options
 
 import (
+	"net/http"
 	"time"
 
 	"github.com/restatedev/sdk-go/encoding"
@@ -163,26 +164,11 @@ type ServiceDefinitionOption interface {
 	BeforeServiceDefinition(*ServiceDefinitionOptions)
 }
 
-type IngressOptions struct {
-	BaseUrl string
+type IngressClientOptions struct {
+	HttpClient *http.Client
+	AuthKey    string
 }
 
-type IngressOption interface {
-	BeforeIngress(*IngressOptions)
-}
-
-type CancelMode int
-
-const (
-	CancelModeCancel CancelMode = iota
-	CancelModeKill
-	CancelModePurge
-)
-
-type CancelOptions struct {
-	Mode CancelMode
-}
-
-type CancelOption interface {
-	BeforeCancel(*CancelOptions)
+type IngressClientOption interface {
+	BeforeIngress(*IngressClientOptions)
 }

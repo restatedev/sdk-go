@@ -15,14 +15,13 @@ import (
 
 const (
 	idempotencyKeyHeader = "idempotency-key"
-	keyPath              = "key"
 	delayQuery           = "delay"
 )
 
 // Client is an ingress client used to initiate Restate invocations outside of a Restate context.
 type Client struct {
-	baseUrl string
-	authKey *string
+	baseUri    string
+	ClientOpts options.IngressClientOptions
 }
 
 type IngressParams struct {
@@ -47,9 +46,10 @@ type ingressOpts struct {
 	Delay          time.Duration
 }
 
-func NewClient(baseUrl string) *Client {
+func NewClient(baseUri string, opts options.IngressClientOptions) *Client {
 	return &Client{
-		baseUrl: baseUrl,
+		baseUri:    baseUri,
+		ClientOpts: opts,
 	}
 }
 
@@ -83,21 +83,6 @@ func (c *Client) Output(ctx context.Context, params IngressAttachParams, output 
 	return c.do(ctx, http.MethodGet, fmt.Sprintf("%s/output", path), nil, output, ingressOpts{})
 }
 
-func (c *Client) Cancel(ctx context.Context, invocationID string, cancelOpts options.CancelOptions) error {
-	path := fmt.Sprintf("/invocations/%s", invocationID)
-	switch cancelOpts.Mode {
-	case options.CancelModeCancel:
-		path = fmt.Sprintf("%s?mode=Cancel", path)
-	case options.CancelModeKill:
-		path = fmt.Sprintf("%s?mode=Kill", path)
-	case options.CancelModePurge:
-		path = fmt.Sprintf("%s?mode=Purge", path)
-	default:
-		return errors.New("invalid cancel mode")
-	}
-	return c.do(ctx, http.MethodDelete, path, nil, nil, ingressOpts{})
-}
-
 func (c *Client) do(ctx context.Context, httpMethod, path string, requestData any, responseData any, opts ingressOpts) error {
 	// marshal the request data if provided
 	var requestBody io.Reader
@@ -110,7 +95,7 @@ func (c *Client) do(ctx context.Context, httpMethod, path string, requestData an
 	}
 
 	// build the http request
-	url := fmt.Sprintf("%s/%s", c.baseUrl, path)
+	url := fmt.Sprintf("%s/%s", c.baseUri, path)
 	if opts.Delay != 0 {
 		url = fmt.Sprintf("%s?%s=%dms", url, delayQuery, opts.Delay/time.Millisecond)
 	}
@@ -119,6 +104,10 @@ func (c *Client) do(ctx context.Context, httpMethod, path string, requestData an
 		return err
 	}
 	req = req.WithContext(ctx)
+
+	if c.ClientOpts.AuthKey != "" {
+		req.Header.Set("Authorization", "Bearer "+c.ClientOpts.AuthKey)
+	}
 
 	if opts.IdempotencyKey != "" {
 		req.Header.Set(idempotencyKeyHeader, opts.IdempotencyKey)
@@ -129,8 +118,12 @@ func (c *Client) do(ctx context.Context, httpMethod, path string, requestData an
 		}
 	}
 
-	// make the request
-	res, err := http.DefaultClient.Do(req)
+	// make the call
+	httpClient := http.DefaultClient
+	if c.ClientOpts.HttpClient != nil {
+		httpClient = c.ClientOpts.HttpClient
+	}
+	res, err := httpClient.Do(req)
 	if err != nil {
 		return err
 	}

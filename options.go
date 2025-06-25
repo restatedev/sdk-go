@@ -1,6 +1,7 @@
 package restate
 
 import (
+	"net/http"
 	"time"
 
 	"github.com/restatedev/sdk-go/encoding"
@@ -483,34 +484,26 @@ func WithWorkflowRetention(workflowCompletionRetention time.Duration) withWorkfl
 	return withWorkflowRetention{workflowCompletionRetention}
 }
 
-func WithBaseUrl(baseUrl string) withBaseUrl {
-	return withBaseUrl{baseUrl}
+func WithHttpClient(c *http.Client) withHttpClient {
+	return withHttpClient{c}
 }
 
-type withBaseUrl struct {
-	baseUrl string
+type withHttpClient struct {
+	httpClient *http.Client
 }
 
-func (w withBaseUrl) BeforeIngress(opts *options.IngressOptions) {
-	opts.BaseUrl = w.baseUrl
+func (w withHttpClient) BeforeIngress(opts *options.IngressClientOptions) {
+	opts.HttpClient = w.httpClient
 }
 
-type CancelMode = options.CancelMode
-
-const (
-	CancelModeCancel = options.CancelModeCancel
-	CancelModeKill   = options.CancelModeKill
-	CancelModePurge  = options.CancelModePurge
-)
-
-func WithCancelMode(mode CancelMode) withCancelMode {
-	return withCancelMode{mode}
+func WithAuthKey(authKey string) withAuthKey {
+	return withAuthKey{authKey}
 }
 
-type withCancelMode struct {
-	mode CancelMode
+type withAuthKey struct {
+	authKey string
 }
 
-func (w withCancelMode) BeforeCancel(opts *options.CancelOptions) {
-	opts.Mode = w.mode
+func (w withAuthKey) BeforeIngress(opts *options.IngressClientOptions) {
+	opts.AuthKey = w.authKey
 }

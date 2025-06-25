@@ -18,6 +18,7 @@ const (
 	myHandler        = "myHandler"
 	myObjectKey      = "myObjectKey"
 	myWorkflowId     = "myWorkflowId"
+	authKey          = "authKey"
 	idempotencyKey   = "itemKey"
 	invocationId     = "inv_1"
 	invocationStatus = "Accepted"
@@ -26,8 +27,9 @@ const (
 
 var (
 	headers = map[string]string{
-		"key1": "value1",
-		"key2": "value2",
+		"Authorization": "Bearer " + authKey,
+		"key1":          "value1",
+		"key2":          "value2",
 	}
 	query = map[string]string{
 		"delay": "1ms",
@@ -43,8 +45,8 @@ func TestServiceRequest(t *testing.T) {
 	payload := []byte(`{"name":"Mary","age":25}`)
 	require.NoError(t, json.Unmarshal(payload, &input))
 
-	_, err := restate.IngressService[map[string]any, any](myService, myHandler,
-		restate.WithBaseUrl(m.URL)).
+	c := newIngressClient(m.URL)
+	_, err := restate.IngressService[map[string]any, any](c, myService, myHandler).
 		Request(context.Background(), input,
 			restate.WithIdempotencyKey(idempotencyKey),
 			restate.WithHeaders(headers),
@@ -66,8 +68,8 @@ func TestServiceSend(t *testing.T) {
 	payload := []byte(`{"name":"Mary","age":25}`)
 	require.NoError(t, json.Unmarshal(payload, &input))
 
-	inv := restate.IngressServiceSend[map[string]any](myService, myHandler,
-		restate.WithBaseUrl(m.URL)).
+	c := newIngressClient(m.URL)
+	inv := restate.IngressServiceSend[map[string]any](c, myService, myHandler).
 		Send(context.Background(), input,
 			restate.WithIdempotencyKey(idempotencyKey),
 			restate.WithHeaders(headers),
@@ -92,8 +94,8 @@ func TestObjectRequest(t *testing.T) {
 	payload := []byte(`{"name":"Mary","age":25}`)
 	require.NoError(t, json.Unmarshal(payload, &input))
 
-	_, err := restate.IngressObject[map[string]any, any](myService, myObjectKey, myHandler,
-		restate.WithBaseUrl(m.URL)).
+	c := newIngressClient(m.URL)
+	_, err := restate.IngressObject[map[string]any, any](c, myService, myObjectKey, myHandler).
 		Request(context.Background(), input,
 			restate.WithIdempotencyKey(idempotencyKey),
 			restate.WithHeaders(headers),
@@ -115,8 +117,8 @@ func TestObjectSend(t *testing.T) {
 	payload := []byte(`{"name":"Mary","age":25}`)
 	require.NoError(t, json.Unmarshal(payload, &input))
 
-	inv := restate.IngressObjectSend[map[string]any](myService, myObjectKey, myHandler,
-		restate.WithBaseUrl(m.URL)).
+	c := newIngressClient(m.URL)
+	inv := restate.IngressObjectSend[map[string]any](c, myService, myObjectKey, myHandler).
 		Send(context.Background(), input,
 			restate.WithIdempotencyKey(idempotencyKey),
 			restate.WithHeaders(headers),
@@ -141,8 +143,8 @@ func TestWorkflowRun(t *testing.T) {
 	payload := []byte(`{"name":"Mary","age":25}`)
 	require.NoError(t, json.Unmarshal(payload, &input))
 
-	_, err := restate.IngressWorkflow[map[string]any, any](myService, myWorkflowId, run,
-		restate.WithBaseUrl(m.URL)).
+	c := newIngressClient(m.URL)
+	_, err := restate.IngressWorkflow[map[string]any, any](c, myService, myWorkflowId, run).
 		Request(context.Background(), input,
 			restate.WithIdempotencyKey(idempotencyKey),
 			restate.WithHeaders(headers),
@@ -164,8 +166,8 @@ func TestWorkflowSend(t *testing.T) {
 	payload := []byte(`{"name":"Mary","age":25}`)
 	require.NoError(t, json.Unmarshal(payload, &input))
 
-	inv := restate.IngressWorkflowSend[map[string]any](myService, myWorkflowId, myHandler,
-		restate.WithBaseUrl(m.URL)).
+	c := newIngressClient(m.URL)
+	inv := restate.IngressWorkflowSend[map[string]any](c, myService, myWorkflowId, myHandler).
 		Send(context.Background(), input,
 			restate.WithIdempotencyKey(idempotencyKey),
 			restate.WithHeaders(headers),
@@ -186,8 +188,8 @@ func TestInvocationAttachByInvocationID(t *testing.T) {
 	m := newMockIngressServer()
 	defer m.Close()
 
-	_, err := restate.IngressAttachInvocation[any](invocationId,
-		restate.WithBaseUrl(m.URL)).
+	c := newIngressClient(m.URL)
+	_, err := restate.IngressAttachInvocation[any](c, invocationId).
 		Attach(context.Background())
 	require.NoError(t, err)
 	m.AssertMethod(t, http.MethodGet)
@@ -200,8 +202,8 @@ func TestInvocationOutputByInvocationID(t *testing.T) {
 	m := newMockIngressServer()
 	defer m.Close()
 
-	_, err := restate.IngressAttachInvocation[any](invocationId,
-		restate.WithBaseUrl(m.URL)).
+	c := newIngressClient(m.URL)
+	_, err := restate.IngressAttachInvocation[any](c, invocationId).
 		Output(context.Background())
 	require.NoError(t, err)
 	m.AssertMethod(t, http.MethodGet)
@@ -209,58 +211,13 @@ func TestInvocationOutputByInvocationID(t *testing.T) {
 	m.AssertBody(t, nil)
 }
 
-func TestAdminInvocationCancelByInvocationID(t *testing.T) {
-	//curl -X DELETE localhost:9070/invocations/invocationId?mode=Cancel
-	m := newMockIngressServer()
-	defer m.Close()
-
-	err := restate.IngressAttachInvocation[any](invocationId,
-		restate.WithBaseUrl(m.URL)).
-		Cancel(context.Background())
-	require.NoError(t, err)
-	m.AssertMethod(t, http.MethodDelete)
-	m.AssertPath(t, fmt.Sprintf("/invocations/%s", invocationId))
-	m.AssertBody(t, nil)
-	m.AssertQuery(t, map[string]string{"mode": "Cancel"})
-}
-
-func TestAdminInvocationKillByInvocationID(t *testing.T) {
-	//curl -X DELETE localhost:9070/invocations/invocationId?mode=Kill
-	m := newMockIngressServer()
-	defer m.Close()
-
-	err := restate.IngressAttachInvocation[any](invocationId,
-		restate.WithBaseUrl(m.URL)).
-		Cancel(context.Background(), restate.WithCancelMode(restate.CancelModeKill))
-	require.NoError(t, err)
-	m.AssertMethod(t, http.MethodDelete)
-	m.AssertPath(t, fmt.Sprintf("/invocations/%s", invocationId))
-	m.AssertBody(t, nil)
-	m.AssertQuery(t, map[string]string{"mode": "Kill"})
-}
-
-func TestAdminInvocationPurgeByInvocationID(t *testing.T) {
-	//curl -X DELETE localhost:9070/invocations/invocationId?mode=Purge
-	m := newMockIngressServer()
-	defer m.Close()
-
-	err := restate.IngressAttachInvocation[any](invocationId,
-		restate.WithBaseUrl(m.URL)).
-		Cancel(context.Background(), restate.WithCancelMode(restate.CancelModePurge))
-	require.NoError(t, err)
-	m.AssertMethod(t, http.MethodDelete)
-	m.AssertPath(t, fmt.Sprintf("/invocations/%s", invocationId))
-	m.AssertBody(t, nil)
-	m.AssertQuery(t, map[string]string{"mode": "Purge"})
-}
-
 func TestServiceAttachByIdempotencyKey(t *testing.T) {
 	//curl localhost:8080/restate/invocation/MyService/myHandler/myIdempotencyKey/attach
 	m := newMockIngressServer()
 	defer m.Close()
 
-	_, err := restate.IngressAttachService[any](myService, myHandler, idempotencyKey,
-		restate.WithBaseUrl(m.URL)).
+	c := newIngressClient(m.URL)
+	_, err := restate.IngressAttachService[any](c, myService, myHandler, idempotencyKey).
 		Attach(context.Background())
 	require.NoError(t, err)
 	m.AssertMethod(t, http.MethodGet)
@@ -273,8 +230,8 @@ func TestServiceOutputByIdempotencyKey(t *testing.T) {
 	m := newMockIngressServer()
 	defer m.Close()
 
-	_, err := restate.IngressAttachService[any](myService, myHandler, idempotencyKey,
-		restate.WithBaseUrl(m.URL)).
+	c := newIngressClient(m.URL)
+	_, err := restate.IngressAttachService[any](c, myService, myHandler, idempotencyKey).
 		Output(context.Background())
 	require.NoError(t, err)
 	m.AssertMethod(t, http.MethodGet)
@@ -287,8 +244,8 @@ func TestObjectAttachByIdempotencyKey(t *testing.T) {
 	m := newMockIngressServer()
 	defer m.Close()
 
-	_, err := restate.IngressAttachObject[any](myService, myObjectKey, myHandler, idempotencyKey,
-		restate.WithBaseUrl(m.URL)).
+	c := newIngressClient(m.URL)
+	_, err := restate.IngressAttachObject[any](c, myService, myObjectKey, myHandler, idempotencyKey).
 		Attach(context.Background())
 	require.NoError(t, err)
 	m.AssertMethod(t, http.MethodGet)
@@ -301,8 +258,8 @@ func TestObjectOutputByIdempotencyKey(t *testing.T) {
 	m := newMockIngressServer()
 	defer m.Close()
 
-	_, err := restate.IngressAttachObject[any](myService, myObjectKey, myHandler, idempotencyKey,
-		restate.WithBaseUrl(m.URL)).
+	c := newIngressClient(m.URL)
+	_, err := restate.IngressAttachObject[any](c, myService, myObjectKey, myHandler, idempotencyKey).
 		Output(context.Background())
 	require.NoError(t, err)
 	m.AssertMethod(t, http.MethodGet)
@@ -315,8 +272,8 @@ func TestWorkflowAttach(t *testing.T) {
 	m := newMockIngressServer()
 	defer m.Close()
 
-	_, err := restate.IngressAttachWorkflow[any](myService, myWorkflowId,
-		restate.WithBaseUrl(m.URL)).
+	c := newIngressClient(m.URL)
+	_, err := restate.IngressAttachWorkflow[any](c, myService, myWorkflowId).
 		Attach(context.Background())
 	require.NoError(t, err)
 	m.AssertMethod(t, http.MethodGet)
@@ -329,11 +286,17 @@ func TestWorkflowOutput(t *testing.T) {
 	m := newMockIngressServer()
 	defer m.Close()
 
-	_, err := restate.IngressAttachWorkflow[any](myService, myWorkflowId,
-		restate.WithBaseUrl(m.URL)).
+	c := newIngressClient(m.URL)
+	_, err := restate.IngressAttachWorkflow[any](c, myService, myWorkflowId).
 		Output(context.Background())
 	require.NoError(t, err)
 	m.AssertMethod(t, http.MethodGet)
 	m.AssertPath(t, fmt.Sprintf("/restate/workflow/%s/%s/output", myService, myWorkflowId))
 	m.AssertBody(t, nil)
+}
+
+func newIngressClient(baseUri string) *restate.IngressClient {
+	return restate.NewIngressClient(baseUri,
+		restate.WithHttpClient(http.DefaultClient),
+		restate.WithAuthKey(authKey))
 }
