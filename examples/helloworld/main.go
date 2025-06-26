@@ -5,10 +5,7 @@ import (
 	"fmt"
 	restate "github.com/restatedev/sdk-go"
 	"github.com/restatedev/sdk-go/server"
-	"log"
 	"log/slog"
-	"net/http"
-	_ "net/http/pprof"
 	"os"
 )
 
@@ -33,10 +30,6 @@ func (GreeterCounter) Greet(ctx restate.ObjectContext, name string) (string, err
 }
 
 func main() {
-	go func() {
-		log.Println(http.ListenAndServe("localhost:6060", nil))
-	}()
-
 	server := server.NewRestate().
 		// Handlers can be inferred from object methods
 		Bind(restate.Reflect(Greeter{})).

@@ -9,10 +9,15 @@ import (
 	"github.com/restatedev/sdk-go/internal/options"
 	"github.com/restatedev/sdk-go/internal/statemachine"
 	"log/slog"
+	"runtime/debug"
 	"time"
 )
 
 func (restateCtx *ctx) Run(fn func(ctx RunContext) (any, error), output any, opts ...options.RunOption) error {
+	return restateCtx.RunAsync(fn, opts...).Result(output)
+}
+
+func (restateCtx *ctx) RunAsync(fn func(ctx RunContext) (any, error), opts ...options.RunOption) RunAsyncFuture {
 	o := options.RunOptions{}
 	for _, opt := range opts {
 		opt.BeforeRun(&o)
@@ -34,7 +39,7 @@ func (restateCtx *ctx) Run(fn func(ctx RunContext) (any, error), output any, opt
 		now := time.Now()
 
 		// Run the user closure
-		output, err := fn(runContext{Context: restateCtx, log: restateCtx.userLogger, request: &restateCtx.request})
+		output, err := runWrapPanic(fn)(runContext{Context: restateCtx, log: restateCtx.userLogger, request: &restateCtx.request})
 
 		// Let's prepare the proposal of the run completion
 		proposal := pbinternal.VmProposeRunCompletionParameters{}
@@ -91,12 +96,51 @@ func (restateCtx *ctx) Run(fn func(ctx RunContext) (any, error), output any, opt
 		return &proposal
 	}
 
-	ar := newAsyncResult(restateCtx, handle)
-	switch result := ar.pollProgressAndLoadValue().(type) {
+	return &runAsyncFuture{
+		asyncResult: newAsyncResult(restateCtx, handle),
+		codec:       o.Codec,
+	}
+}
+
+func runWrapPanic(fn func(ctx RunContext) (any, error)) func(ctx RunContext) (any, error) {
+	return func(ctx RunContext) (res any, err error) {
+		defer func() {
+			recovered := recover()
+
+			switch typ := recovered.(type) {
+			case nil:
+				// nothing to do, just exit
+				break
+			case *statemachine.SuspensionError:
+			case statemachine.SuspensionError:
+				err = typ
+				break
+			default:
+				err = fmt.Errorf("panic occurred while executing Run: %s\nStack: %s", fmt.Sprint(typ), string(debug.Stack()))
+				break
+			}
+		}()
+		res, err = fn(ctx)
+		return
+	}
+}
+
+type RunAsyncFuture interface {
+	Selectable
+	Result(output any) error
+}
+
+type runAsyncFuture struct {
+	asyncResult
+	codec encoding.Codec
+}
+
+func (d *runAsyncFuture) Result(output any) error {
+	switch result := d.pollProgressAndLoadValue().(type) {
 	case statemachine.ValueSuccess:
 		{
-			if err := encoding.Unmarshal(o.Codec, result.Success, output); err != nil {
-				panic(fmt.Errorf("failed to unmarshal run result into output: %w", err))
+			if err := encoding.Unmarshal(d.codec, result.Success, output); err != nil {
+				panic(fmt.Errorf("failed to unmarshal runAsync result into output: %w", err))
 			}
 			return nil
 		}
@@ -104,6 +148,7 @@ func (restateCtx *ctx) Run(fn func(ctx RunContext) (any, error), output any, opt
 		return errorFromFailure(result)
 	default:
 		panic(fmt.Errorf("unexpected value %s", result))
+
 	}
 }
 

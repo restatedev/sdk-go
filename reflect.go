@@ -2,13 +2,13 @@ package restate
 
 import (
 	"fmt"
-	"github.com/restatedev/sdk-go/internal/restatecontext"
 	"net/http"
 	"reflect"
 
 	"github.com/restatedev/sdk-go/encoding"
 	"github.com/restatedev/sdk-go/internal"
 	"github.com/restatedev/sdk-go/internal/options"
+	"github.com/restatedev/sdk-go/internal/restatecontext"
 )
 
 type serviceNamer interface {
@@ -23,6 +23,18 @@ var (
 	typeOfSharedWorkflowContext = reflect.TypeOf((*WorkflowSharedContext)(nil)).Elem()
 	typeOfError                 = reflect.TypeOf((*error)(nil)).Elem()
 )
+
+func acceptedContextParameterString(serviceType internal.ServiceType) string {
+	switch serviceType {
+	case internal.ServiceType_SERVICE:
+		return typeOfContext.String()
+	case internal.ServiceType_VIRTUAL_OBJECT:
+		return fmt.Sprintf("%s or %s", typeOfObjectContext, typeOfSharedObjectContext)
+	case internal.ServiceType_WORKFLOW:
+		return fmt.Sprintf("%s or %s", typeOfWorkflowContext, typeOfSharedWorkflowContext)
+	}
+	return ""
+}
 
 // Reflect converts a struct with methods into a service definition where each correctly-typed
 // and exported method of the struct will become a handler in the definition. The service name
@@ -58,14 +70,76 @@ func Reflect(rcvr any, opts ...options.ServiceDefinitionOption) ServiceDefinitio
 	var definition ServiceDefinition
 	var foundWorkflowRun bool
 
+	type skippedHandler struct {
+		service string
+		handler string
+		reason  string
+	}
+
+	skipped := []skippedHandler{}
+
 	for m := 0; m < typ.NumMethod(); m++ {
 		method := typ.Method(m)
 		mtype := method.Type
 		mname := method.Name
 		// Method must be exported.
 		if !method.IsExported() {
+			skipped = append(skipped, skippedHandler{service: name, handler: mname, reason: "Not exported"})
 			continue
 		}
+
+		if mtype.NumIn() < 2 {
+			skipped = append(skipped, skippedHandler{service: name, handler: mname, reason: "Incorrect number of parameters; should be 1 or 2"})
+			continue
+		}
+
+		var handlerType internal.ServiceHandlerType
+		switch mtype.In(1) {
+		case typeOfContext:
+			if definition == nil {
+				definition = NewService(name, opts...)
+			} else if definition.Type() != internal.ServiceType_SERVICE {
+				panic(fmt.Sprintf("error when adding handler '%s/%s': the function declares %s as first parameter, but service type is '%s', only %s are accepted", name, mname, typeOfContext.String(), definition.Type(), acceptedContextParameterString(definition.Type())))
+			}
+		case typeOfObjectContext:
+			if definition == nil {
+				definition = NewObject(name, opts...)
+			} else if definition.Type() != internal.ServiceType_VIRTUAL_OBJECT {
+				panic(fmt.Sprintf("error when adding handler '%s/%s': the function declares %s as first parameter, but service type is '%s', only %s are accepted", name, mname, typeOfObjectContext.String(), definition.Type(), acceptedContextParameterString(definition.Type())))
+			}
+			handlerType = internal.ServiceHandlerType_EXCLUSIVE
+		case typeOfSharedObjectContext:
+			if definition == nil {
+				definition = NewObject(name, opts...)
+			} else if definition.Type() != internal.ServiceType_VIRTUAL_OBJECT {
+				panic(fmt.Sprintf("error when adding handler '%s/%s': the function declares %s as first parameter, but service type is '%s', only %s are accepted", name, mname, typeOfSharedObjectContext.String(), definition.Type(), acceptedContextParameterString(definition.Type())))
+			}
+			handlerType = internal.ServiceHandlerType_SHARED
+		case typeOfWorkflowContext:
+			if definition == nil {
+				definition = NewWorkflow(name, opts...)
+			} else if definition.Type() != internal.ServiceType_WORKFLOW {
+				panic(fmt.Sprintf("error when adding handler '%s/%s': the function declares %s as first parameter, but service type is '%s', only %s are accepted", name, mname, typeOfWorkflowContext.String(), definition.Type(), acceptedContextParameterString(definition.Type())))
+			} else if foundWorkflowRun {
+				panic(fmt.Sprintf("error when adding handler '%s/%s': found more than one WorkflowContext argument; a workflow may only have one 'Run' method, the rest must be WorkflowSharedContext.", name, mname))
+			}
+			handlerType = internal.ServiceHandlerType_WORKFLOW
+			foundWorkflowRun = true
+		case typeOfSharedWorkflowContext:
+			if definition == nil {
+				definition = NewWorkflow(name, opts...)
+			} else if definition.Type() != internal.ServiceType_WORKFLOW {
+				panic(fmt.Sprintf("error when adding handler '%s/%s': the function declares %s as first parameter, but service type is '%s', only %s are accepted", name, mname, typeOfSharedWorkflowContext.String(), definition.Type(), acceptedContextParameterString(definition.Type())))
+			}
+			handlerType = internal.ServiceHandlerType_SHARED
+		default:
+			// first parameter is not a context
+			skipped = append(skipped, skippedHandler{service: name, handler: mname, reason: "First parameter is not a restate context object"})
+			continue
+		}
+
+		// if we are here, we have an exported method with a restate context; most likely this was intended as a restate handler, so issues from here on should panic, not continue
+
 		// Method needs 2-3 ins: receiver, Context, optionally I
 		var input reflect.Type
 		switch mtype.NumIn() {
@@ -76,52 +150,7 @@ func Reflect(rcvr any, opts ...options.ServiceDefinitionOption) ServiceDefinitio
 			// (ctx, I)
 			input = mtype.In(2)
 		default:
-			continue
-		}
-
-		var handlerType internal.ServiceHandlerType
-
-		switch mtype.In(1) {
-		case typeOfContext:
-			if definition == nil {
-				definition = NewService(name, opts...)
-			} else if definition.Type() != internal.ServiceType_SERVICE {
-				panic("found a mix of service context arguments and other context arguments")
-			}
-		case typeOfObjectContext:
-			if definition == nil {
-				definition = NewObject(name, opts...)
-			} else if definition.Type() != internal.ServiceType_VIRTUAL_OBJECT {
-				panic("found a mix of object context arguments and other context arguments")
-			}
-			handlerType = internal.ServiceHandlerType_EXCLUSIVE
-		case typeOfSharedObjectContext:
-			if definition == nil {
-				definition = NewObject(name, opts...)
-			} else if definition.Type() != internal.ServiceType_VIRTUAL_OBJECT {
-				panic("found a mix of object context arguments and other context arguments")
-			}
-			handlerType = internal.ServiceHandlerType_SHARED
-		case typeOfWorkflowContext:
-			if definition == nil {
-				definition = NewWorkflow(name, opts...)
-			} else if definition.Type() != internal.ServiceType_WORKFLOW {
-				panic("found a mix of workflow context arguments and other context arguments")
-			} else if foundWorkflowRun {
-				panic("found more than one WorkflowContext argument; a workflow may only have one 'Run' method, the rest must be WorkflowSharedContext.")
-			}
-			handlerType = internal.ServiceHandlerType_WORKFLOW
-			foundWorkflowRun = true
-		case typeOfSharedWorkflowContext:
-			if definition == nil {
-				definition = NewWorkflow(name, opts...)
-			} else if definition.Type() != internal.ServiceType_WORKFLOW {
-				panic("found a mix of object context arguments and other context arguments")
-			}
-			handlerType = internal.ServiceHandlerType_SHARED
-		default:
-			// first parameter is not a context
-			continue
+			panic(fmt.Sprintf("Incorrect number of arguments for handler '%s/%s': a restate handler should have a ctx parameter and optionally *one* input parameter", name, mname))
 		}
 
 		// Method needs 0-2 outs: (), (O), (error), (O, error) are all valid
@@ -144,13 +173,13 @@ func Reflect(rcvr any, opts ...options.ServiceDefinitionOption) ServiceDefinitio
 			}
 		case 2:
 			if returnType := mtype.Out(1); returnType != typeOfError {
-				continue
+				panic(fmt.Sprintf("Incorrect returns for method handler '%s/%s': if returning two parameters from a restate handler, the second must be an error", name, mname))
 			}
 			// (O, error)
 			output = mtype.Out(0)
 			hasError = true
 		default:
-			continue
+			panic(fmt.Sprintf("Incorrect returns for handler '%s/%s': at most 2 parameters are allowed in a restate handler (result and error)", name, mname))
 		}
 
 		switch def := definition.(type) {
@@ -190,12 +219,12 @@ func Reflect(rcvr any, opts ...options.ServiceDefinitionOption) ServiceDefinitio
 		}
 	}
 
-	if definition == nil {
-		panic("no valid handlers could be found within the exported methods on this struct")
+	if definition == nil || len(definition.Handlers()) == 0 {
+		panic(fmt.Sprintf("no valid handlers could be found within the exported methods on this struct. Please ensure that methods are defined on the exact type T provided to .Reflect, and not on *T. Skipped handlers: %+v", skipped))
 	}
 
 	if definition.Type() == internal.ServiceType_WORKFLOW && !foundWorkflowRun {
-		panic("no WorkflowContext method found; a workflow must have exactly one 'Run' handler")
+		panic(fmt.Sprintf("no WorkflowContext method found for workflow '%s'; a workflow must have exactly one 'Run' handler", name))
 	}
 
 	return definition

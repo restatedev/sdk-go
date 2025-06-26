@@ -2,6 +2,7 @@ package restate_test
 
 import (
 	"context"
+	"fmt"
 	"testing"
 
 	restate "github.com/restatedev/sdk-go"
@@ -16,6 +17,7 @@ type reflectTestParams struct {
 	serviceType     internal.ServiceType
 	expectedMethods expectedMethods
 	shouldPanic     bool
+	panicContains   string
 }
 
 type expectedMethods = map[string]*internal.ServiceHandlerType
@@ -46,8 +48,12 @@ var tests []reflectTestParams = []reflectTestParams{
 		"Run":    &workflowRun,
 		"Status": &shared,
 	}},
-	{rcvr: mixed{}, shouldPanic: true},
-	{rcvr: empty{}, shouldPanic: true},
+	{rcvr: mixed{}, shouldPanic: true, panicContains: "error when adding handler 'mixed/GreetShared': the function declares restate.ObjectSharedContext as first parameter, but service type is 'SERVICE', only restate.Context are accepted"},
+	{rcvr: empty{}, shouldPanic: true, panicContains: "no valid handlers could be found"},
+	{rcvr: notExported{}, shouldPanic: true, panicContains: "no valid handlers could be found"},
+	{rcvr: firstParamNotContext{}, shouldPanic: true, panicContains: "no valid handlers could be found"},
+	{rcvr: secondReturnNotError{}, shouldPanic: true, panicContains: "the second must be an error"},
+	{rcvr: tooManyReturns{}, shouldPanic: true, panicContains: "at most 2 parameters are allowed"},
 }
 
 func TestReflect(t *testing.T) {
@@ -56,6 +62,7 @@ func TestReflect(t *testing.T) {
 			defer func() {
 				if err := recover(); err != nil {
 					if test.shouldPanic {
+						require.Contains(t, fmt.Sprintf("%v", err), test.panicContains)
 						return
 					} else {
 						panic(err)
@@ -118,12 +125,12 @@ func (validObject) NoInputNoOutput(ctx restate.ObjectContext) error {
 func (validObject) NoInputNoOutputNoError(ctx restate.ObjectContext) {
 }
 
-func (validObject) SkipInvalidCtx(ctx context.Context, _ string) (string, error) {
+func (validObject) SkipNoArguments() (string, error) {
 	return "", nil
 }
 
-func (validObject) SkipInvalidError(ctx restate.ObjectContext, _ string) (error, string) {
-	return nil, ""
+func (validObject) SkipInvalidCtx(ctx context.Context, _ string) (string, error) {
+	return "", nil
 }
 
 func (validObject) skipUnexported(_ string) (string, error) {
@@ -144,8 +151,8 @@ func (namedService) ServiceName() string {
 
 type validWorkflow struct{}
 
-func (validWorkflow) Run(ctx restate.WorkflowContext, _ string) (string, error) {
-	return "", nil
+func (validWorkflow) Run(ctx restate.WorkflowContext) error {
+	return nil
 }
 
 func (validWorkflow) Status(ctx restate.WorkflowSharedContext, _ string) (string, error) {
@@ -166,3 +173,23 @@ func (mixed) GreetShared(ctx restate.ObjectSharedContext, _ string) (string, err
 }
 
 type empty struct{}
+
+type notExported struct{}
+
+func (notExported) notExported(ctx restate.Context) {}
+
+type firstParamNotContext struct{}
+
+func (firstParamNotContext) FirstParamNotContext(foo string) {}
+
+type secondReturnNotError struct{}
+
+func (secondReturnNotError) SecondReturnNotError(ctx restate.Context) (string, string) {
+	return "", ""
+}
+
+type tooManyReturns struct{}
+
+func (tooManyReturns) TooManyReturns(ctx restate.Context) (string, string, string) {
+	return "", "", ""
+}

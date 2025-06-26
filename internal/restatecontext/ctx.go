@@ -48,6 +48,7 @@ type Context interface {
 	RejectAwakeable(id string, reason error)
 	Select(futs ...Selectable) Selector
 	Run(fn func(ctx RunContext) (any, error), output any, options ...options.RunOption) error
+	RunAsync(fn func(ctx RunContext) (any, error), options ...options.RunOption) RunAsyncFuture
 
 	// available on all keyed handlers
 	Get(key string, output any, options ...options.GetOption) (bool, error)
@@ -66,10 +67,8 @@ type Context interface {
 type ctx struct {
 	context.Context
 
-	ctx context.Context
-
-	conn    io.ReadWriteCloser
-	readBuf []byte // Used for reading the input
+	conn     io.ReadWriteCloser
+	readChan chan readResult
 
 	stateMachine *statemachine.StateMachine
 
@@ -87,12 +86,13 @@ type ctx struct {
 	rand rand.Rand
 
 	// Run implementation
-	runClosures map[uint32]func() *pbinternal.VmProposeRunCompletionParameters
+	runClosures           map[uint32]func() *pbinternal.VmProposeRunCompletionParameters
+	runClosureCompletions chan *pbinternal.VmProposeRunCompletionParameters
 }
 
 var _ Context = (*ctx)(nil)
 
-func newContext(inner context.Context, machine *statemachine.StateMachine, invocationInput *pbinternal.VmSysInputReturn_Input, conn io.ReadWriteCloser, attemptHeaders map[string][]string, dropReplayLogs bool, logHandler slog.Handler, readTempBuf []byte) *ctx {
+func newContext(inner context.Context, machine *statemachine.StateMachine, invocationInput *pbinternal.VmSysInputReturn_Input, conn io.ReadWriteCloser, attemptHeaders map[string][]string, dropReplayLogs bool, logHandler slog.Handler) *ctx {
 	request := Request{
 		ID:             invocationInput.GetInvocationId(),
 		Headers:        make(map[string]string),
@@ -111,18 +111,19 @@ func newContext(inner context.Context, machine *statemachine.StateMachine, invoc
 	// but NOT when we just doSuspend - just because we can't get completions doesn't mean we can't make
 	// progress towards producing an output message
 	ctx := &ctx{
-		Context:        inner,
-		conn:           conn,
-		readBuf:        readTempBuf,
-		stateMachine:   machine,
-		key:            invocationInput.GetKey(),
-		request:        request,
-		internalLogger: internalLogger,
-		userLogContext: atomic.Pointer[rcontext.LogContext]{},
-		rand:           rand.New([]byte(invocationInput.GetInvocationId())),
-		userLogger:     nil,
-		isProcessing:   false,
-		runClosures:    make(map[uint32]func() *pbinternal.VmProposeRunCompletionParameters),
+		Context:               inner,
+		conn:                  conn,
+		readChan:              make(chan readResult),
+		stateMachine:          machine,
+		key:                   invocationInput.GetKey(),
+		request:               request,
+		internalLogger:        internalLogger,
+		userLogContext:        atomic.Pointer[rcontext.LogContext]{},
+		rand:                  rand.New([]byte(invocationInput.GetInvocationId())),
+		userLogger:            nil,
+		isProcessing:          false,
+		runClosures:           make(map[uint32]func() *pbinternal.VmProposeRunCompletionParameters),
+		runClosureCompletions: make(chan *pbinternal.VmProposeRunCompletionParameters, 10),
 	}
 	ctx.userLogger = slog.New(log.NewUserContextHandler(&ctx.userLogContext, dropReplayLogs, logHandler))
 
