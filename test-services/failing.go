@@ -17,7 +17,7 @@ func init() {
 		restate.NewObject("Failing").
 			Handler("terminallyFailingCall", restate.NewObjectHandler(
 				func(ctx restate.ObjectContext, errorMessage string) (restate.Void, error) {
-					return restate.Void{}, restate.TerminalErrorf(errorMessage)
+					return restate.Void{}, restate.TerminalErrorf("%s", errorMessage)
 				})).
 			Handler("callTerminallyFailingCall", restate.NewObjectHandler(
 				func(ctx restate.ObjectContext, errorMessage string) (string, error) {
@@ -40,7 +40,7 @@ func init() {
 			Handler("terminallyFailingSideEffect", restate.NewObjectHandler(
 				func(ctx restate.ObjectContext, errorMessage string) (restate.Void, error) {
 					return restate.Run(ctx, func(ctx restate.RunContext) (restate.Void, error) {
-						return restate.Void{}, restate.TerminalErrorf(errorMessage)
+						return restate.Void{}, restate.TerminalErrorf("%s", errorMessage)
 					})
 				})).
 			Handler("sideEffectSucceedsAfterGivenAttempts", restate.NewObjectHandler(
