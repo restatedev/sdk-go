@@ -2,8 +2,9 @@ package main
 
 import (
 	"fmt"
-	restate "github.com/restatedev/sdk-go"
 	"time"
+
+	restate "github.com/restatedev/sdk-go"
 )
 
 const RESULTS = "results"
@@ -148,7 +149,7 @@ func rejectAwakeableHandler(ctx restate.ObjectSharedContext, req RejectAwakeable
 	if id == "" {
 		return restate.Void{}, restate.TerminalErrorf("awakeable is not registered yet")
 	}
-	restate.RejectAwakeable(ctx, id, restate.TerminalErrorf(req.Reason))
+	restate.RejectAwakeable(ctx, id, restate.TerminalErrorf("%s", req.Reason))
 	return restate.Void{}, nil
 }
 
@@ -234,7 +235,7 @@ func (cmd AwaitableCommand) toFuture(ctx restate.ObjectContext) restate.Selectab
 		return awk
 	case "runThrowTerminalException":
 		return restate.RunAsync[string](ctx, func(ctx restate.RunContext) (string, error) {
-			return "", restate.TerminalErrorf(cmd.Reason)
+			return "", restate.TerminalErrorf("%s", cmd.Reason)
 		})
 	case "sleep":
 		return restate.After(ctx, time.Duration(cmd.TimeoutMillis)*time.Millisecond)
