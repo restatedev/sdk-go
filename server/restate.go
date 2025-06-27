@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"net"
 	"net/http"
 	"runtime/debug"
 	"slices"
@@ -578,11 +579,10 @@ func (r *Restate) Start(ctx context.Context, address string) error {
 	protocols.SetUnencryptedHTTP2(true)
 
 	server := &http.Server{
-		Handler:   handler,
-		Addr:      address,
-		Protocols: &protocols,
+		Handler:           handler,
+		Protocols:         &protocols,
+		ReadHeaderTimeout: 5 * time.Second,
 	}
-
 	go func() {
 		<-ctx.Done()
 		shutdownCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
@@ -593,7 +593,14 @@ func (r *Restate) Start(ctx context.Context, address string) error {
 		}
 	}()
 
-	if err := server.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+	listener, err := net.Listen("tcp", address)
+	if err != nil {
+		return fmt.Errorf("failed to listen on address %s: %w", address, err)
+	}
+
+	slog.Info(fmt.Sprintf("Restate SDK started listening on %s", listener.Addr()))
+
+	if err := server.Serve(listener); err != nil && !errors.Is(err, http.ErrServerClosed) {
 		return fmt.Errorf("server error: %w", err)
 	}
 
