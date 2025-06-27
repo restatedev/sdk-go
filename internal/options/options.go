@@ -1,6 +1,7 @@
 package options
 
 import (
+	"net/http"
 	"time"
 
 	"github.com/restatedev/sdk-go/encoding"
@@ -161,4 +162,13 @@ type ServiceDefinitionOptions struct {
 
 type ServiceDefinitionOption interface {
 	BeforeServiceDefinition(*ServiceDefinitionOptions)
+}
+
+type IngressClientOptions struct {
+	HttpClient *http.Client
+	AuthKey    string
+}
+
+type IngressClientOption interface {
+	BeforeIngress(*IngressClientOptions)
 }

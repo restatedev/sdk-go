@@ -1,6 +1,7 @@
 package restate
 
 import (
+	"net/http"
 	"time"
 
 	"github.com/restatedev/sdk-go/encoding"
@@ -481,4 +482,28 @@ func (w withWorkflowRetention) BeforeHandler(opts *options.HandlerOptions) {
 // otherwise the service discovery will fail.
 func WithWorkflowRetention(workflowCompletionRetention time.Duration) withWorkflowRetention {
 	return withWorkflowRetention{workflowCompletionRetention}
+}
+
+func WithHttpClient(c *http.Client) withHttpClient {
+	return withHttpClient{c}
+}
+
+type withHttpClient struct {
+	httpClient *http.Client
+}
+
+func (w withHttpClient) BeforeIngress(opts *options.IngressClientOptions) {
+	opts.HttpClient = w.httpClient
+}
+
+func WithAuthKey(authKey string) withAuthKey {
+	return withAuthKey{authKey}
+}
+
+type withAuthKey struct {
+	authKey string
+}
+
+func (w withAuthKey) BeforeIngress(opts *options.IngressClientOptions) {
+	opts.AuthKey = w.authKey
 }
