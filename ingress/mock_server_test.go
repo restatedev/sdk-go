@@ -53,12 +53,12 @@ func (m *mockIngressServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 		json.NewEncoder(w).Encode(&inv)
 	} else {
-		w.Write([]byte("OK"))
+		w.Write([]byte("\"OK\""))
 	}
 }
 
 func (m *mockIngressServer) AssertPath(t *testing.T, expectedPath string) {
-	require.Equalf(t, "/"+expectedPath, m.path, "expected path %s, got %s", expectedPath, m.path)
+	require.Equalf(t, expectedPath, m.path, "expected path %s, got %s", expectedPath, m.path)
 }
 
 func (m *mockIngressServer) AssertMethod(t *testing.T, expectedMethod string) {
