@@ -104,7 +104,7 @@ func (c *Client) do(ctx context.Context, httpMethod, path string, requestData an
 	requestBody := bytes.NewBuffer(requestBodyBuf)
 
 	// build the http request
-	url := fmt.Sprintf("%s/%s", c.baseUri, path)
+	url := fmt.Sprintf("%s%s", c.baseUri, path)
 	if opts.Delay != 0 {
 		url = fmt.Sprintf("%s?%s=%dms", url, delayQuery, opts.Delay/time.Millisecond)
 	}
@@ -143,22 +143,22 @@ func (c *Client) do(ctx context.Context, httpMethod, path string, requestData an
 		return err
 	}
 	defer res.Body.Close()
-	body, err := io.ReadAll(res.Body)
+	resBody, err := io.ReadAll(res.Body)
 	if err != nil {
-		return fmt.Errorf("failed to read response body: %w", err)
+		return fmt.Errorf("failed to read response resBody: %w", err)
 	}
 
 	// deal with error response
 	if res.StatusCode < 200 || res.StatusCode >= 300 {
 		var bodyStr string
-		if len(body) > 0 {
-			bodyStr = string(body)
+		if len(resBody) > 0 {
+			bodyStr = string(resBody)
 		} else {
-			bodyStr = "<empty response body>"
+			bodyStr = "<empty response resBody>"
 		}
 		var rerr restateError
-		if len(body) > 0 {
-			if err = json.Unmarshal(body, &rerr); err != nil {
+		if len(resBody) > 0 {
+			if err = json.Unmarshal(resBody, &rerr); err != nil {
 				return fmt.Errorf("failed to unmarshal error response: %w: %s", err, bodyStr)
 			}
 		} else {
@@ -179,7 +179,7 @@ func (c *Client) do(ctx context.Context, httpMethod, path string, requestData an
 	}
 
 	if responseData != nil {
-		if err = encoding.Unmarshal(codec, body, responseData); err != nil {
+		if err = encoding.Unmarshal(codec, resBody, responseData); err != nil {
 			return fmt.Errorf("failed to unmarshal response data: %w", err)
 		}
 	}

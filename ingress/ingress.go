@@ -168,7 +168,7 @@ func (c client[I, O]) Request(ctx context.Context, input I, opts ...options.Ingr
 	}
 
 	var output O
-	err := c.client.Request(ctx, c.params, input, output, reqOpts)
+	err := c.client.Request(ctx, c.params, input, &output, reqOpts)
 	if err != nil {
 		return output, err
 	}
