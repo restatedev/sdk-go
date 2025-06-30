@@ -68,6 +68,11 @@ curl localhost:8080/UserSession/azmy/Checkout
 # true
 ```
 
+## Ingress SDK
+
+When you need to call restate handlers or attach to invocations from outside the restate context,
+use the [ingress SDK](examples/client/main.go).
+
 ## Versions
 
 This library follows [Semantic Versioning](https://semver.org/).
