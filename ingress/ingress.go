@@ -9,6 +9,8 @@ import (
 
 type Client = ingress.Client
 type Invocation = ingress.Invocation
+type InvocationNotFoundError = ingress.InvocationNotFoundError
+type InvocationNotReadyError = ingress.InvocationNotReadyError
 
 type IClient[I any, O any] interface {
 	Request(ctx context.Context, input I, options ...options.RequestOption) (O, error)
@@ -183,7 +185,8 @@ func (c client[I, O]) Send(ctx context.Context, input I, opts ...options.SendOpt
 	return c.client.Send(ctx, c.params, input, sendOpts)
 }
 
-// Attach calls the attachment API and blocks until the output is available.
+// Attach calls the attachment API and blocks until the output is available. Returns an
+// InvocationNotFoundError if the invocation does not exist.
 func (c attachClient[O]) Attach(ctx context.Context) (O, error) {
 	var output O
 	err := c.client.Attach(ctx, c.params, output)
@@ -193,7 +196,9 @@ func (c attachClient[O]) Attach(ctx context.Context) (O, error) {
 	return output, nil
 }
 
-// Output calls the attachment API and returns the output if available, otherwise returns an error.
+// Output calls the attachment API and returns the output if available, otherwise returns an
+// InvocationNotFoundError if the invocation does not exist or an InvocationNotReadyError if
+// the invocation is not complete.
 func (c attachClient[O]) Output(ctx context.Context) (O, error) {
 	var output O
 	err := c.client.Output(ctx, c.params, output)

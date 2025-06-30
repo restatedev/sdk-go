@@ -7,6 +7,8 @@ functions provide an SDK for that purpose. These functions are analogous to the
 [facilitator](https://github.com/restatedev/sdk-go/blob/main/facilitators.go) functions 
 that are used from within the restate context.
 
+# Ingress functions
+
 ## Service
 
 ```go
@@ -100,6 +102,12 @@ if invocation.Error != nil {
 println(invocation.Id)
 ```
 
+# Invocation attachment functions
+
+These functions return the output of the invocation. If the invocation does not exist
+they return `ingress.InvocationNotFoundError`. The `Output` function returns
+`ingress.InvocationNotReadyError` if the invocation is not complete.
+
 ## AttachInvocation
 
 **Blocking until invocation returns output**
@@ -111,7 +119,7 @@ output, err := ingress.AttachInvocation[*MyOutputStruct](
 	Attach(ctx)
 ```
 
-**Non-blocking, returns error if invocation is not found or not done**
+**Non-blocking, returns error if invocation is not complete**
 ```go
 client := ingress.NewClient("http://localhost:8080", 
 	restate.WithAuthKey("authkey"))
@@ -131,7 +139,7 @@ output, err := ingress.AttachService[*MyOutputStruct](
 	Attach(ctx)
 ```
 
-**Non-blocking, returns error if service invocation is not found or not done**
+**Non-blocking, returns error if service invocation is not complete**
 ```go
 client := ingress.NewClient("http://localhost:8080", 
 	restate.WithAuthKey("authkey"))
@@ -151,7 +159,7 @@ output, err := ingress.AttachObject[*MyOutputStruct](
 	Attach(ctx)
 ```
 
-**Non-blocking, returns error if object invocation is not found or not done**
+**Non-blocking, returns error if object invocation is not complete**
 ```go
 client := ingress.NewClient("http://localhost:8080", 
 	restate.WithAuthKey("authkey"))
@@ -171,7 +179,7 @@ output, err := ingress.AttachWorkflow[*MyOutputStruct](
 	Attach(ctx)
 ```
 
-**Non-blocking, returns error if workflow is not found or not done**
+**Non-blocking, returns error if workflow is not complete**
 ```go
 client := ingress.NewClient("http://localhost:8080", 
 	restate.WithAuthKey("authkey"))
