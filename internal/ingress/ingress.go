@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/restatedev/sdk-go/encoding"
 	"io"
 	"net/http"
 	"time"
@@ -18,7 +19,7 @@ const (
 	delayQuery           = "delay"
 )
 
-// Client is an ingress client used to initiate Restate invocations outside of a Restate context.
+// Client is an ingress client used to initiate Restate invocations outside a Restate context.
 type Client struct {
 	baseUri    string
 	ClientOpts options.IngressClientOptions
@@ -44,6 +45,7 @@ type ingressOpts struct {
 	IdempotencyKey string
 	Headers        map[string]string
 	Delay          time.Duration
+	Codec          encoding.PayloadCodec
 }
 
 func NewClient(baseUri string, opts options.IngressClientOptions) *Client {
@@ -84,15 +86,18 @@ func (c *Client) Output(ctx context.Context, params IngressAttachParams, output 
 }
 
 func (c *Client) do(ctx context.Context, httpMethod, path string, requestData any, responseData any, opts ingressOpts) error {
-	// marshal the request data if provided
-	var requestBody io.Reader
-	if requestData != nil {
-		byts, err := json.Marshal(&requestData)
-		if err != nil {
-			return fmt.Errorf("failed to marshal request data: %w", err)
-		}
-		requestBody = bytes.NewBuffer(byts)
+	// Establish the codec to use
+	codec := opts.Codec
+	if codec == nil {
+		codec = encoding.JSONCodec
 	}
+
+	// marshal the request data if provided
+	requestBodyBuf, err := opts.Codec.Marshal(requestData)
+	if err != nil {
+		return fmt.Errorf("failed to marshal request data: %w", err)
+	}
+	requestBody := bytes.NewBuffer(requestBodyBuf)
 
 	// build the http request
 	url := fmt.Sprintf("%s/%s", c.baseUri, path)
@@ -105,10 +110,16 @@ func (c *Client) do(ctx context.Context, httpMethod, path string, requestData an
 	}
 	req = req.WithContext(ctx)
 
+	// Figure out the content type
+	inputPayloadMetadata := opts.Codec.InputPayload(requestData)
+	if inputPayloadMetadata != nil && inputPayloadMetadata.ContentType != nil {
+		req.Header.Set("Content-Type", *inputPayloadMetadata.ContentType)
+	}
+
+	// Add various headers
 	if c.ClientOpts.AuthKey != "" {
 		req.Header.Set("Authorization", "Bearer "+c.ClientOpts.AuthKey)
 	}
-
 	if opts.IdempotencyKey != "" {
 		req.Header.Set(idempotencyKeyHeader, opts.IdempotencyKey)
 	}
@@ -134,13 +145,13 @@ func (c *Client) do(ctx context.Context, httpMethod, path string, requestData an
 	}
 
 	// deal with error response
-	var bodyStr string
-	if len(body) > 0 {
-		bodyStr = string(body)
-	} else {
-		bodyStr = "<empty response body>"
-	}
 	if res.StatusCode < 200 || res.StatusCode >= 300 {
+		var bodyStr string
+		if len(body) > 0 {
+			bodyStr = string(body)
+		} else {
+			bodyStr = "<empty response body>"
+		}
 		var rerr restateError
 		if len(body) > 0 {
 			if err = json.Unmarshal(body, &rerr); err != nil {
@@ -164,8 +175,8 @@ func (c *Client) do(ctx context.Context, httpMethod, path string, requestData an
 	}
 
 	if responseData != nil {
-		if err = json.Unmarshal(body, &responseData); err != nil {
-			return fmt.Errorf("failed to unmarshal response data: %w: %s", err, bodyStr)
+		if err = codec.Unmarshal(body, responseData); err != nil {
+			return fmt.Errorf("failed to unmarshal response data: %w", err)
 		}
 	}
 

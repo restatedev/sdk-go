@@ -49,12 +49,16 @@ type withPayloadCodec struct {
 
 var _ options.HandlerOption = withPayloadCodec{}
 var _ options.ServiceDefinitionOption = withPayloadCodec{}
+var _ options.IngressClientOption = withPayloadCodec{}
 
 func (w withPayloadCodec) BeforeHandler(opts *options.HandlerOptions) {
 	opts.Codec = w.codec
 }
 func (w withPayloadCodec) BeforeServiceDefinition(opts *options.ServiceDefinitionOptions) {
 	opts.DefaultCodec = w.codec
+}
+func (w withPayloadCodec) BeforeIngress(opts *options.IngressClientOptions) {
+	opts.Codec = w.codec
 }
 
 // WithPayloadCodec is an option that can be provided to handler/service options

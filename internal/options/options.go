@@ -167,6 +167,7 @@ type ServiceDefinitionOption interface {
 type IngressClientOptions struct {
 	HttpClient *http.Client
 	AuthKey    string
+	Codec      encoding.PayloadCodec
 }
 
 type IngressClientOption interface {
