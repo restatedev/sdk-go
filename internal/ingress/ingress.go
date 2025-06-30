@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	restate "github.com/restatedev/sdk-go"
 	"github.com/restatedev/sdk-go/encoding"
 	"io"
 	"net/http"
@@ -22,7 +23,7 @@ const (
 // Client is an ingress client used to initiate Restate invocations outside a Restate context.
 type Client struct {
 	baseUri    string
-	ClientOpts options.IngressClientOptions
+	clientOpts options.IngressClientOptions
 }
 
 type IngressParams struct {
@@ -51,15 +52,15 @@ type ingressOpts struct {
 func NewClient(baseUri string, opts options.IngressClientOptions) *Client {
 	return &Client{
 		baseUri:    baseUri,
-		ClientOpts: opts,
+		clientOpts: opts,
 	}
 }
 
-func (c *Client) Request(ctx context.Context, params IngressParams, input, output any, reqOpts options.RequestOptions) error {
+func (c *Client) Request(ctx context.Context, params IngressParams, input, output any, reqOpts options.IngressRequestOptions) error {
 	return c.do(ctx, http.MethodPost, makeIngressUrl(params), input, output, requestOptionsToIngressOpts(reqOpts))
 }
 
-func (c *Client) Send(ctx context.Context, params IngressParams, input any, sendOpts options.SendOptions) Invocation {
+func (c *Client) Send(ctx context.Context, params IngressParams, input any, sendOpts options.IngressSendOptions) Invocation {
 	url := fmt.Sprintf("%s/%s", makeIngressUrl(params), "send")
 	var output Invocation
 	err := c.do(ctx, http.MethodPost, url, input, &output, sendOptionsToIngressOpts(sendOpts))
@@ -74,7 +75,7 @@ func (c *Client) Attach(ctx context.Context, params IngressAttachParams, output 
 	if err != nil {
 		return err
 	}
-	return c.do(ctx, http.MethodGet, fmt.Sprintf("%s/attach", path), nil, output, ingressOpts{})
+	return c.do(ctx, http.MethodGet, fmt.Sprintf("%s/attach", path), restate.Void{}, output, ingressOpts{})
 }
 
 func (c *Client) Output(ctx context.Context, params IngressAttachParams, output any) error {
@@ -82,18 +83,21 @@ func (c *Client) Output(ctx context.Context, params IngressAttachParams, output 
 	if err != nil {
 		return err
 	}
-	return c.do(ctx, http.MethodGet, fmt.Sprintf("%s/output", path), nil, output, ingressOpts{})
+	return c.do(ctx, http.MethodGet, fmt.Sprintf("%s/output", path), restate.Void{}, output, ingressOpts{})
 }
 
 func (c *Client) do(ctx context.Context, httpMethod, path string, requestData any, responseData any, opts ingressOpts) error {
 	// Establish the codec to use
 	codec := opts.Codec
 	if codec == nil {
+		codec = c.clientOpts.Codec
+	}
+	if codec == nil {
 		codec = encoding.JSONCodec
 	}
 
 	// marshal the request data if provided
-	requestBodyBuf, err := opts.Codec.Marshal(requestData)
+	requestBodyBuf, err := encoding.Marshal(codec, requestData)
 	if err != nil {
 		return fmt.Errorf("failed to marshal request data: %w", err)
 	}
@@ -111,14 +115,14 @@ func (c *Client) do(ctx context.Context, httpMethod, path string, requestData an
 	req = req.WithContext(ctx)
 
 	// Figure out the content type
-	inputPayloadMetadata := opts.Codec.InputPayload(requestData)
+	inputPayloadMetadata := encoding.InputPayloadFor(codec, requestData)
 	if inputPayloadMetadata != nil && inputPayloadMetadata.ContentType != nil {
 		req.Header.Set("Content-Type", *inputPayloadMetadata.ContentType)
 	}
 
 	// Add various headers
-	if c.ClientOpts.AuthKey != "" {
-		req.Header.Set("Authorization", "Bearer "+c.ClientOpts.AuthKey)
+	if c.clientOpts.AuthKey != "" {
+		req.Header.Set("Authorization", "Bearer "+c.clientOpts.AuthKey)
 	}
 	if opts.IdempotencyKey != "" {
 		req.Header.Set(idempotencyKeyHeader, opts.IdempotencyKey)
@@ -131,8 +135,8 @@ func (c *Client) do(ctx context.Context, httpMethod, path string, requestData an
 
 	// make the call
 	httpClient := http.DefaultClient
-	if c.ClientOpts.HttpClient != nil {
-		httpClient = c.ClientOpts.HttpClient
+	if c.clientOpts.HttpClient != nil {
+		httpClient = c.clientOpts.HttpClient
 	}
 	res, err := httpClient.Do(req)
 	if err != nil {
@@ -175,7 +179,7 @@ func (c *Client) do(ctx context.Context, httpMethod, path string, requestData an
 	}
 
 	if responseData != nil {
-		if err = codec.Unmarshal(body, responseData); err != nil {
+		if err = encoding.Unmarshal(codec, body, responseData); err != nil {
 			return fmt.Errorf("failed to unmarshal response data: %w", err)
 		}
 	}
@@ -183,18 +187,20 @@ func (c *Client) do(ctx context.Context, httpMethod, path string, requestData an
 	return nil
 }
 
-func requestOptionsToIngressOpts(reqOpts options.RequestOptions) ingressOpts {
+func requestOptionsToIngressOpts(reqOpts options.IngressRequestOptions) ingressOpts {
 	return ingressOpts{
 		IdempotencyKey: reqOpts.IdempotencyKey,
 		Headers:        reqOpts.Headers,
+		Codec:          reqOpts.Codec,
 	}
 }
 
-func sendOptionsToIngressOpts(sendOpts options.SendOptions) ingressOpts {
+func sendOptionsToIngressOpts(sendOpts options.IngressSendOptions) ingressOpts {
 	return ingressOpts{
 		IdempotencyKey: sendOpts.IdempotencyKey,
 		Headers:        sendOpts.Headers,
 		Delay:          sendOpts.Delay,
+		Codec:          sendOpts.Codec,
 	}
 }
 

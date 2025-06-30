@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/restatedev/sdk-go/encoding"
 	"net/http"
 	"testing"
 	"time"
@@ -57,6 +58,27 @@ func TestServiceRequest(t *testing.T) {
 	m.AssertPath(t, fmt.Sprintf("/%s/%s", myService, myHandler))
 	m.AssertBody(t, payload)
 	m.AssertHeaders(t, headers)
+	m.AssertContentType(t, "application/json")
+	m.AssertQuery(t, nil)
+}
+
+func TestNoInput(t *testing.T) {
+	// curl localhost:8080/MyService/myHandler --json '{"name": "Mary", "age": 25}'
+	m := newMockIngressServer()
+	defer m.Close()
+
+	c := newIngressClient(m.URL)
+	_, err := ingress.Service[encoding.Void, any](c, myService, myHandler).
+		Request(context.Background(), encoding.Void{},
+			restate.WithIdempotencyKey(idempotencyKey),
+			restate.WithHeaders(headers),
+		)
+	require.NoError(t, err)
+	m.AssertMethod(t, http.MethodPost)
+	m.AssertPath(t, fmt.Sprintf("/%s/%s", myService, myHandler))
+	m.AssertHeaders(t, headers)
+	m.AssertNoBody(t)
+	m.AssertNoContentType(t)
 	m.AssertQuery(t, nil)
 }
 

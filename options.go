@@ -50,6 +50,8 @@ type withPayloadCodec struct {
 var _ options.HandlerOption = withPayloadCodec{}
 var _ options.ServiceDefinitionOption = withPayloadCodec{}
 var _ options.IngressClientOption = withPayloadCodec{}
+var _ options.IngressRequestOption = withPayloadCodec{}
+var _ options.IngressSendOption = withPayloadCodec{}
 
 func (w withPayloadCodec) BeforeHandler(opts *options.HandlerOptions) {
 	opts.Codec = w.codec
@@ -58,6 +60,12 @@ func (w withPayloadCodec) BeforeServiceDefinition(opts *options.ServiceDefinitio
 	opts.DefaultCodec = w.codec
 }
 func (w withPayloadCodec) BeforeIngress(opts *options.IngressClientOptions) {
+	opts.Codec = w.codec
+}
+func (w withPayloadCodec) BeforeIngressRequest(opts *options.IngressRequestOptions) {
+	opts.Codec = w.codec
+}
+func (w withPayloadCodec) BeforeIngressSend(opts *options.IngressSendOptions) {
 	opts.Codec = w.codec
 }
 
@@ -88,12 +96,22 @@ type withHeaders struct {
 
 var _ options.RequestOption = withHeaders{}
 var _ options.SendOption = withHeaders{}
+var _ options.IngressRequestOption = withHeaders{}
+var _ options.IngressSendOption = withHeaders{}
 
 func (w withHeaders) BeforeRequest(opts *options.RequestOptions) {
 	opts.Headers = w.headers
 }
 
 func (w withHeaders) BeforeSend(opts *options.SendOptions) {
+	opts.Headers = w.headers
+}
+
+func (w withHeaders) BeforeIngressRequest(opts *options.IngressRequestOptions) {
+	opts.Headers = w.headers
+}
+
+func (w withHeaders) BeforeIngressSend(opts *options.IngressSendOptions) {
 	opts.Headers = w.headers
 }
 
@@ -108,12 +126,22 @@ type withIdempotencyKey struct {
 
 var _ options.RequestOption = withIdempotencyKey{}
 var _ options.SendOption = withIdempotencyKey{}
+var _ options.IngressRequestOption = withIdempotencyKey{}
+var _ options.IngressSendOption = withIdempotencyKey{}
 
 func (w withIdempotencyKey) BeforeRequest(opts *options.RequestOptions) {
 	opts.IdempotencyKey = w.idempotencyKey
 }
 
 func (w withIdempotencyKey) BeforeSend(opts *options.SendOptions) {
+	opts.IdempotencyKey = w.idempotencyKey
+}
+
+func (w withIdempotencyKey) BeforeIngressRequest(opts *options.IngressRequestOptions) {
+	opts.IdempotencyKey = w.idempotencyKey
+}
+
+func (w withIdempotencyKey) BeforeIngressSend(opts *options.IngressSendOptions) {
 	opts.IdempotencyKey = w.idempotencyKey
 }
 
@@ -127,8 +155,13 @@ type withDelay struct {
 }
 
 var _ options.SendOption = withDelay{}
+var _ options.IngressSendOption = withDelay{}
 
 func (w withDelay) BeforeSend(opts *options.SendOptions) {
+	opts.Delay = w.delay
+}
+
+func (w withDelay) BeforeIngressSend(opts *options.IngressSendOptions) {
 	opts.Delay = w.delay
 }
 

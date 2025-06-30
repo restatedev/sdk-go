@@ -73,6 +73,15 @@ type RequestOption interface {
 	BeforeRequest(*RequestOptions)
 }
 
+type IngressRequestOptions struct {
+	RequestOptions
+	Codec encoding.PayloadCodec
+}
+
+type IngressRequestOption interface {
+	BeforeIngressRequest(*IngressRequestOptions)
+}
+
 type SendOptions struct {
 	IdempotencyKey string
 	Headers        map[string]string
@@ -81,6 +90,15 @@ type SendOptions struct {
 
 type SendOption interface {
 	BeforeSend(*SendOptions)
+}
+
+type IngressSendOptions struct {
+	SendOptions
+	Codec encoding.PayloadCodec
+}
+
+type IngressSendOption interface {
+	BeforeIngressSend(*IngressSendOptions)
 }
 
 type RunOptions struct {

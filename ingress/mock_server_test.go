@@ -65,6 +65,21 @@ func (m *mockIngressServer) AssertMethod(t *testing.T, expectedMethod string) {
 	require.Equalf(t, expectedMethod, m.method, "expected method %s, got %s", expectedMethod, m.method)
 }
 
+func (m *mockIngressServer) AssertContentType(t *testing.T, contentType string) {
+	require.NotNil(t, m.headers)
+	require.Equal(t, contentType, m.headers["Content-Type"])
+}
+
+func (m *mockIngressServer) AssertNoContentType(t *testing.T) {
+	require.NotNil(t, m.headers)
+	require.Empty(t, m.headers["Content-Type"])
+}
+
+func (m *mockIngressServer) AssertNoBody(t *testing.T) {
+	require.NotNil(t, m.headers)
+	require.Empty(t, m.body)
+}
+
 func (m *mockIngressServer) AssertHeaders(t *testing.T, expectedHeaders map[string]string) {
 	if expectedHeaders == nil && m.headers == nil {
 		return
