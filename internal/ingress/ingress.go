@@ -25,16 +25,16 @@ type Client struct {
 }
 
 type IngressParams struct {
-	Service    string
-	Method     string
-	Key        string
-	WorkflowID string
+	ServiceName string
+	HandlerName string
+	ObjectKey   string
+	WorkflowID  string
 }
 
 type IngressAttachParams struct {
-	Service        string
-	Method         string
-	Key            string
+	ServiceName    string
+	MethodName     string
+	ObjectKey      string
 	InvocationID   string
 	IdempotencyKey string
 	WorkflowID     string
@@ -189,12 +189,12 @@ func sendOptionsToIngressOpts(sendOpts options.SendOptions) ingressOpts {
 
 func makeIngressUrl(params IngressParams) string {
 	switch {
-	case params.Key != "":
-		return fmt.Sprintf("/%s/%s/%s", params.Service, params.Key, params.Method)
+	case params.ObjectKey != "":
+		return fmt.Sprintf("/%s/%s/%s", params.ServiceName, params.ObjectKey, params.HandlerName)
 	case params.WorkflowID != "":
-		return fmt.Sprintf("/%s/%s/%s", params.Service, params.WorkflowID, params.Method)
+		return fmt.Sprintf("/%s/%s/%s", params.ServiceName, params.WorkflowID, params.HandlerName)
 	default:
-		return fmt.Sprintf("/%s/%s", params.Service, params.Method)
+		return fmt.Sprintf("/%s/%s", params.ServiceName, params.HandlerName)
 	}
 }
 
@@ -202,12 +202,12 @@ func makeAttachUrl(params IngressAttachParams) (string, error) {
 	switch {
 	case params.InvocationID != "":
 		return fmt.Sprintf("/restate/invocation/%s", params.InvocationID), nil
-	case params.Key != "" && params.IdempotencyKey != "" && params.Service != "" && params.Method != "":
-		return fmt.Sprintf("/restate/invocation/%s/%s/%s/%s", params.Service, params.Key, params.Method, params.IdempotencyKey), nil
-	case params.WorkflowID != "" && params.Service != "":
-		return fmt.Sprintf("/restate/workflow/%s/%s", params.Service, params.WorkflowID), nil
-	case params.Service != "" && params.Method != "" && params.IdempotencyKey != "":
-		return fmt.Sprintf("/restate/invocation/%s/%s/%s", params.Service, params.Method, params.IdempotencyKey), nil
+	case params.ObjectKey != "" && params.IdempotencyKey != "" && params.ServiceName != "" && params.MethodName != "":
+		return fmt.Sprintf("/restate/invocation/%s/%s/%s/%s", params.ServiceName, params.ObjectKey, params.MethodName, params.IdempotencyKey), nil
+	case params.WorkflowID != "" && params.ServiceName != "":
+		return fmt.Sprintf("/restate/workflow/%s/%s", params.ServiceName, params.WorkflowID), nil
+	case params.ServiceName != "" && params.MethodName != "" && params.IdempotencyKey != "":
+		return fmt.Sprintf("/restate/invocation/%s/%s/%s", params.ServiceName, params.MethodName, params.IdempotencyKey), nil
 	default:
 		return "", errors.New("missing ingress attach params")
 	}

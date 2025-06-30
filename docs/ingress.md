@@ -7,26 +7,26 @@ functions provide an SDK for that purpose. These functions are analogous to the
 [facilitator](https://github.com/restatedev/sdk-go/blob/main/facilitators.go) functions 
 that are used from within the restate context.
 
-## IngressService
+## Service
 
 ```go
-client := restate.NewIngressClient("http://localhost:8080",
+client := ingress.NewClient("http://localhost:8080",
 	restate.WithAuthKey("authkey"))
 var input MyInputStruct
-output, err := restate.IngressService[*MyInputStruct, *MyOutputStruct](
+output, err := ingress.Service[*MyInputStruct, *MyOutputStruct](
 	client serviceName, handlerName).
 	Request(ctx, &input, 
 		restate.WithIdempotencyKey("idem-key-1"),
 		restate.WithHeaders(map[string]string{"header-name","header-value"}))
 ```
 
-## IngressServiceSend
+## ServiceSend
 
 ```go
-client := restate.NewIngressClient("http://localhost:8080",
+client := ingress.NewClient("http://localhost:8080",
 	restate.WithAuthKey("authkey"))
 var input MyInputStruct
-invocation := restate.IngressServiceSend[*MyInputStruct](
+invocation := ingress.ServiceSend[*MyInputStruct](
 	client, serviceName, handlerName).
 	Send(ctx, &input, 
 		restate.WithIdempotencyKey("idem-key-1"),
@@ -38,26 +38,26 @@ if invocation.Error != nil {
 println(invocation.Id)
 ```
 
-## IngressObject
+## Object
 
 ```go
-client := restate.NewIngressClient("http://localhost:8080",
+client := ingress.NewClient("http://localhost:8080",
 	restate.WithAuthKey("authkey"))
 var input MyInputStruct
-output, err := restate.IngressObject[*MyInputStruct, *MyOutputStruct](
+output, err := ingress.Object[*MyInputStruct, *MyOutputStruct](
 	client, serviceName, objectKey, handlerName).
 	Request(ctx, &input, 
 		restate.WithIdempotencyKey("idem-key-1"),
 		restate.WithHeaders(map[string]string{"header-name","header-value"}))
 ```
 
-## IngressObjectSend
+## ObjectSend
 
 ```go
-client := restate.NewIngressClient("http://localhost:8080",
+client := ingress.NewClient("http://localhost:8080",
 	restate.WithAuthKey("authkey"))
 var input MyInputStruct
-invocation := restate.IngressObjectSend[*MyInputStruct](
+invocation := ingress.ObjectSend[*MyInputStruct](
 	client, serviceName, objectKey, handlerName).
 	Send(ctx, &input, 
 		restate.WithIdempotencyKey("idem-key-1"),
@@ -69,26 +69,26 @@ if invocation.Error != nil {
 println(invocation.Id)
 ```
 
-## IngressWorkflow
+## Workflow
 
 ```go
-client := restate.NewIngressClient("http://localhost:8080",
+client := ingress.NewClient("http://localhost:8080",
 	restate.WithAuthKey("authkey"))
 var input MyInputStruct
-output, err := restate.IngressWorkflow[*MyInputStruct, *MyOutputStruct](
+output, err := ingress.Workflow[*MyInputStruct, *MyOutputStruct](
 	client, serviceName, workflowId, "send").
 	Request(ctx, &input, 
 		restate.WithIdempotencyKey("idem-key-1"),
 		restate.WithHeaders(map[string]string{"header-name","header-value"}))
 ```
 
-## IngressWorkflowSend
+## WorkflowSend
 
 ```go
-client := restate.NewIngressClient("http://localhost:8080",
+client := ingress.NewClient("http://localhost:8080",
 	restate.WithAuthKey("authkey"))
 var input MyInputStruct
-invocation := restate.IngressWorkflowSend[*MyInputStruct](
+invocation := ingress.WorkflowSend[*MyInputStruct](
 	client, serviceName, workflowId, handlerName).
 	Send(ctx, &input, 
 		restate.WithIdempotencyKey("idem-key-1"),
@@ -100,82 +100,82 @@ if invocation.Error != nil {
 println(invocation.Id)
 ```
 
-## IngressAttachInvocation
+## AttachInvocation
 
 **Blocking until invocation returns output**
 ```go
-client := restate.NewIngressClient("http://localhost:8080",
+client := ingress.NewClient("http://localhost:8080",
 	restate.WithAuthKey("authkey"))
-output, err := restate.IngressAttachInvocation[*MyOutputStruct](
+output, err := ingress.AttachInvocation[*MyOutputStruct](
 	client, invocationId).
 	Attach(ctx)
 ```
 
 **Non-blocking, returns error if invocation is not found or not done**
 ```go
-client := restate.NewIngressClient("http://localhost:8080", 
+client := ingress.NewClient("http://localhost:8080", 
 	restate.WithAuthKey("authkey"))
-output, err := restate.IngressAttachInvocation[*MyOutputStruct](
+output, err := ingress.AttachInvocation[*MyOutputStruct](
 	client, invocationId).
 	Output(ctx)
 ```
 
-## IngressAttachService
+## AttachService
 
 **Blocking until service invocation returns output**
 ```go
-client := restate.NewIngressClient("http://localhost:8080", 
+client := ingress.NewClient("http://localhost:8080", 
 	restate.WithAuthKey("authkey"))
-output, err := restate.IngressAttachService[*MyOutputStruct](
+output, err := ingress.AttachService[*MyOutputStruct](
 	client, serviceName, handlerName, idempotencyKey).
 	Attach(ctx)
 ```
 
 **Non-blocking, returns error if service invocation is not found or not done**
 ```go
-client := restate.NewIngressClient("http://localhost:8080", 
+client := ingress.NewClient("http://localhost:8080", 
 	restate.WithAuthKey("authkey"))
-output, err := restate.IngressAttachService[*MyOutputStruct](
+output, err := ingress.AttachService[*MyOutputStruct](
 	client, serviceName, handlerName, idempotencyKey).
 	Output(ctx)
 ```
 
-## IngressAttachObject
+## AttachObject
 
 **Blocking until object invocation returns output**
 ```go
-client := restate.NewIngressClient("http://localhost:8080", 
+client := ingress.NewClient("http://localhost:8080", 
 	restate.WithAuthKey("authkey"))
-output, err := restate.IngressAttachObject[*MyOutputStruct](
+output, err := ingress.AttachObject[*MyOutputStruct](
 	client, serviceName, objectKey, handlerName, idempotencyKey).
 	Attach(ctx)
 ```
 
 **Non-blocking, returns error if object invocation is not found or not done**
 ```go
-client := restate.NewIngressClient("http://localhost:8080", 
+client := ingress.NewClient("http://localhost:8080", 
 	restate.WithAuthKey("authkey"))
-output, err := restate.IngressAttachObject[*MyOutputStruct](
+output, err := ingress.AttachObject[*MyOutputStruct](
 	client, serviceName, objectKey, handlerName, idempotencyKey).
 	Output(ctx)
 ```
 
-## IngressAttachWorkflow
+## AttachWorkflow
 
 **Blocking until workflow returns output**
 ```go
-client := restate.NewIngressClient("http://localhost:8080", 
+client := ingress.NewClient("http://localhost:8080", 
 	restate.WithAuthKey("authkey"))
-output, err := restate.IngressAttachWorkflow[*MyOutputStruct](
+output, err := ingress.AttachWorkflow[*MyOutputStruct](
 	client, serviceName, workflowId).
 	Attach(ctx)
 ```
 
 **Non-blocking, returns error if workflow is not found or not done**
 ```go
-client := restate.NewIngressClient("http://localhost:8080", 
+client := ingress.NewClient("http://localhost:8080", 
 	restate.WithAuthKey("authkey"))
-output, err := restate.IngressAttachWorkflow[*MyOutputStruct](
+output, err := ingress.AttachWorkflow[*MyOutputStruct](
 	client, serviceName, workflowId).
 	Output(ctx)
 ```

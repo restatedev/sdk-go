@@ -1,4 +1,4 @@
-package restate_test
+package ingress_test
 
 import (
 	"context"
@@ -11,6 +11,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/restatedev/sdk-go"
+	"github.com/restatedev/sdk-go/ingress"
 )
 
 const (
@@ -46,7 +47,7 @@ func TestServiceRequest(t *testing.T) {
 	require.NoError(t, json.Unmarshal(payload, &input))
 
 	c := newIngressClient(m.URL)
-	_, err := restate.IngressService[map[string]any, any](c, myService, myHandler).
+	_, err := ingress.Service[map[string]any, any](c, myService, myHandler).
 		Request(context.Background(), input,
 			restate.WithIdempotencyKey(idempotencyKey),
 			restate.WithHeaders(headers),
@@ -69,7 +70,7 @@ func TestServiceSend(t *testing.T) {
 	require.NoError(t, json.Unmarshal(payload, &input))
 
 	c := newIngressClient(m.URL)
-	inv := restate.IngressServiceSend[map[string]any](c, myService, myHandler).
+	inv := ingress.ServiceSend[map[string]any](c, myService, myHandler).
 		Send(context.Background(), input,
 			restate.WithIdempotencyKey(idempotencyKey),
 			restate.WithHeaders(headers),
@@ -95,7 +96,7 @@ func TestObjectRequest(t *testing.T) {
 	require.NoError(t, json.Unmarshal(payload, &input))
 
 	c := newIngressClient(m.URL)
-	_, err := restate.IngressObject[map[string]any, any](c, myService, myObjectKey, myHandler).
+	_, err := ingress.Object[map[string]any, any](c, myService, myObjectKey, myHandler).
 		Request(context.Background(), input,
 			restate.WithIdempotencyKey(idempotencyKey),
 			restate.WithHeaders(headers),
@@ -118,7 +119,7 @@ func TestObjectSend(t *testing.T) {
 	require.NoError(t, json.Unmarshal(payload, &input))
 
 	c := newIngressClient(m.URL)
-	inv := restate.IngressObjectSend[map[string]any](c, myService, myObjectKey, myHandler).
+	inv := ingress.ObjectSend[map[string]any](c, myService, myObjectKey, myHandler).
 		Send(context.Background(), input,
 			restate.WithIdempotencyKey(idempotencyKey),
 			restate.WithHeaders(headers),
@@ -144,7 +145,7 @@ func TestWorkflowRun(t *testing.T) {
 	require.NoError(t, json.Unmarshal(payload, &input))
 
 	c := newIngressClient(m.URL)
-	_, err := restate.IngressWorkflow[map[string]any, any](c, myService, myWorkflowId, run).
+	_, err := ingress.Workflow[map[string]any, any](c, myService, myWorkflowId, run).
 		Request(context.Background(), input,
 			restate.WithIdempotencyKey(idempotencyKey),
 			restate.WithHeaders(headers),
@@ -167,7 +168,7 @@ func TestWorkflowSend(t *testing.T) {
 	require.NoError(t, json.Unmarshal(payload, &input))
 
 	c := newIngressClient(m.URL)
-	inv := restate.IngressWorkflowSend[map[string]any](c, myService, myWorkflowId, myHandler).
+	inv := ingress.WorkflowSend[map[string]any](c, myService, myWorkflowId, myHandler).
 		Send(context.Background(), input,
 			restate.WithIdempotencyKey(idempotencyKey),
 			restate.WithHeaders(headers),
@@ -189,7 +190,7 @@ func TestInvocationAttachByInvocationID(t *testing.T) {
 	defer m.Close()
 
 	c := newIngressClient(m.URL)
-	_, err := restate.IngressAttachInvocation[any](c, invocationId).
+	_, err := ingress.AttachInvocation[any](c, invocationId).
 		Attach(context.Background())
 	require.NoError(t, err)
 	m.AssertMethod(t, http.MethodGet)
@@ -203,7 +204,7 @@ func TestInvocationOutputByInvocationID(t *testing.T) {
 	defer m.Close()
 
 	c := newIngressClient(m.URL)
-	_, err := restate.IngressAttachInvocation[any](c, invocationId).
+	_, err := ingress.AttachInvocation[any](c, invocationId).
 		Output(context.Background())
 	require.NoError(t, err)
 	m.AssertMethod(t, http.MethodGet)
@@ -217,7 +218,7 @@ func TestServiceAttachByIdempotencyKey(t *testing.T) {
 	defer m.Close()
 
 	c := newIngressClient(m.URL)
-	_, err := restate.IngressAttachService[any](c, myService, myHandler, idempotencyKey).
+	_, err := ingress.AttachService[any](c, myService, myHandler, idempotencyKey).
 		Attach(context.Background())
 	require.NoError(t, err)
 	m.AssertMethod(t, http.MethodGet)
@@ -231,7 +232,7 @@ func TestServiceOutputByIdempotencyKey(t *testing.T) {
 	defer m.Close()
 
 	c := newIngressClient(m.URL)
-	_, err := restate.IngressAttachService[any](c, myService, myHandler, idempotencyKey).
+	_, err := ingress.AttachService[any](c, myService, myHandler, idempotencyKey).
 		Output(context.Background())
 	require.NoError(t, err)
 	m.AssertMethod(t, http.MethodGet)
@@ -245,7 +246,7 @@ func TestObjectAttachByIdempotencyKey(t *testing.T) {
 	defer m.Close()
 
 	c := newIngressClient(m.URL)
-	_, err := restate.IngressAttachObject[any](c, myService, myObjectKey, myHandler, idempotencyKey).
+	_, err := ingress.AttachObject[any](c, myService, myObjectKey, myHandler, idempotencyKey).
 		Attach(context.Background())
 	require.NoError(t, err)
 	m.AssertMethod(t, http.MethodGet)
@@ -259,7 +260,7 @@ func TestObjectOutputByIdempotencyKey(t *testing.T) {
 	defer m.Close()
 
 	c := newIngressClient(m.URL)
-	_, err := restate.IngressAttachObject[any](c, myService, myObjectKey, myHandler, idempotencyKey).
+	_, err := ingress.AttachObject[any](c, myService, myObjectKey, myHandler, idempotencyKey).
 		Output(context.Background())
 	require.NoError(t, err)
 	m.AssertMethod(t, http.MethodGet)
@@ -273,7 +274,7 @@ func TestWorkflowAttach(t *testing.T) {
 	defer m.Close()
 
 	c := newIngressClient(m.URL)
-	_, err := restate.IngressAttachWorkflow[any](c, myService, myWorkflowId).
+	_, err := ingress.AttachWorkflow[any](c, myService, myWorkflowId).
 		Attach(context.Background())
 	require.NoError(t, err)
 	m.AssertMethod(t, http.MethodGet)
@@ -287,7 +288,7 @@ func TestWorkflowOutput(t *testing.T) {
 	defer m.Close()
 
 	c := newIngressClient(m.URL)
-	_, err := restate.IngressAttachWorkflow[any](c, myService, myWorkflowId).
+	_, err := ingress.AttachWorkflow[any](c, myService, myWorkflowId).
 		Output(context.Background())
 	require.NoError(t, err)
 	m.AssertMethod(t, http.MethodGet)
@@ -295,8 +296,8 @@ func TestWorkflowOutput(t *testing.T) {
 	m.AssertBody(t, nil)
 }
 
-func newIngressClient(baseUri string) *restate.IngressClient {
-	return restate.NewIngressClient(baseUri,
+func newIngressClient(baseUri string) *ingress.Client {
+	return ingress.NewClient(baseUri,
 		restate.WithHttpClient(http.DefaultClient),
 		restate.WithAuthKey(authKey))
 }
