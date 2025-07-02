@@ -79,12 +79,13 @@ This library follows [Semantic Versioning](https://semver.org/).
 
 The compatibility with Restate is described in the following table:
 
-| Restate Server\sdk-go | 0.9 - 0.15 | 0.16 - 0.17 |
-|-----------------------|------------|-------------|
-| 1.0                   | ✅          | ❌           |
-| 1.1                   | ✅          | ❌           |
-| 1.2                   | ✅          | ❌           |
-| 1.3                   | ✅          | ✅           |
+| Restate Server\sdk-go | 0.9 - 0.15 | 0.16 - 0.17 | 0.18             |
+|-----------------------|------------|-------------|------------------|
+| 1.0 - 1.2             | ✅          | ❌           | ❌                |
+| 1.3                   | ✅          | ✅           | ✅ <sup>(1)</sup> |
+| 1.4                   | ✅          | ✅           | ✅                |
+
+<sup>(1)</sup> **Note** `WithAbortTimeout`, `WithEnableLazyState`, `WithIdempotencyRetention`, `WithInactivityTimeout`, `WithIngressPrivate`, `WithJournalRetention` and `WithWorkflowRetention` work only from Restate 1.4 onward. Check the in-code documentation for more details.
 
 ## Contributing
 
