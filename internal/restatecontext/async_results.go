@@ -2,12 +2,13 @@ package restatecontext
 
 import (
 	"fmt"
-	"github.com/restatedev/sdk-go/internal/errors"
-	pbinternal "github.com/restatedev/sdk-go/internal/generated"
-	"github.com/restatedev/sdk-go/internal/statemachine"
 	"io"
 	"sync"
 	"sync/atomic"
+
+	"github.com/restatedev/sdk-go/internal/errors"
+	pbinternal "github.com/restatedev/sdk-go/internal/generated"
+	"github.com/restatedev/sdk-go/internal/statemachine"
 )
 
 var CancelledFailureValue = func() statemachine.Value {
@@ -18,7 +19,7 @@ var CancelledFailureValue = func() statemachine.Value {
 }()
 
 func errorFromFailure(failure statemachine.ValueFailure) error {
-	return &errors.CodeError{Inner: &errors.TerminalError{Inner: fmt.Errorf(failure.Failure.GetMessage())}, Code: errors.Code(failure.Failure.GetCode())}
+	return &errors.CodeError{Inner: &errors.TerminalError{Inner: fmt.Errorf("%s", failure.Failure.GetMessage())}, Code: errors.Code(failure.Failure.GetCode())}
 }
 
 type Selectable interface {
