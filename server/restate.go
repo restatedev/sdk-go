@@ -291,6 +291,12 @@ func (r *Restate) discover(protocolVersion ServiceDiscoveryProtocolVersion) (res
 	return
 }
 
+func (r *Restate) handleHealthRequest(writer http.ResponseWriter) {
+	writer.Header().Set("Content-Type", "text/plain")
+	writer.WriteHeader(http.StatusOK)
+	_, _ = writer.Write([]byte("ok"))
+}
+
 func (r *Restate) handleDiscoveryRequest(writer http.ResponseWriter, req *http.Request) {
 	r.systemLog.DebugContext(req.Context(), "Processing discovery request")
 
@@ -492,6 +498,11 @@ func (r *Restate) handler(writer http.ResponseWriter, request *http.Request) {
 	request = request.WithContext(ctx)
 
 	writer.Header().Add("x-restate-server", xRestateServer)
+
+	if request.RequestURI == "/health" {
+		r.handleHealthRequest(writer)
+		return
+	}
 
 	if r.keySet != nil {
 		if err := identity.ValidateRequestIdentity(r.keySet, request.RequestURI, request.Header); err != nil {
