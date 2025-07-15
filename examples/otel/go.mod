@@ -1,8 +1,8 @@
 module github.com/restatedev/sdk-go/examples/otel
 
-go 1.22.0
+go 1.24
 
-toolchain go1.23.6
+toolchain go1.24.4
 
 require (
 	github.com/restatedev/sdk-go v0.9.1
