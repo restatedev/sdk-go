@@ -1,8 +1,6 @@
 module github.com/restatedev/sdk-go
 
-go 1.22.0
-
-toolchain go1.23.6
+go 1.24
 
 require (
 	github.com/golang-jwt/jwt/v5 v5.2.1
@@ -14,7 +12,6 @@ require (
 	github.com/tetratelabs/wazero v1.9.0
 	github.com/wk8/go-ordered-map/v2 v2.1.8
 	go.opentelemetry.io/otel v1.28.0
-	golang.org/x/net v0.23.0
 	google.golang.org/protobuf v1.36.5
 )
 
@@ -29,6 +26,5 @@ require (
 	github.com/stretchr/objx v0.5.2 // indirect
 	go.opentelemetry.io/otel/metric v1.28.0 // indirect
 	go.opentelemetry.io/otel/trace v1.28.0 // indirect
-	golang.org/x/text v0.14.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )

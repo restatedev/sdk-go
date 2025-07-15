@@ -14,7 +14,7 @@
 * 🏠 [Visit our GitHub org](https://github.com/restatedev) for exploring other repositories.
 
 ## Prerequisites
-- Go: >= 1.21.0
+- Go: >= 1.24.0
 
 ## Examples
 
