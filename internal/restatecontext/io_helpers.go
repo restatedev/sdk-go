@@ -3,9 +3,10 @@ package restatecontext
 import (
 	"context"
 	"fmt"
-	"github.com/restatedev/sdk-go/internal/statemachine"
 	"io"
 	"sync"
+
+	"github.com/restatedev/sdk-go/internal/statemachine"
 )
 
 var BufPool sync.Pool
@@ -50,25 +51,39 @@ type readResult struct {
 }
 
 func (restateCtx *ctx) readInputLoop() {
+	defer func() {
+		// make sure the channel is closed to avoid goroutine leak
+		close(restateCtx.readChan)
+	}()
+
 	for {
 		// Acquire buf
 		tempBuf := BufPool.Get().([]byte)
 		read, err := restateCtx.conn.Read(tempBuf)
 		if err != nil {
 			BufPool.Put(tempBuf)
-			if err == io.EOF {
-				restateCtx.readChan <- readResult{
-					nRead: 0,
-					buf:   nil,
-					err:   io.EOF,
-				}
-			} else {
-				restateCtx.readChan <- readResult{
-					nRead: 0,
-					buf:   nil,
-					err:   fmt.Errorf("error when reading the input stream %e", err),
-				}
+			if err != io.EOF {
+				err = fmt.Errorf("error when reading the input stream %e", err)
 			}
+
+			// The reader goroutine stops consuming from this channel when it encounters
+			// a termination condition, but doesn't drain the remaining data being written.
+			// This causes this goroutine to block indefinitely when trying to send
+			// the final error result to the channel.
+			//
+			// Current fix: Use non-blocking send to prevent goroutine leak.
+			// Better solution: Have the reader drain the channel completely
+			// before terminating and then close the channel.
+			select {
+			case restateCtx.readChan <- readResult{
+				nRead: 0,
+				buf:   nil,
+				err:   err,
+			}:
+				return
+			default:
+			}
+
 			return
 		}
 		if read != 0 {
