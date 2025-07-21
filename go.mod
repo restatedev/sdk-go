@@ -3,7 +3,7 @@ module github.com/restatedev/sdk-go
 go 1.24
 
 require (
-	github.com/golang-jwt/jwt/v5 v5.2.1
+	github.com/golang-jwt/jwt/v5 v5.2.2
 	github.com/google/uuid v1.6.0
 	github.com/invopop/jsonschema v0.13.0
 	github.com/mr-tron/base58 v1.2.0
