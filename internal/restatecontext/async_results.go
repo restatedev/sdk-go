@@ -2,7 +2,6 @@ package restatecontext
 
 import (
 	"fmt"
-	"io"
 	"sync"
 	"sync/atomic"
 
@@ -97,16 +96,13 @@ func (restateCtx *ctx) pollProgress(handles []uint32) bool {
 		if isPendingRun || isReadFromInput {
 			// Either wait for at least one read or for run proposals
 			select {
-			case readRes := <-restateCtx.readChan:
-				if readRes.err == io.EOF {
+			case readRes, ok := <-restateCtx.readChan:
+				if !ok {
 					// Got EOF, notify and break
 					if err = restateCtx.stateMachine.NotifyInputClosed(restateCtx); err != nil {
 						panic(err)
 					}
 					break
-				} else if err != nil {
-					// Cannot read input anymore
-					panic(fmt.Errorf("error when reading the input stream %e", err))
 				}
 				if err = restateCtx.stateMachine.NotifyInput(restateCtx, readRes.buf[0:readRes.nRead]); err != nil {
 					panic(err)

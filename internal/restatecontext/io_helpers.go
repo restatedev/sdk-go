@@ -2,9 +2,10 @@ package restatecontext
 
 import (
 	"context"
-	"fmt"
+	"github.com/restatedev/sdk-go/internal/log"
 	"github.com/restatedev/sdk-go/internal/statemachine"
 	"io"
+	"log/slog"
 	"sync"
 )
 
@@ -46,36 +47,25 @@ func consumeOutput(ctx context.Context, machine *statemachine.StateMachine, conn
 type readResult struct {
 	nRead int
 	buf   []byte
-	err   error
 }
 
-func (restateCtx *ctx) readInputLoop() {
+func (restateCtx *ctx) readInputLoop(logger *slog.Logger) {
 	for {
 		// Acquire buf
 		tempBuf := BufPool.Get().([]byte)
 		read, err := restateCtx.conn.Read(tempBuf)
 		if err != nil {
 			BufPool.Put(tempBuf)
-			if err == io.EOF {
-				restateCtx.readChan <- readResult{
-					nRead: 0,
-					buf:   nil,
-					err:   io.EOF,
-				}
-			} else {
-				restateCtx.readChan <- readResult{
-					nRead: 0,
-					buf:   nil,
-					err:   fmt.Errorf("error when reading the input stream %e", err),
-				}
+			if err != io.EOF {
+				logger.WarnContext(restateCtx, "Unexpected when reading input", log.Error(err))
 			}
+			close(restateCtx.readChan)
 			return
 		}
 		if read != 0 {
 			restateCtx.readChan <- readResult{
 				nRead: read,
 				buf:   tempBuf,
-				err:   nil,
 			}
 		}
 	}
