@@ -28,13 +28,13 @@ func ExecuteInvocation(ctx context.Context, logger *slog.Logger, stateMachine *s
 	restateCtx := newContext(ctx, stateMachine, invocationInput, conn, attemptHeaders, dropReplayLogs, logHandler)
 
 	// Invoke the handler
-	invoke(restateCtx, handler)
+	invoke(restateCtx, handler, logger)
 	return nil
 }
 
-func invoke(restateCtx *ctx, handler Handler) {
+func invoke(restateCtx *ctx, handler Handler, logger *slog.Logger) {
 	// Run read loop on a goroutine
-	go func(restateCtx *ctx) { restateCtx.readInputLoop() }(restateCtx)
+	go func(restateCtx *ctx, logger *slog.Logger) { restateCtx.readInputLoop(logger) }(restateCtx, logger)
 
 	defer func() {
 		// recover will return a non-nil object

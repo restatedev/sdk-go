@@ -376,7 +376,13 @@ func serviceDiscoveryProtocolVersionToHeaderValue(serviceDiscoveryProtocolVersio
 
 // takes care of function call
 func (r *Restate) handleInvokeRequest(service, method string, writer http.ResponseWriter, request *http.Request) {
-	ctx := request.Context()
+	// Make Request context cancellable, we'll need this to unblock reads later on
+	ctx, cancel := context.WithCancel(request.Context())
+	request = request.WithContext(ctx)
+
+	// Create new connection. cancel will be invoked when the connection is closed.
+	conn := newConnection(writer, request, cancel)
+
 	serviceMethod := fmt.Sprintf("%s/%s", service, method)
 	logger := r.systemLog.With("method", slog.StringValue(serviceMethod))
 
@@ -431,8 +437,6 @@ func (r *Restate) handleInvokeRequest(service, method string, writer http.Respon
 	for _, h := range responseHeaders.GetHeaders() {
 		writer.Header().Add(h.GetKey(), h.GetValue())
 	}
-
-	conn := newConnection(writer, request)
 
 	// Now buffer input entries until the state machine is ready to execute
 	buf := restatecontext.BufPool.Get().([]byte)
