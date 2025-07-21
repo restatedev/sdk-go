@@ -1,7 +1,6 @@
 package server
 
 import (
-	"context"
 	"errors"
 	"io"
 	"net/http"
@@ -18,23 +17,16 @@ type connection struct {
 	rLock sync.Mutex
 }
 
-func newConnection(w http.ResponseWriter, r *http.Request) *connection {
-	ctx, cancel := context.WithCancel(r.Context())
+func newConnection(w http.ResponseWriter, r *http.Request, cancel func()) *connection {
 	flusher, _ := w.(http.Flusher)
-
 	c := &connection{r: r.Body, flusher: flusher, w: w, cancel: cancel}
-
-	// Update the request context with the connection context.
-	// If the connection is closed by the server,
-	// it will also notify everything that waits on the request context.
-	*r = *r.WithContext(ctx)
-
 	return c
 }
 
 func (c *connection) Write(data []byte) (int, error) {
 	c.wLock.Lock()
 	defer c.wLock.Unlock()
+
 	n, err := c.w.Write(data)
 	if c.flusher != nil {
 		c.flusher.Flush()
@@ -45,6 +37,7 @@ func (c *connection) Write(data []byte) (int, error) {
 func (c *connection) Read(data []byte) (int, error) {
 	c.rLock.Lock()
 	defer c.rLock.Unlock()
+
 	n, err := c.r.Read(data)
 	if errors.Is(err, http.ErrBodyReadAfterClose) ||
 		// This error is returned when Close() comes while a Read is blocked.
