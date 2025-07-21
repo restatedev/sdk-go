@@ -2,6 +2,7 @@ package server
 
 import (
 	"context"
+	"errors"
 	"io"
 	"net/http"
 	"sync"
@@ -24,7 +25,8 @@ func newConnection(w http.ResponseWriter, r *http.Request) *connection {
 	c := &connection{r: r.Body, flusher: flusher, w: w, cancel: cancel}
 
 	// Update the request context with the connection context.
-	// If the connection is closed by the server, it will also notify everything that waits on the request context.
+	// If the connection is closed by the server,
+	// it will also notify everything that waits on the request context.
 	*r = *r.WithContext(ctx)
 
 	return c
@@ -44,7 +46,11 @@ func (c *connection) Read(data []byte) (int, error) {
 	c.rLock.Lock()
 	defer c.rLock.Unlock()
 	n, err := c.r.Read(data)
-	if err == http.ErrBodyReadAfterClose {
+	if errors.Is(err, http.ErrBodyReadAfterClose) ||
+		// This error is returned when Close() comes while a Read is blocked.
+		// Unfortunately the Golang stdlib won't give us a way to match with this error,
+		// so we need this string matching
+		(err != nil && err.Error() == "body closed by handler") {
 		// make our state machine a bit more generic by avoiding this http error which to us means the same as EOF
 		return n, io.EOF
 	}
@@ -53,6 +59,7 @@ func (c *connection) Read(data []byte) (int, error) {
 
 func (c *connection) Close() error {
 	c.cancel()
-	c.r.Close() // unblock readers
+	// Unblock Read()
+	c.r.Close()
 	return nil
 }
