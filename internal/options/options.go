@@ -7,6 +7,8 @@ import (
 	"github.com/restatedev/sdk-go/encoding"
 )
 
+// all options interfaces should be re-exported in the top-level options.go
+
 type SleepOptions struct {
 	// Name used for observability.
 	Name string

@@ -8,9 +8,23 @@ import (
 	"github.com/restatedev/sdk-go/internal/options"
 )
 
-// re-export for use in generated code
+// re-export options types so users can create arrays of them and functions that accept/return them
+type SleepOption = options.SleepOption
+type AwakeableOption = options.AwakeableOption
+type PromiseOption = options.PromiseOption
+type ResolveAwakeableOption = options.ResolveAwakeableOption
+type GetOption = options.GetOption
+type SetOption = options.SetOption
 type ClientOption = options.ClientOption
+type RequestOption = options.RequestOption
+type IngressRequestOption = options.IngressRequestOption
+type SendOption = options.SendOption
+type IngressSendOption = options.IngressSendOption
+type RunOption = options.RunOption
+type AttachOption = options.AttachOption
+type HandlerOption = options.HandlerOption
 type ServiceDefinitionOption = options.ServiceDefinitionOption
+type IngressClientOption = options.IngressClientOption
 
 type withCodec struct {
 	codec encoding.Codec
