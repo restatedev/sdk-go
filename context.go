@@ -7,6 +7,9 @@ import (
 // RunContext is passed to [Run] closures and provides the limited set of Restate operations that are safe to use there.
 type RunContext = restatecontext.RunContext
 
+// Request contains a set of information about the request that started an invocation
+type Request = restatecontext.Request
+
 // Context is an extension of [RunContext] which is passed to Restate service handlers and enables
 // interaction with Restate
 type Context interface {
