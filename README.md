@@ -79,7 +79,7 @@ This library follows [Semantic Versioning](https://semver.org/).
 
 The compatibility with Restate is described in the following table:
 
-| Restate Server\sdk-go | 0.9 - 0.15 | 0.16 - 0.17 | 0.18             |
+| Restate Server\sdk-go | 0.9 - 0.15 | 0.16 - 0.17 | 0.18 - 0.19      |
 |-----------------------|------------|-------------|------------------|
 | 1.0 - 1.2             | ✅          | ❌           | ❌                |
 | 1.3                   | ✅          | ✅           | ✅ <sup>(1)</sup> |
