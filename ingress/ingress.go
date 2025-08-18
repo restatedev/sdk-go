@@ -189,7 +189,7 @@ func (c client[I, O]) Send(ctx context.Context, input I, opts ...options.Ingress
 // InvocationNotFoundError if the invocation does not exist.
 func (c attachClient[O]) Attach(ctx context.Context) (O, error) {
 	var output O
-	err := c.client.Attach(ctx, c.params, output)
+	err := c.client.Attach(ctx, c.params, &output)
 	if err != nil {
 		return output, err
 	}
@@ -201,7 +201,7 @@ func (c attachClient[O]) Attach(ctx context.Context) (O, error) {
 // the invocation is not complete.
 func (c attachClient[O]) Output(ctx context.Context) (O, error) {
 	var output O
-	err := c.client.Output(ctx, c.params, output)
+	err := c.client.Output(ctx, c.params, &output)
 	if err != nil {
 		return output, err
 	}

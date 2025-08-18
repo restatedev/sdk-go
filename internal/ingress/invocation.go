@@ -1,7 +1,7 @@
 package ingress
 
 type Invocation struct {
-	Id     string `json:"id"`
+	Id     string `json:"invocationId"`
 	Status string `json:"status"`
 	Error  error  `json:"-"`
 }
