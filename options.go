@@ -24,6 +24,13 @@ type RunOption = options.RunOption
 type AttachOption = options.AttachOption
 type HandlerOption = options.HandlerOption
 type ServiceDefinitionOption = options.ServiceDefinitionOption
+
+// Retry policy types
+type InvocationRetryPolicy = options.InvocationRetryPolicy
+type OnMaxAttempts = options.OnMaxAttempts
+
+// Retry policy option builders
+type InvocationRetryPolicyOption = options.InvocationRetryPolicyOption
 type IngressClientOption = options.IngressClientOption
 
 type withCodec struct {
@@ -533,6 +540,72 @@ func (w withWorkflowRetention) BeforeHandler(opts *options.HandlerOptions) {
 // otherwise the service discovery will fail.
 func WithWorkflowRetention(workflowCompletionRetention time.Duration) withWorkflowRetention {
 	return withWorkflowRetention{workflowCompletionRetention}
+}
+
+type withInvocationRetryPolicy struct {
+	policy options.InvocationRetryPolicy
+}
+
+var _ options.ServiceDefinitionOption = withInvocationRetryPolicy{}
+var _ options.HandlerOption = withInvocationRetryPolicy{}
+
+func (w withInvocationRetryPolicy) BeforeServiceDefinition(opts *options.ServiceDefinitionOptions) {
+	opts.InvocationRetryPolicy = &w.policy
+}
+
+func (w withInvocationRetryPolicy) BeforeHandler(opts *options.HandlerOptions) {
+	opts.InvocationRetryPolicy = &w.policy
+}
+
+// WithInvocationRetryPolicy sets the invocation retry policy used by Restate when invoking this service/handler.
+//
+// NOTE: You can set this field only if you register this service against restate-server >= 1.5,
+// otherwise the service discovery will fail.
+//
+// Unset fields inherit server defaults. The policy controls an exponential backoff with optional capping and a terminal action:
+//   - initial interval before the first retry attempt
+//   - exponentiation factor to compute the next retry delay
+//   - maximum interval cap
+//   - maximum attempts (initial call counts as the first attempt)
+//   - behavior when max attempts is reached (OnMaxAttempts: PAUSE | KILL)
+func WithInvocationRetryPolicy(opts ...InvocationRetryPolicyOption) withInvocationRetryPolicy {
+	p := options.InvocationRetryPolicy{}
+	for _, o := range opts {
+		if o != nil {
+			o.BeforeRetryPolicy(&p)
+		}
+	}
+	return withInvocationRetryPolicy{policy: p}
+}
+
+// WithInitialInterval sets the initial delay before the first retry attempt. If unset, server defaults apply.
+func WithInitialInterval(d time.Duration) options.InvocationRetryPolicyOption {
+	return options.InvokeRetryWithInitialInterval(d)
+}
+
+// WithExponentiationFactor sets the exponential backoff multiplier used to compute the next retry delay.
+func WithExponentiationFactor(f float64) options.InvocationRetryPolicyOption {
+	return options.InvokeRetryWithExponentiationFactor(f)
+}
+
+// WithMaxInterval sets the upper bound for any computed retry delay.
+func WithMaxInterval(d time.Duration) options.InvocationRetryPolicyOption {
+	return options.InvokeRetryWithMaxInterval(d)
+}
+
+// WithMaxAttempts sets the maximum number of attempts before giving up retrying. The initial call counts as the first attempt.
+func WithMaxAttempts(n int) options.InvocationRetryPolicyOption {
+	return options.InvokeRetryWithMaxAttempts(n)
+}
+
+// PauseOnMaxAttempts sets the behavior to pause when reaching max attempts.
+func PauseOnMaxAttempts() options.InvocationRetryPolicyOption {
+	return options.InvokeRetryWithOnMaxAttempts(options.OnMaxAttemptsPause)
+}
+
+// KillOnMaxAttempts sets the behavior to kill when reaching max attempts.
+func KillOnMaxAttempts() options.InvocationRetryPolicyOption {
+	return options.InvokeRetryWithOnMaxAttempts(options.OnMaxAttemptsKill)
 }
 
 func WithHttpClient(c *http.Client) withHttpClient {

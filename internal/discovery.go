@@ -46,6 +46,13 @@ type Handler struct {
 	// If true, the service cannot be invoked from the HTTP nor Kafka ingress.
 	IngressPrivate *bool `json:"ingressPrivate,omitempty" yaml:"ingressPrivate,omitempty" mapstructure:"ingressPrivate,omitempty"`
 
+	// Retry policy fields (protocol v4+)
+	RetryPolicyInitialInterval      *int     `json:"retryPolicyInitialInterval,omitempty" yaml:"retryPolicyInitialInterval,omitempty" mapstructure:"retryPolicyInitialInterval,omitempty"`
+	RetryPolicyMaxInterval          *int     `json:"retryPolicyMaxInterval,omitempty" yaml:"retryPolicyMaxInterval,omitempty" mapstructure:"retryPolicyMaxInterval,omitempty"`
+	RetryPolicyMaxAttempts          *int     `json:"retryPolicyMaxAttempts,omitempty" yaml:"retryPolicyMaxAttempts,omitempty" mapstructure:"retryPolicyMaxAttempts,omitempty"`
+	RetryPolicyExponentiationFactor *float64 `json:"retryPolicyExponentiationFactor,omitempty" yaml:"retryPolicyExponentiationFactor,omitempty" mapstructure:"retryPolicyExponentiationFactor,omitempty"`
+	RetryPolicyOnMaxAttempts        *string  `json:"retryPolicyOnMaxAttempts,omitempty" yaml:"retryPolicyOnMaxAttempts,omitempty" mapstructure:"retryPolicyOnMaxAttempts,omitempty"`
+
 	// Description of an input payload. This will be used by Restate to validate
 	// incoming requests.
 	Input *encoding.InputPayload `json:"input,omitempty" yaml:"input,omitempty" mapstructure:"input,omitempty"`
@@ -96,6 +103,13 @@ type Service struct {
 
 	// If true, the service cannot be invoked from the HTTP nor Kafka ingress.
 	IngressPrivate *bool `json:"ingressPrivate,omitempty" yaml:"ingressPrivate,omitempty" mapstructure:"ingressPrivate,omitempty"`
+
+	// Retry policy fields (protocol v4+)
+	RetryPolicyInitialInterval      *int     `json:"retryPolicyInitialInterval,omitempty" yaml:"retryPolicyInitialInterval,omitempty" mapstructure:"retryPolicyInitialInterval,omitempty"`
+	RetryPolicyMaxInterval          *int     `json:"retryPolicyMaxInterval,omitempty" yaml:"retryPolicyMaxInterval,omitempty" mapstructure:"retryPolicyMaxInterval,omitempty"`
+	RetryPolicyMaxAttempts          *int     `json:"retryPolicyMaxAttempts,omitempty" yaml:"retryPolicyMaxAttempts,omitempty" mapstructure:"retryPolicyMaxAttempts,omitempty"`
+	RetryPolicyExponentiationFactor *float64 `json:"retryPolicyExponentiationFactor,omitempty" yaml:"retryPolicyExponentiationFactor,omitempty" mapstructure:"retryPolicyExponentiationFactor,omitempty"`
+	RetryPolicyOnMaxAttempts        *string  `json:"retryPolicyOnMaxAttempts,omitempty" yaml:"retryPolicyOnMaxAttempts,omitempty" mapstructure:"retryPolicyOnMaxAttempts,omitempty"`
 
 	// Journal retention duration, expressed in milliseconds.
 	JournalRetention *int `json:"journalRetention,omitempty" yaml:"journalRetention,omitempty" mapstructure:"journalRetention,omitempty"`
