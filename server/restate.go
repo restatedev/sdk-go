@@ -34,8 +34,9 @@ const (
 	ServiceDiscoveryProtocolVersion_V1      ServiceDiscoveryProtocolVersion = 1
 	ServiceDiscoveryProtocolVersion_V2      ServiceDiscoveryProtocolVersion = 2
 	ServiceDiscoveryProtocolVersion_V3      ServiceDiscoveryProtocolVersion = 3
+	ServiceDiscoveryProtocolVersion_V4      ServiceDiscoveryProtocolVersion = 4
 	minServiceDiscoveryProtocolVersion                                      = ServiceDiscoveryProtocolVersion_V2
-	maxServiceDiscoveryProtocolVersion                                      = ServiceDiscoveryProtocolVersion_V3
+	maxServiceDiscoveryProtocolVersion                                      = ServiceDiscoveryProtocolVersion_V4
 	minServiceProtocolVersion                                               = 5
 	maxServiceProtocolVersion                                               = 5
 )
@@ -140,6 +141,9 @@ func (r *Restate) discover(protocolVersion ServiceDiscoveryProtocolVersion) (res
 		var inactivityTimeout *int
 		var ingressPrivate *bool
 		var journalRetention *int
+		var retryPolicyInitialInterval, retryPolicyMaxInterval, retryPolicyMaxAttempts *int
+		var retryPolicyFactor *float64
+		var retryPolicyOnMaxAttempts *string
 
 		// Check if there's options to apply
 		if definition.GetOptions() != nil {
@@ -164,6 +168,11 @@ func (r *Restate) discover(protocolVersion ServiceDiscoveryProtocolVersion) (res
 					return nil, fmt.Errorf("service %s: JournalRetention option requires discovery protocol version 3 or higher", serviceName)
 				}
 			}
+			if protocolVersion < ServiceDiscoveryProtocolVersion_V4 {
+				if definition.GetOptions().InvocationRetryPolicy != nil {
+					return nil, fmt.Errorf("service %s: InvocationRetryPolicy option requires discovery protocol version 4 or higher", serviceName)
+				}
+			}
 
 			metadata = definition.GetOptions().Metadata
 			documentation = definition.GetOptions().Documentation
@@ -185,19 +194,47 @@ func (r *Restate) discover(protocolVersion ServiceDiscoveryProtocolVersion) (res
 				journalRetentionMs := int(definition.GetOptions().JournalRetention.Milliseconds())
 				journalRetention = &journalRetentionMs
 			}
+			if definition.GetOptions().InvocationRetryPolicy != nil {
+				p := definition.GetOptions().InvocationRetryPolicy
+				if p.InitialInterval != nil {
+					v := int(p.InitialInterval.Milliseconds())
+					retryPolicyInitialInterval = &v
+				}
+				if p.MaxInterval != nil {
+					v := int(p.MaxInterval.Milliseconds())
+					retryPolicyMaxInterval = &v
+				}
+				if p.ExponentiationFactor != nil {
+					v := float64(*p.ExponentiationFactor)
+					retryPolicyFactor = &v
+				}
+				if p.MaxAttempts != nil {
+					v := int(*p.MaxAttempts)
+					retryPolicyMaxAttempts = &v
+				}
+				if p.OnMaxAttempts != nil {
+					v := string(*p.OnMaxAttempts)
+					retryPolicyOnMaxAttempts = &v
+				}
+			}
 		}
 		service := internal.Service{
-			Name:                 serviceName,
-			Ty:                   definition.Type(),
-			Handlers:             make([]internal.Handler, 0, len(definition.Handlers())),
-			Metadata:             metadata,
-			Documentation:        &documentation,
-			AbortTimeout:         abortTimeout,
-			EnableLazyState:      enableLazyState,
-			IdempotencyRetention: idempotencyRetention,
-			InactivityTimeout:    inactivityTimeout,
-			IngressPrivate:       ingressPrivate,
-			JournalRetention:     journalRetention,
+			Name:                            serviceName,
+			Ty:                              definition.Type(),
+			Handlers:                        make([]internal.Handler, 0, len(definition.Handlers())),
+			Metadata:                        metadata,
+			Documentation:                   &documentation,
+			AbortTimeout:                    abortTimeout,
+			EnableLazyState:                 enableLazyState,
+			IdempotencyRetention:            idempotencyRetention,
+			InactivityTimeout:               inactivityTimeout,
+			IngressPrivate:                  ingressPrivate,
+			RetryPolicyInitialInterval:      retryPolicyInitialInterval,
+			RetryPolicyMaxInterval:          retryPolicyMaxInterval,
+			RetryPolicyMaxAttempts:          retryPolicyMaxAttempts,
+			RetryPolicyExponentiationFactor: retryPolicyFactor,
+			RetryPolicyOnMaxAttempts:        retryPolicyOnMaxAttempts,
+			JournalRetention:                journalRetention,
 		}
 
 		for handlerName, handler := range definition.Handlers() {
@@ -210,6 +247,9 @@ func (r *Restate) discover(protocolVersion ServiceDiscoveryProtocolVersion) (res
 			var ingressPrivate *bool
 			var journalRetention *int
 			var workflowCompletionRetention *int
+			var handlerRetryPolicyInitialInterval, handlerRetryPolicyMaxInterval, handlerRetryPolicyMaxAttempts *int
+			var handlerRetryPolicyFactor *float64
+			var handlerRetryPolicyOnMaxAttempts *string
 
 			// Check if there's options to apply
 			if handler.GetOptions() != nil {
@@ -237,6 +277,11 @@ func (r *Restate) discover(protocolVersion ServiceDiscoveryProtocolVersion) (res
 						return nil, fmt.Errorf("handler %s/%s: WorkflowRetention option requires discovery protocol version 3 or higher", serviceName, handlerName)
 					}
 				}
+				if protocolVersion < ServiceDiscoveryProtocolVersion_V4 {
+					if handler.GetOptions().InvocationRetryPolicy != nil {
+						return nil, fmt.Errorf("handler %s/%s: InvocationRetryPolicy option requires discovery protocol version 4 or higher", serviceName, handlerName)
+					}
+				}
 
 				metadata = handler.GetOptions().Metadata
 				documentation = handler.GetOptions().Documentation
@@ -262,21 +307,49 @@ func (r *Restate) discover(protocolVersion ServiceDiscoveryProtocolVersion) (res
 					workflowCompletionRetentionMs := int(handler.GetOptions().WorkflowRetention.Milliseconds())
 					workflowCompletionRetention = &workflowCompletionRetentionMs
 				}
+				if handler.GetOptions().InvocationRetryPolicy != nil {
+					p := handler.GetOptions().InvocationRetryPolicy
+					if p.InitialInterval != nil {
+						v := int(p.InitialInterval.Milliseconds())
+						handlerRetryPolicyInitialInterval = &v
+					}
+					if p.MaxInterval != nil {
+						v := int(p.MaxInterval.Milliseconds())
+						handlerRetryPolicyMaxInterval = &v
+					}
+					if p.ExponentiationFactor != nil {
+						v := float64(*p.ExponentiationFactor)
+						handlerRetryPolicyFactor = &v
+					}
+					if p.MaxAttempts != nil {
+						v := int(*p.MaxAttempts)
+						handlerRetryPolicyMaxAttempts = &v
+					}
+					if p.OnMaxAttempts != nil {
+						v := string(*p.OnMaxAttempts)
+						handlerRetryPolicyOnMaxAttempts = &v
+					}
+				}
 			}
 			service.Handlers = append(service.Handlers, internal.Handler{
-				Name:                        handlerName,
-				Input:                       handler.InputPayload(),
-				Output:                      handler.OutputPayload(),
-				Ty:                          handler.HandlerType(),
-				Metadata:                    metadata,
-				Documentation:               &documentation,
-				AbortTimeout:                abortTimeout,
-				EnableLazyState:             enableLazyState,
-				IdempotencyRetention:        idempotencyRetention,
-				InactivityTimeout:           inactivityTimeout,
-				IngressPrivate:              ingressPrivate,
-				JournalRetention:            journalRetention,
-				WorkflowCompletionRetention: workflowCompletionRetention,
+				Name:                            handlerName,
+				Input:                           handler.InputPayload(),
+				Output:                          handler.OutputPayload(),
+				Ty:                              handler.HandlerType(),
+				Metadata:                        metadata,
+				Documentation:                   &documentation,
+				AbortTimeout:                    abortTimeout,
+				EnableLazyState:                 enableLazyState,
+				IdempotencyRetention:            idempotencyRetention,
+				InactivityTimeout:               inactivityTimeout,
+				IngressPrivate:                  ingressPrivate,
+				RetryPolicyInitialInterval:      handlerRetryPolicyInitialInterval,
+				RetryPolicyMaxInterval:          handlerRetryPolicyMaxInterval,
+				RetryPolicyMaxAttempts:          handlerRetryPolicyMaxAttempts,
+				RetryPolicyExponentiationFactor: handlerRetryPolicyFactor,
+				RetryPolicyOnMaxAttempts:        handlerRetryPolicyOnMaxAttempts,
+				JournalRetention:                journalRetention,
+				WorkflowCompletionRetention:     workflowCompletionRetention,
 			})
 		}
 		slices.SortFunc(service.Handlers, func(a, b internal.Handler) int {
@@ -361,6 +434,9 @@ func parseServiceDiscoveryProtocolVersion(versionString string) ServiceDiscovery
 	if strings.TrimSpace(versionString) == "application/vnd.restate.endpointmanifest.v3+json" {
 		return ServiceDiscoveryProtocolVersion_V3
 	}
+	if strings.TrimSpace(versionString) == "application/vnd.restate.endpointmanifest.v4+json" {
+		return ServiceDiscoveryProtocolVersion_V4
+	}
 
 	return ServiceDiscoveryProtocolVersion_UNKNOWN
 }
@@ -377,6 +453,8 @@ func serviceDiscoveryProtocolVersionToHeaderValue(serviceDiscoveryProtocolVersio
 		return "application/vnd.restate.endpointmanifest.v2+json"
 	case ServiceDiscoveryProtocolVersion_V3:
 		return "application/vnd.restate.endpointmanifest.v3+json"
+	case ServiceDiscoveryProtocolVersion_V4:
+		return "application/vnd.restate.endpointmanifest.v4+json"
 	}
 	panic(fmt.Sprintf("unexpected service discovery protocol version %d", serviceDiscoveryProtocolVersion))
 }

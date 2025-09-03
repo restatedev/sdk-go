@@ -7,6 +7,70 @@ import (
 	"github.com/restatedev/sdk-go/encoding"
 )
 
+// OnMaxAttempts determines behavior when max attempts is reached.
+type OnMaxAttempts string
+
+const (
+	OnMaxAttemptsPause OnMaxAttempts = "PAUSE"
+	OnMaxAttemptsKill  OnMaxAttempts = "KILL"
+)
+
+// InvocationRetryPolicy exposed in discovery manifest (protocol v4+)
+// Unset fields inherit server defaults.
+type InvocationRetryPolicy struct {
+	InitialInterval      *time.Duration
+	ExponentiationFactor *float64
+	MaxInterval          *time.Duration
+	MaxAttempts          *int
+	OnMaxAttempts        *OnMaxAttempts
+}
+
+// InvocationRetryPolicyOption configures fields of InvocationRetryPolicy.
+type InvocationRetryPolicyOption interface {
+	BeforeRetryPolicy(*InvocationRetryPolicy)
+}
+
+// Helper constructors to be used by public API
+func InvokeRetryWithInitialInterval(d time.Duration) InvocationRetryPolicyOption {
+	return withInitialInterval{d}
+}
+
+type withInitialInterval struct{ d time.Duration }
+
+func (w withInitialInterval) BeforeRetryPolicy(p *InvocationRetryPolicy) { p.InitialInterval = &w.d }
+
+func InvokeRetryWithMaxInterval(d time.Duration) InvocationRetryPolicyOption {
+	return withMaxInterval{d}
+}
+
+type withMaxInterval struct{ d time.Duration }
+
+func (w withMaxInterval) BeforeRetryPolicy(p *InvocationRetryPolicy) { p.MaxInterval = &w.d }
+
+func InvokeRetryWithExponentiationFactor(f float64) InvocationRetryPolicyOption {
+	return withExponentiationFactor{f}
+}
+
+type withExponentiationFactor struct{ f float64 }
+
+func (w withExponentiationFactor) BeforeRetryPolicy(p *InvocationRetryPolicy) {
+	p.ExponentiationFactor = &w.f
+}
+
+func InvokeRetryWithMaxAttempts(n int) InvocationRetryPolicyOption { return withMaxAttempts{n} }
+
+type withMaxAttempts struct{ n int }
+
+func (w withMaxAttempts) BeforeRetryPolicy(p *InvocationRetryPolicy) { p.MaxAttempts = &w.n }
+
+func InvokeRetryWithOnMaxAttempts(v OnMaxAttempts) InvocationRetryPolicyOption {
+	return withOnMaxAttempts{v}
+}
+
+type withOnMaxAttempts struct{ v OnMaxAttempts }
+
+func (w withOnMaxAttempts) BeforeRetryPolicy(p *InvocationRetryPolicy) { p.OnMaxAttempts = &w.v }
+
 // all options interfaces should be re-exported in the top-level options.go
 
 type SleepOptions struct {
@@ -152,16 +216,17 @@ type AttachOption interface {
 }
 
 type HandlerOptions struct {
-	Codec                encoding.PayloadCodec
-	Metadata             map[string]string
-	Documentation        string
-	AbortTimeout         *time.Duration
-	EnableLazyState      *bool
-	IdempotencyRetention *time.Duration
-	InactivityTimeout    *time.Duration
-	IngressPrivate       *bool
-	JournalRetention     *time.Duration
-	WorkflowRetention    *time.Duration
+	Codec                 encoding.PayloadCodec
+	Metadata              map[string]string
+	Documentation         string
+	AbortTimeout          *time.Duration
+	EnableLazyState       *bool
+	IdempotencyRetention  *time.Duration
+	InactivityTimeout     *time.Duration
+	IngressPrivate        *bool
+	JournalRetention      *time.Duration
+	WorkflowRetention     *time.Duration
+	InvocationRetryPolicy *InvocationRetryPolicy
 }
 
 type HandlerOption interface {
@@ -169,15 +234,16 @@ type HandlerOption interface {
 }
 
 type ServiceDefinitionOptions struct {
-	DefaultCodec         encoding.PayloadCodec
-	Metadata             map[string]string
-	Documentation        string
-	AbortTimeout         *time.Duration
-	EnableLazyState      *bool
-	IdempotencyRetention *time.Duration
-	InactivityTimeout    *time.Duration
-	IngressPrivate       *bool
-	JournalRetention     *time.Duration
+	DefaultCodec          encoding.PayloadCodec
+	Metadata              map[string]string
+	Documentation         string
+	AbortTimeout          *time.Duration
+	EnableLazyState       *bool
+	IdempotencyRetention  *time.Duration
+	InactivityTimeout     *time.Duration
+	IngressPrivate        *bool
+	JournalRetention      *time.Duration
+	InvocationRetryPolicy *InvocationRetryPolicy
 }
 
 type ServiceDefinitionOption interface {
