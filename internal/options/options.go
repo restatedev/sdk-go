@@ -168,7 +168,7 @@ type IngressSendOption interface {
 }
 
 type RunOptions struct {
-	// MaxRetryAttempts before giving up.
+	// MaxRetryAttempts (including the initial attempt) before giving up.
 	//
 	// When giving up, Run will return a TerminalError wrapping the original error message.
 	MaxRetryAttempts *uint
