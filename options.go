@@ -201,7 +201,7 @@ func (w withMaxRetryAttempts) BeforeRun(opts *options.RunOptions) {
 	opts.MaxRetryAttempts = &w.maxAttempts
 }
 
-// WithMaxRetryAttempts sets the MaxRetryAttempts before giving up.
+// WithMaxRetryAttempts sets the MaxRetryAttempts (including the initial attempt) before giving up.
 //
 // When giving up, Run will return a TerminalError wrapping the original error message.
 func WithMaxRetryAttempts(maxAttempts uint) withMaxRetryAttempts {
