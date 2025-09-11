@@ -524,7 +524,12 @@ type withWorkflowRetention struct {
 	workflowRetention time.Duration
 }
 
+var _ options.ServiceDefinitionOption = withWorkflowRetention{}
 var _ options.HandlerOption = withWorkflowRetention{}
+
+func (w withWorkflowRetention) BeforeServiceDefinition(opts *options.ServiceDefinitionOptions) {
+	opts.WorkflowRetention = &w.workflowRetention
+}
 
 func (w withWorkflowRetention) BeforeHandler(opts *options.HandlerOptions) {
 	opts.WorkflowRetention = &w.workflowRetention

@@ -73,6 +73,9 @@ func NewService(name string, opts ...options.ServiceDefinitionOption) *service {
 	if o.DefaultCodec == nil {
 		o.DefaultCodec = encoding.JSONCodec
 	}
+	if o.WorkflowRetention != nil {
+		panic("Workflow retention can be set only for workflows")
+	}
 	return &service{
 		serviceDefinition: serviceDefinition{
 			name:     name,
@@ -104,6 +107,9 @@ func NewObject(name string, opts ...options.ServiceDefinitionOption) *object {
 	}
 	if o.DefaultCodec == nil {
 		o.DefaultCodec = encoding.JSONCodec
+	}
+	if o.WorkflowRetention != nil {
+		panic("Workflow retention can be set only for workflows")
 	}
 	return &object{
 		serviceDefinition: serviceDefinition{

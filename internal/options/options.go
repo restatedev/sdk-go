@@ -240,6 +240,7 @@ type ServiceDefinitionOptions struct {
 	AbortTimeout          *time.Duration
 	EnableLazyState       *bool
 	IdempotencyRetention  *time.Duration
+	WorkflowRetention     *time.Duration
 	InactivityTimeout     *time.Duration
 	IngressPrivate        *bool
 	JournalRetention      *time.Duration
