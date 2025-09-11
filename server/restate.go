@@ -273,7 +273,7 @@ func (r *Restate) discover(protocolVersion ServiceDiscoveryProtocolVersion) (res
 					if handler.GetOptions().JournalRetention != nil {
 						return nil, fmt.Errorf("handler %s/%s: JournalRetention option requires discovery protocol version 3 or higher", serviceName, handlerName)
 					}
-					if handler.GetOptions().WorkflowRetention != nil {
+					if handler.GetOptions().WorkflowRetention != nil || definition.GetOptions().WorkflowRetention != nil {
 						return nil, fmt.Errorf("handler %s/%s: WorkflowRetention option requires discovery protocol version 3 or higher", serviceName, handlerName)
 					}
 				}
@@ -302,6 +302,11 @@ func (r *Restate) discover(protocolVersion ServiceDiscoveryProtocolVersion) (res
 				if handler.GetOptions().JournalRetention != nil {
 					journalRetentionMs := int(handler.GetOptions().JournalRetention.Milliseconds())
 					journalRetention = &journalRetentionMs
+				}
+				if definition.GetOptions().WorkflowRetention != nil && *handler.HandlerType() == internal.ServiceHandlerType_WORKFLOW {
+					// Apply service level configuration here
+					workflowCompletionRetentionMs := int(definition.GetOptions().WorkflowRetention.Milliseconds())
+					workflowCompletionRetention = &workflowCompletionRetentionMs
 				}
 				if handler.GetOptions().WorkflowRetention != nil {
 					workflowCompletionRetentionMs := int(handler.GetOptions().WorkflowRetention.Milliseconds())
