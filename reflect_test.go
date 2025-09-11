@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"testing"
+	"time"
 
 	restate "github.com/restatedev/sdk-go"
 	"github.com/restatedev/sdk-go/internal"
@@ -192,4 +193,18 @@ type tooManyReturns struct{}
 
 func (tooManyReturns) TooManyReturns(ctx restate.Context) (string, string, string) {
 	return "", "", ""
+}
+
+func TestReflectWithHandlerOptions(t *testing.T) {
+	service := restate.Reflect(validService{}).
+		ConfigureHandler("Greet", restate.WithEnableLazyState(true))
+
+	require.Equal(t, *service.Handlers()["Greet"].GetOptions().EnableLazyState, true)
+}
+
+func TestReflectWithHandlerOptionsWorkflow(t *testing.T) {
+	service := restate.Reflect(validWorkflow{}).
+		ConfigureHandler("Run", restate.WithWorkflowRetention(10*time.Second))
+
+	require.Equal(t, *service.Handlers()["Run"].GetOptions().WorkflowRetention, 10*time.Second)
 }
