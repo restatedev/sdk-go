@@ -9,11 +9,17 @@ import (
 
 // ServiceDefinition is the set of methods implemented by both services and virtual objects
 type ServiceDefinition interface {
+	// Name returns the name of the service described in this definition
 	Name() string
+	// Type returns the type of this service definition (Service or Virtual Object)
 	Type() internal.ServiceType
-	// Set of handlers associated with this service definition
+	// Handlers returns the set of handlers associated with this service definition
 	Handlers() map[string]restatecontext.Handler
+	// GetOptions returns the configured options
 	GetOptions() *options.ServiceDefinitionOptions
+	// ConfigureHandler lets you customize the handler configuration, adding per handler options.
+	// Panics if the handler doesn't exist.
+	ConfigureHandler(name string, opts ...options.HandlerOption) ServiceDefinition
 }
 
 // serviceDefinition stores a list of handlers under a named service
@@ -26,24 +32,32 @@ type serviceDefinition struct {
 
 var _ ServiceDefinition = &serviceDefinition{}
 
-// Name returns the name of the service described in this definition
 func (r *serviceDefinition) Name() string {
 	return r.name
 }
 
-// Handlers returns the list of handlers in this service definition
 func (r *serviceDefinition) Handlers() map[string]restatecontext.Handler {
 	return r.handlers
 }
 
-// Options returns the configured options
 func (r *serviceDefinition) GetOptions() *options.ServiceDefinitionOptions {
 	return &r.options
 }
 
-// Type returns the type of this service definition (Service or Virtual Object)
 func (r *serviceDefinition) Type() internal.ServiceType {
 	return r.typ
+}
+
+func (r *serviceDefinition) ConfigureHandler(name string, opts ...options.HandlerOption) ServiceDefinition {
+	handler := r.handlers[name]
+	if handler == nil {
+		panic("handler not found: " + name)
+	}
+	handlerOpts := handler.GetOptions()
+	for _, opt := range opts {
+		opt.BeforeHandler(handlerOpts)
+	}
+	return r
 }
 
 type service struct {
