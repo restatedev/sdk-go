@@ -41,6 +41,7 @@ var _ options.GetOption = withCodec{}
 var _ options.SetOption = withCodec{}
 var _ options.RunOption = withCodec{}
 var _ options.AwakeableOption = withCodec{}
+var _ options.PromiseOption = withCodec{}
 var _ options.ResolveAwakeableOption = withCodec{}
 var _ options.ClientOption = withCodec{}
 var _ options.AttachOption = withCodec{}
@@ -49,6 +50,7 @@ func (w withCodec) BeforeGet(opts *options.GetOptions)             { opts.Codec 
 func (w withCodec) BeforeSet(opts *options.SetOptions)             { opts.Codec = w.codec }
 func (w withCodec) BeforeRun(opts *options.RunOptions)             { opts.Codec = w.codec }
 func (w withCodec) BeforeAwakeable(opts *options.AwakeableOptions) { opts.Codec = w.codec }
+func (w withCodec) BeforePromise(opts *options.PromiseOptions)     { opts.Codec = w.codec }
 func (w withCodec) BeforeResolveAwakeable(opts *options.ResolveAwakeableOptions) {
 	opts.Codec = w.codec
 }
