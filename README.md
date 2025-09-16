@@ -79,13 +79,18 @@ This library follows [Semantic Versioning](https://semver.org/).
 
 The compatibility with Restate is described in the following table:
 
-| Restate Server\sdk-go | 0.9 - 0.15 | 0.16 - 0.17 | 0.18 - 0.19      |
-|-----------------------|------------|-------------|------------------|
-| 1.0 - 1.2             | ✅          | ❌           | ❌                |
-| 1.3                   | ✅          | ✅           | ✅ <sup>(1)</sup> |
-| 1.4                   | ✅          | ✅           | ✅                |
+| Restate Server\sdk-go | < 0.16           | 0.16 - 0.17 | 0.18 - 0.19      | 0.20             |
+|-----------------------|------------------|-------------|------------------|------------------|
+| < 1.3                 | ✅                | ❌           | ❌                | ❌                |
+| 1.3                   | ✅                | ✅           | ✅ <sup>(1)</sup> | ✅ <sup>(2)</sup> |
+| 1.4                   | ✅                | ✅           | ✅                | ✅ <sup>(2)</sup> |
+| 1.5                   | ⚠ <sup>(3)</sup> | ✅           | ✅                | ✅                |
 
 <sup>(1)</sup> **Note** `WithAbortTimeout`, `WithEnableLazyState`, `WithIdempotencyRetention`, `WithInactivityTimeout`, `WithIngressPrivate`, `WithJournalRetention` and `WithWorkflowRetention` work only from Restate 1.4 onward. Check the in-code documentation for more details.
+
+<sup>(1)</sup> **Note** `WithInvocationRetryPolicy` works only from Restate 1.5 onward. Check the in-code documentation for more details.
+
+<sup>(3)</sup> **Warning** SDK versions < 0.16 are deprecated, and cannot be registered anymore. Check the [Restate 1.5 release notes](https://github.com/restatedev/restate/releases/tag/v1.5.0) for more info.
 
 ## Contributing
 
