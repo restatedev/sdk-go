@@ -2,16 +2,17 @@ package restatecontext
 
 import (
 	"context"
+	"io"
+	"log/slog"
+	"sync/atomic"
+	"time"
+
 	pbinternal "github.com/restatedev/sdk-go/internal/generated"
 	"github.com/restatedev/sdk-go/internal/log"
 	"github.com/restatedev/sdk-go/internal/options"
 	"github.com/restatedev/sdk-go/internal/rand"
 	"github.com/restatedev/sdk-go/internal/statemachine"
 	"github.com/restatedev/sdk-go/rcontext"
-	"io"
-	"log/slog"
-	"sync/atomic"
-	"time"
 )
 
 type Request struct {
@@ -35,7 +36,7 @@ type Context interface {
 	Request() *Request
 
 	// available outside of .Run()
-	Rand() rand.Rand
+	Rand() *rand.Rand
 	Sleep(d time.Duration, opts ...options.SleepOption) error
 	After(d time.Duration, opts ...options.SleepOption) AfterFuture
 	Service(service, method string, options ...options.ClientOption) Client
@@ -83,7 +84,7 @@ type ctx struct {
 	userLogger     *slog.Logger
 
 	// Random
-	rand rand.Rand
+	rand *rand.Rand
 
 	// Run implementation
 	runClosures           map[uint32]func() *pbinternal.VmProposeRunCompletionParameters
@@ -107,6 +108,13 @@ func newContext(inner context.Context, machine *statemachine.StateMachine, invoc
 	internalLogger := slog.New(log.NewRestateContextHandler(logHandler))
 	inner = statemachine.WithLogger(inner, internalLogger)
 
+	var randImpl *rand.Rand
+	if invocationInput.GetShouldUseRandomSeed() {
+		randImpl = rand.NewFromSeed(invocationInput.GetRandomSeed())
+	} else {
+		randImpl = rand.NewFromInvocationId([]byte(invocationInput.GetInvocationId()))
+	}
+
 	// will be cancelled when the http2 stream is cancelled
 	// but NOT when we just doSuspend - just because we can't get completions doesn't mean we can't make
 	// progress towards producing an output message
@@ -119,7 +127,7 @@ func newContext(inner context.Context, machine *statemachine.StateMachine, invoc
 		request:               request,
 		internalLogger:        internalLogger,
 		userLogContext:        atomic.Pointer[rcontext.LogContext]{},
-		rand:                  rand.New([]byte(invocationInput.GetInvocationId())),
+		rand:                  randImpl,
 		userLogger:            nil,
 		isProcessing:          false,
 		runClosures:           make(map[uint32]func() *pbinternal.VmProposeRunCompletionParameters),
@@ -144,7 +152,7 @@ func (restateCtx *ctx) Request() *Request {
 	return &restateCtx.request
 }
 
-func (restateCtx *ctx) Rand() rand.Rand {
+func (restateCtx *ctx) Rand() *rand.Rand {
 	return restateCtx.rand
 }
 

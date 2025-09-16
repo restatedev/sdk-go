@@ -809,19 +809,19 @@ func (_c *MockContext_Promise_Call) RunAndReturn(run func(string, ...options.Pro
 }
 
 // Rand provides a mock function with no fields
-func (_m *MockContext) Rand() rand.Rand {
+func (_m *MockContext) Rand() *rand.Rand {
 	ret := _m.Called()
 
 	if len(ret) == 0 {
 		panic("no return value specified for Rand")
 	}
 
-	var r0 rand.Rand
-	if rf, ok := ret.Get(0).(func() rand.Rand); ok {
+	var r0 *rand.Rand
+	if rf, ok := ret.Get(0).(func() *rand.Rand); ok {
 		r0 = rf()
 	} else {
 		if ret.Get(0) != nil {
-			r0 = ret.Get(0).(rand.Rand)
+			r0 = ret.Get(0).(*rand.Rand)
 		}
 	}
 
@@ -845,12 +845,12 @@ func (_c *MockContext_Rand_Call) Run(run func()) *MockContext_Rand_Call {
 	return _c
 }
 
-func (_c *MockContext_Rand_Call) Return(_a0 rand.Rand) *MockContext_Rand_Call {
+func (_c *MockContext_Rand_Call) Return(_a0 *rand.Rand) *MockContext_Rand_Call {
 	_c.Call.Return(_a0)
 	return _c
 }
 
-func (_c *MockContext_Rand_Call) RunAndReturn(run func() rand.Rand) *MockContext_Rand_Call {
+func (_c *MockContext_Rand_Call) RunAndReturn(run func() *rand.Rand) *MockContext_Rand_Call {
 	_c.Call.Return(run)
 	return _c
 }

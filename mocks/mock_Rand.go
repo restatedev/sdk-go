@@ -3,7 +3,6 @@
 package mocks
 
 import (
-	rand "github.com/restatedev/sdk-go/internal/rand"
 	mock "github.com/stretchr/testify/mock"
 
 	uuid "github.com/google/uuid"
@@ -63,53 +62,6 @@ func (_c *MockRand_Float64_Call) Return(_a0 float64) *MockRand_Float64_Call {
 }
 
 func (_c *MockRand_Float64_Call) RunAndReturn(run func() float64) *MockRand_Float64_Call {
-	_c.Call.Return(run)
-	return _c
-}
-
-// Source provides a mock function with no fields
-func (_m *MockRand) Source() rand.Source {
-	ret := _m.Called()
-
-	if len(ret) == 0 {
-		panic("no return value specified for Source")
-	}
-
-	var r0 rand.Source
-	if rf, ok := ret.Get(0).(func() rand.Source); ok {
-		r0 = rf()
-	} else {
-		if ret.Get(0) != nil {
-			r0 = ret.Get(0).(rand.Source)
-		}
-	}
-
-	return r0
-}
-
-// MockRand_Source_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'Source'
-type MockRand_Source_Call struct {
-	*mock.Call
-}
-
-// Source is a helper method to define mock.On call
-func (_e *MockRand_Expecter) Source() *MockRand_Source_Call {
-	return &MockRand_Source_Call{Call: _e.mock.On("Source")}
-}
-
-func (_c *MockRand_Source_Call) Run(run func()) *MockRand_Source_Call {
-	_c.Call.Run(func(args mock.Arguments) {
-		run()
-	})
-	return _c
-}
-
-func (_c *MockRand_Source_Call) Return(_a0 rand.Source) *MockRand_Source_Call {
-	_c.Call.Return(_a0)
-	return _c
-}
-
-func (_c *MockRand_Source_Call) RunAndReturn(run func() rand.Source) *MockRand_Source_Call {
 	_c.Call.Return(run)
 	return _c
 }

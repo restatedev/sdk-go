@@ -1,9 +1,10 @@
 package restate
 
 import (
+	"time"
+
 	"github.com/restatedev/sdk-go/internal/converters"
 	"github.com/restatedev/sdk-go/internal/restatecontext"
-	"time"
 
 	"github.com/restatedev/sdk-go/internal/options"
 	"github.com/restatedev/sdk-go/internal/rand"
@@ -12,7 +13,7 @@ import (
 // Rand returns a random source which will give deterministic results for a given invocation
 // The source wraps the stdlib rand.Rand but with some extra helper methods
 // This source is not safe for use inside .Run()
-func Rand(ctx Context) rand.Rand {
+func Rand(ctx Context) *rand.Rand {
 	return ctx.inner().Rand()
 }
 
