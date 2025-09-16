@@ -10,7 +10,7 @@ func TestUint64(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	rand := New(id)
+	rand := NewFromInvocationId(id)
 
 	expected := []uint64{
 		6541268553928124324,
@@ -65,6 +65,29 @@ func TestUUID(t *testing.T) {
 		"9e97720f-42b8-4d09-a449-914cf221df26",
 		"09d0a109-6f11-4ef9-93fa-f013d0ad3808",
 		"41eb0e0c-41c9-4828-85d0-59fb901b4df4",
+	}
+
+	for _, e := range expected {
+		if found := rand.UUID().String(); e != found {
+			t.Fatalf("Unexpected uuid %s, expected %s", found, e)
+		}
+	}
+}
+
+func TestUUIDFromSeed(t *testing.T) {
+	rand := NewFromSeed(1)
+
+	expected := []string{
+		"9bc2036f-7fd0-45cf-8de0-3f96324142bf",
+		"20f5aa57-577d-4319-9656-cd059f1108bf",
+		"a46f1886-4b18-472f-8523-20e7ca9f2997",
+		"0715f408-95c7-43fc-a1f2-6303c9a5fe85",
+		"d04b330d-b3e5-4a18-96ec-26f0c9136122",
+		"49e6cfdc-f90e-4eeb-b3ff-6c9fddaeef57",
+		"d6407669-d5e2-4a12-8950-50ee4e3a0365",
+		"ba884ad5-3e45-4916-bba8-28f4a85a0628",
+		"a21d045f-1647-408e-b32e-f7a4d9321079",
+		"9eed3928-5482-48f5-8a0f-8040b1de6aa4",
 	}
 
 	for _, e := range expected {

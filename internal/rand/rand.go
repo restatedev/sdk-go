@@ -21,8 +21,12 @@ type rand struct {
 	source *source
 }
 
-func New(invocationID []byte) *rand {
-	return &rand{newSource(invocationID)}
+func NewFromInvocationId(invocationID []byte) *rand {
+	return &rand{newSourceFromInvocationId(invocationID)}
+}
+
+func NewFromSeed(seed uint64) *rand {
+	return &rand{newSource(seed)}
 }
 
 func (r *rand) UUID() uuid.UUID {
@@ -60,9 +64,27 @@ type source struct {
 	state [4]uint64
 }
 
-func newSource(invocationID []byte) *source {
+// From https://xoroshiro.di.unimi.it/splitmix64.c
+func splitMix64(x *uint64) uint64 {
+	*x += 0x9e3779b97f4a7c15
+	z := *x
+	z = (z ^ (z >> 30)) * 0xbf58476d1ce4e5b9
+	z = (z ^ (z >> 27)) * 0x94d049bb133111eb
+	return z ^ (z >> 31)
+}
+
+func newSource(seed uint64) *source {
+	return &source{state: [4]uint64{
+		splitMix64(&seed),
+		splitMix64(&seed),
+		splitMix64(&seed),
+		splitMix64(&seed),
+	}}
+}
+
+func newSourceFromInvocationId(invocationId []byte) *source {
 	hash := sha256.New()
-	hash.Write(invocationID)
+	hash.Write(invocationId)
 	var sum [32]byte
 	hash.Sum(sum[:0])
 
