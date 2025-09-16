@@ -6,11 +6,7 @@ extern crate core;
 use alloc::borrow::Cow;
 use alloc::rc::Rc;
 use alloc::vec::Vec;
-use restate_sdk_shared_core::{
-    AttachInvocationTarget, CoreVM, DoProgressResponse, Error, Header, HeaderMap, Input,
-    NonEmptyValue, NotificationHandle, ResponseHead, RetryPolicy, RunExitResult,
-     TakeOutputResult, Target, TerminalFailure, Value, VM,
-};
+use restate_sdk_shared_core::{AttachInvocationTarget, CoreVM, DoProgressResponse, Error, Header, HeaderMap, NonEmptyValue, NotificationHandle, ResponseHead, RetryPolicy, RunExitResult, TakeOutputResult, Target, TerminalFailure, Value, Version, VM};
 use std::cell::RefCell;
 use std::convert::Infallible;
 use std::io::Write;
@@ -382,9 +378,18 @@ pub unsafe extern "C" fn _vm_sys_input(vm_pointer: *const RefCell<WasmVM>) -> u6
 }
 
 fn vm_sys_input(rc_vm: &Rc<RefCell<WasmVM>>) -> pb::VmSysInputReturn {
+    let mut vm = rc_vm.borrow_mut();
+    let protocol_version = vm.vm.get_response_head().version;
     pb::VmSysInputReturn {
-        result: Some(match VM::sys_input(&mut rc_vm.borrow_mut().vm) {
-            Ok(input) => pb::vm_sys_input_return::Result::Ok(input.into()),
+        result: Some(match VM::sys_input(&mut vm.vm) {
+            Ok(input) => pb::vm_sys_input_return::Result::Ok(pb::vm_sys_input_return::Input {
+                invocation_id: input.invocation_id,
+                key: input.key,
+                headers: input.headers.into_iter().map(Into::into).collect(),
+                input: input.input,
+                random_seed: input.random_seed,
+                should_use_random_seed: protocol_version >= Version::V6
+            }),
             Err(e) => pb::vm_sys_input_return::Result::Failure(e.into()),
         }),
     }
@@ -1007,17 +1012,6 @@ impl From<TakeOutputResult> for pb::VmTakeOutputReturn {
                 TakeOutputResult::Buffer(b) => pb::vm_take_output_return::Result::Bytes(b),
                 TakeOutputResult::EOF => pb::vm_take_output_return::Result::Eof(Default::default()),
             }),
-        }
-    }
-}
-
-impl From<Input> for pb::vm_sys_input_return::Input {
-    fn from(value: Input) -> Self {
-        Self {
-            invocation_id: value.invocation_id,
-            key: value.key,
-            headers: value.headers.into_iter().map(Into::into).collect(),
-            input: value.input,
         }
     }
 }

@@ -111,6 +111,8 @@ message VmSysInputReturn {
     string key = 2;
     repeated Header headers = 3;
     bytes input = 4;
+    uint64 random_seed = 5;
+    bool should_use_random_seed = 6;
   }
 
   oneof result {
