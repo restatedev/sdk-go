@@ -1,6 +1,7 @@
 package protojsonschema
 
 import (
+	"log/slog"
 	"reflect"
 
 	"github.com/invopop/jsonschema"
@@ -26,7 +27,14 @@ func descriptor(typ reflect.Type) protoreflect.Descriptor {
 	return nil
 }
 
-func GenerateSchema(v any) *jsonschema.Schema {
+func GenerateSchema(v any) (schema *jsonschema.Schema) {
+	defer func() {
+		if err := recover(); err != nil {
+			slog.Warn("Error when trying to generate schema for object. Using `any` inestead", "object", reflect.TypeOf(v))
+			schema = jsonschema.ReflectFromType(reflect.TypeFor[map[string]string]())
+		}
+	}()
+
 	reflector := jsonschema.Reflector{
 		// Unfortunately we can't enable this due to a panic bug https://github.com/invopop/jsonschema/issues/163
 		// So we use ExpandSchema instead, which has the same effect but without the panic
