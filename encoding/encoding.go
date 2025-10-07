@@ -3,7 +3,9 @@ package encoding
 import (
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"reflect"
+	"runtime/debug"
 
 	"github.com/invopop/jsonschema"
 	"github.com/restatedev/sdk-go/encoding/internal/protojsonschema"
@@ -289,7 +291,16 @@ func allocateProtoMessage(codecName string, input any) (proto.Message, error) {
 	}
 }
 
-func generateJsonSchema(v any) interface{} {
+func generateJsonSchema(v any) (schema interface{}) {
+	defer func() {
+		if err := recover(); err != nil {
+			slog.Warn("Error when trying to generate schema for object. Using `any` inestead", "object", reflect.TypeOf(v), "cause", err)
+			debug.PrintStack()
+
+			schema = map[string]string{}
+		}
+	}()
+
 	reflector := jsonschema.Reflector{
 		// Unfortunately we can't enable this due to a panic bug https://github.com/invopop/jsonschema/issues/163
 		// So we use expandSchema instead, which has the same effect but without the panic
