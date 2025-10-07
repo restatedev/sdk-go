@@ -3,7 +3,9 @@ package encoding
 import (
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"reflect"
+	"runtime/debug"
 
 	"github.com/invopop/jsonschema"
 	"github.com/restatedev/sdk-go/encoding/internal/protojsonschema"
@@ -289,7 +291,21 @@ func allocateProtoMessage(codecName string, input any) (proto.Message, error) {
 	}
 }
 
-func generateJsonSchema(v any) interface{} {
+func generateJsonSchema(v any) (schema interface{}) {
+	defer func() {
+		if err := recover(); err != nil {
+			slog.Warn(`Error when trying to generate schema for the given type, you will see a generic schema in the UI Playground for this type.
+If you can't fix the issue, disable json schema generation using encoding.JSONCodecWithCustomSchemaGenerator(func(v any) interface{} { return make(map[string]interface{}) })`,
+				"typeName", reflect.TypeOf(v),
+				"cause", err,
+			)
+
+			debug.PrintStack()
+
+			schema = map[string]string{}
+		}
+	}()
+
 	reflector := jsonschema.Reflector{
 		// Unfortunately we can't enable this due to a panic bug https://github.com/invopop/jsonschema/issues/163
 		// So we use expandSchema instead, which has the same effect but without the panic
