@@ -1,9 +1,12 @@
 package restate
 
 import (
+	rand2 "math/rand/v2"
+	"time"
+
+	"github.com/google/uuid"
 	"github.com/restatedev/sdk-go/internal/converters"
 	"github.com/restatedev/sdk-go/internal/restatecontext"
-	"time"
 
 	"github.com/restatedev/sdk-go/internal/options"
 	"github.com/restatedev/sdk-go/internal/rand"
@@ -14,6 +17,18 @@ import (
 // This source is not safe for use inside .Run()
 func Rand(ctx Context) rand.Rand {
 	return ctx.inner().Rand()
+}
+
+// RandUUID returns a random UUID seeded deterministically for a given invocation.
+func RandUUID(ctx Context) uuid.UUID {
+	return ctx.inner().Rand().UUID()
+}
+
+// RandSource returns a random source to be used with math rand implementations.
+//
+// To create a random implementation, use `rand2.New(RandSource(ctx))`
+func RandSource(ctx Context) rand2.Source {
+	return ctx.inner().Rand().Source()
 }
 
 // Sleep for the duration d. Can return a terminal error in the case where the invocation was cancelled mid-sleep.
