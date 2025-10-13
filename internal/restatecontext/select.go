@@ -40,7 +40,10 @@ func (s *selector) Select() Selectable {
 	}
 
 	// Do progress
-	s.restateCtx.pollProgress(remainingHandles)
+	cancelled := s.restateCtx.pollProgress(remainingHandles)
+	if cancelled {
+		panic("cancellation is not supported by the Selector API, please use Wait/WaitFirst/WaitIter instead")
+	}
 
 	// If we exit, one of them is completed, gotta figure out which one
 	for _, handle := range remainingHandles {

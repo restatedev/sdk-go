@@ -1,9 +1,10 @@
 package main
 
 import (
+	"time"
+
 	restate "github.com/restatedev/sdk-go"
 	"github.com/restatedev/sdk-go/internal/options"
-	"time"
 )
 
 type ProxyRequest struct {
@@ -94,10 +95,11 @@ func init() {
 						}
 					}
 
-					selector := restate.Select(ctx, toAwait...)
-					for selector.Remaining() {
-						result := selector.Select()
-						if _, err := result.(restate.ResponseFuture[[]byte]).Response(); err != nil {
+					for fut, err := range restate.Wait(ctx, toAwait...) {
+						if err != nil {
+							return restate.Void{}, err
+						}
+						if _, err := fut.(restate.ResponseFuture[[]byte]).Response(); err != nil {
 							return restate.Void{}, err
 						}
 					}

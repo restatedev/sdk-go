@@ -40,9 +40,11 @@ func (c *fanOutWorker) Run(ctx restate.Context, commaSeparatedTasks string) (agg
 
 	// Aggregate
 	var results []string
-	selector := restate.Select(ctx, futs...)
-	for selector.Remaining() {
-		result, err := selector.Select().(restate.RunAsyncFuture[string]).Result()
+	for fu, err := range restate.Wait(ctx, futs...) {
+		if err != nil {
+			return "", err
+		}
+		result, err := fu.(restate.RunAsyncFuture[string]).Result()
 		if err != nil {
 			return "", err
 		}

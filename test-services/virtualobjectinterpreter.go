@@ -108,8 +108,11 @@ func init() {
 							restate.Set(ctx, awakeableStateKey(command.AwakeableKey), awk.Id())
 
 							timeout := restate.After(ctx, time.Duration(command.TimeoutMillis)*time.Millisecond)
-							selector := restate.Select(ctx, timeout, awk)
-							switch selector.Select() {
+							resultFut, err := restate.WaitFirst(ctx, timeout, awk)
+							if err != nil {
+								return "", err
+							}
+							switch resultFut {
 							case timeout:
 								return "", restate.TerminalErrorf("await-timeout")
 							case awk:
@@ -170,32 +173,37 @@ func awaitAnyCommand(ctx restate.ObjectContext, commands []AwaitableCommand) (st
 	for _, cmd := range commands {
 		selectables = append(selectables, cmd.toFuture(ctx))
 	}
-	return awaitableCommandResult(restate.Select(ctx, selectables...).Select())
+	resultFut, err := restate.WaitFirst(ctx, selectables...)
+	if err != nil {
+		return "", err
+	}
+	return awaitableCommandResult(resultFut)
 }
 
 func awaitAnySuccessfulCommand(ctx restate.ObjectContext, commands []AwaitableCommand) (string, error) {
-	var selectables []restate.Selectable
+	var selectables []restate.Future
 	for _, cmd := range commands {
 		selectables = append(selectables, cmd.toFuture(ctx))
 	}
-	selector := restate.Select(ctx, selectables...)
-	for selector.Remaining() {
-		selected := selector.Select()
-		switch selected.(type) {
+	for fut, err := range restate.Wait(ctx, selectables...) {
+		if err != nil {
+			return "", err
+		}
+		switch fut.(type) {
 		case restate.AwakeableFuture[string]:
-			res, err := selected.(restate.AwakeableFuture[string]).Result()
+			res, err := fut.(restate.AwakeableFuture[string]).Result()
 			if err != nil {
 				continue
 			}
 			return res, err
 		case restate.AfterFuture:
-			err := selected.(restate.AfterFuture).Done()
+			err := fut.(restate.AfterFuture).Done()
 			if err != nil {
 				continue
 			}
 			return "sleep", err
 		case restate.RunAsyncFuture[string]:
-			res, err := selected.(restate.RunAsyncFuture[string]).Result()
+			res, err := fut.(restate.RunAsyncFuture[string]).Result()
 			if err != nil {
 				continue
 			}
