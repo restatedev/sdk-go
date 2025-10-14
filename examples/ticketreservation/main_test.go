@@ -111,8 +111,10 @@ func TestCheckout(t *testing.T) {
 	mockResponseFuture := mockCtx.EXPECT().MockObjectClient(CheckoutServiceName, "", "Payment").
 		MockResponseFuture(PaymentRequest{UserID: "userID", Tickets: []string{"ticket1"}})
 
-	mockCtx.EXPECT().MockSelector(mockAfter, mockResponseFuture).
-		Select().Return(mockResponseFuture)
+	mockWaitIter := mockCtx.EXPECT().MockWaitIter(mockAfter, mockResponseFuture)
+	mockWaitIter.Next().Return(true)
+	mockWaitIter.Err().Return(nil)
+	mockWaitIter.Value().Return(mockResponseFuture)
 
 	mockResponseFuture.EXPECT().ResponseAndReturn(PaymentResponse{ID: "paymentID", Price: 30}, nil)
 

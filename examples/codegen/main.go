@@ -99,9 +99,12 @@ func (c counter) Watch(ctx restate.ObjectSharedContext, req *helloworld.WatchReq
 	after := restate.After(ctx, timeout)
 
 	// this is the safe way to race two results
-	selector := restate.Select(ctx, after, awakeable)
+	resultFut, err := restate.WaitFirst(ctx, after)
+	if err != nil {
+		return nil, err
+	}
 
-	if selector.Select() == after {
+	if resultFut == after {
 		// the timeout won
 		if err := after.Done(); err != nil {
 			// an error here implies this invocation was cancelled

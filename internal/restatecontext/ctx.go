@@ -48,6 +48,7 @@ type Context interface {
 	ResolveAwakeable(id string, value any, options ...options.ResolveAwakeableOption)
 	RejectAwakeable(id string, reason error)
 	Select(futs ...Selectable) Selector
+	WaitIter(futs ...Selectable) WaitIterator
 	Run(fn func(ctx RunContext) (any, error), output any, options ...options.RunOption) error
 	RunAsync(fn func(ctx RunContext) (any, error), options ...options.RunOption) RunAsyncFuture
 
