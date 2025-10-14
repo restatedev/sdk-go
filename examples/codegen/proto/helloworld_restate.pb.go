@@ -7,8 +7,11 @@
 package proto
 
 import (
+	context "context"
 	fmt "fmt"
 	sdk_go "github.com/restatedev/sdk-go"
+	encoding "github.com/restatedev/sdk-go/encoding"
+	ingress "github.com/restatedev/sdk-go/ingress"
 )
 
 // GreeterClient is the client API for helloworld.Greeter service.
@@ -34,6 +37,30 @@ func (c *greeterClient) SayHello(opts ...sdk_go.ClientOption) sdk_go.Client[*Hel
 		cOpts = append(append([]sdk_go.ClientOption{}, cOpts...), opts...)
 	}
 	return sdk_go.WithRequestType[*HelloRequest](sdk_go.Service[*HelloResponse](c.ctx, "helloworld.Greeter", "SayHello", cOpts...))
+}
+
+// GreeterIngressClient is the ingress client API for helloworld.Greeter service.
+//
+// This client is used to call the service from outside of a Restate context.
+type GreeterIngressClient interface {
+	SayHello() ingress.Requester[*HelloRequest, *HelloResponse]
+}
+
+type greeterIngressClient struct {
+	client      *ingress.Client
+	serviceName string
+}
+
+func NewGreeterIngressClient(client *ingress.Client) GreeterIngressClient {
+	return &greeterIngressClient{
+		client,
+		"helloworld.Greeter",
+	}
+}
+
+func (c *greeterIngressClient) SayHello() ingress.Requester[*HelloRequest, *HelloResponse] {
+	codec := encoding.ProtoJSONCodec
+	return ingress.NewRequester[*HelloRequest, *HelloResponse](c.client, c.serviceName, "SayHello", nil, &codec)
 }
 
 // GreeterServer is the server API for helloworld.Greeter service.
@@ -132,6 +159,54 @@ func (c *counterClient) Watch(opts ...sdk_go.ClientOption) sdk_go.Client[*WatchR
 		cOpts = append(append([]sdk_go.ClientOption{}, cOpts...), opts...)
 	}
 	return sdk_go.WithRequestType[*WatchRequest](sdk_go.Object[*GetResponse](c.ctx, "helloworld.Counter", c.key, "Watch", cOpts...))
+}
+
+// CounterIngressClient is the ingress client API for helloworld.Counter service.
+//
+// This client is used to call the service from outside of a Restate context.
+type CounterIngressClient interface {
+	// Mutate the value
+	Add() ingress.Requester[*AddRequest, *GetResponse]
+	// Get the current value
+	Get() ingress.Requester[*GetRequest, *GetResponse]
+	// Internal method to store an awakeable ID for the Watch method
+	AddWatcher() ingress.Requester[*AddWatcherRequest, *AddWatcherResponse]
+	// Wait for the counter to change and then return the new value
+	Watch() ingress.Requester[*WatchRequest, *GetResponse]
+}
+
+type counterIngressClient struct {
+	client      *ingress.Client
+	serviceName string
+	key         string
+}
+
+func NewCounterIngressClient(client *ingress.Client, key string) CounterIngressClient {
+	return &counterIngressClient{
+		client,
+		"helloworld.Counter",
+		key,
+	}
+}
+
+func (c *counterIngressClient) Add() ingress.Requester[*AddRequest, *GetResponse] {
+	codec := encoding.ProtoJSONCodec
+	return ingress.NewRequester[*AddRequest, *GetResponse](c.client, c.serviceName, "Add", &c.key, &codec)
+}
+
+func (c *counterIngressClient) Get() ingress.Requester[*GetRequest, *GetResponse] {
+	codec := encoding.ProtoJSONCodec
+	return ingress.NewRequester[*GetRequest, *GetResponse](c.client, c.serviceName, "Get", &c.key, &codec)
+}
+
+func (c *counterIngressClient) AddWatcher() ingress.Requester[*AddWatcherRequest, *AddWatcherResponse] {
+	codec := encoding.ProtoJSONCodec
+	return ingress.NewRequester[*AddWatcherRequest, *AddWatcherResponse](c.client, c.serviceName, "AddWatcher", &c.key, &codec)
+}
+
+func (c *counterIngressClient) Watch() ingress.Requester[*WatchRequest, *GetResponse] {
+	codec := encoding.ProtoJSONCodec
+	return ingress.NewRequester[*WatchRequest, *GetResponse](c.client, c.serviceName, "Watch", &c.key, &codec)
 }
 
 // CounterServer is the server API for helloworld.Counter service.
@@ -239,6 +314,54 @@ func (c *workflowClient) Status(opts ...sdk_go.ClientOption) sdk_go.Client[*Stat
 		cOpts = append(append([]sdk_go.ClientOption{}, cOpts...), opts...)
 	}
 	return sdk_go.WithRequestType[*StatusRequest](sdk_go.Workflow[*StatusResponse](c.ctx, "helloworld.Workflow", c.workflowID, "Status", cOpts...))
+}
+
+// WorkflowIngressClient is the ingress client API for helloworld.Workflow service.
+//
+// This client is used to call the service from outside of a Restate context.
+type WorkflowIngressClient interface {
+	// Execute the workflow
+	Submit(input *RunRequest, opts ...sdk_go.IngressSendOption) ingress.Invocation
+	// Attach attaches to the submitted workflow and returns a handle to retrieve its output
+	Attach() ingress.InvocationHandle[*RunResponse]
+	// Unblock the workflow
+	Finish() ingress.Requester[*FinishRequest, *FinishResponse]
+	// Check the current status
+	Status() ingress.Requester[*StatusRequest, *StatusResponse]
+}
+
+type workflowIngressClient struct {
+	client      *ingress.Client
+	serviceName string
+	workflowID  string
+}
+
+func NewWorkflowIngressClient(client *ingress.Client, workflowID string) WorkflowIngressClient {
+	return &workflowIngressClient{
+		client,
+		"helloworld.Workflow",
+		workflowID,
+	}
+}
+
+func (c *workflowIngressClient) Submit(input *RunRequest, opts ...sdk_go.IngressSendOption) ingress.Invocation {
+	codec := encoding.ProtoJSONCodec
+	return ingress.NewRequester[*RunRequest, *RunResponse](c.client, c.serviceName, "Run", &c.workflowID, &codec).Send(context.Background(), input, opts...)
+}
+
+func (c *workflowIngressClient) Finish() ingress.Requester[*FinishRequest, *FinishResponse] {
+	codec := encoding.ProtoJSONCodec
+	return ingress.NewRequester[*FinishRequest, *FinishResponse](c.client, c.serviceName, "Finish", &c.workflowID, &codec)
+}
+
+func (c *workflowIngressClient) Status() ingress.Requester[*StatusRequest, *StatusResponse] {
+	codec := encoding.ProtoJSONCodec
+	return ingress.NewRequester[*StatusRequest, *StatusResponse](c.client, c.serviceName, "Status", &c.workflowID, &codec)
+}
+
+func (c *workflowIngressClient) Attach() ingress.InvocationHandle[*RunResponse] {
+	codec := encoding.ProtoJSONCodec
+	return ingress.AttachWorkflowWithCodec[*RunResponse](c.client, c.serviceName, c.workflowID, codec)
 }
 
 // WorkflowServer is the server API for helloworld.Workflow service.

@@ -3,6 +3,7 @@ package ingress
 import (
 	"context"
 
+	"github.com/restatedev/sdk-go/encoding"
 	"github.com/restatedev/sdk-go/internal/ingress"
 	"github.com/restatedev/sdk-go/internal/options"
 )
@@ -26,14 +27,10 @@ type InvocationHandle[O any] interface {
 	Output(ctx context.Context) (O, error)
 }
 
-type client[I any, O any] struct {
+type requester[I any, O any] struct {
 	client *Client
 	params ingress.IngressParams
-}
-
-type attachClient[O any] struct {
-	client *ingress.Client
-	params ingress.IngressAttachParams
+	codec  encoding.PayloadCodec
 }
 
 func NewClient(baseUri string, opts ...options.IngressClientOption) *Client {
@@ -44,79 +41,102 @@ func NewClient(baseUri string, opts ...options.IngressClientOption) *Client {
 	return ingress.NewClient(baseUri, clientOpts)
 }
 
-// Service gets a Service request ingress client by service and handlerName name
-func Service[I any, O any](c *Client, serviceName, handlerName string) Requester[I, O] {
-	return client[I, O]{
+func NewRequester[I any, O any](c *Client, serviceName, handlerName string, key *string, codec *encoding.PayloadCodec) Requester[I, O] {
+	req := requester[I, O]{
 		client: c,
 		params: ingress.IngressParams{
-			ServiceName: serviceName,
-			HandlerName: handlerName,
+			Service: serviceName,
+			Handler: handlerName,
+		},
+	}
+	if key != nil {
+		req.params.Key = *key
+	}
+	if codec != nil {
+		req.codec = *codec
+	}
+	return req
+}
+
+// Service gets a Service request ingress client by service and handlerName name
+func Service[I any, O any](c *Client, serviceName, handlerName string) Requester[I, O] {
+	return requester[I, O]{
+		client: c,
+		params: ingress.IngressParams{
+			Service: serviceName,
+			Handler: handlerName,
 		},
 	}
 }
 
 // ServiceSend gets a Service send ingress client by service and handlerName name
 func ServiceSend[I any](c *Client, serviceName, handlerName string) SendRequester[I] {
-	return client[I, any]{
+	return requester[I, any]{
 		client: c,
 		params: ingress.IngressParams{
-			ServiceName: serviceName,
-			HandlerName: handlerName,
+			Service: serviceName,
+			Handler: handlerName,
 		},
 	}
 }
 
 // Object gets an Object request ingress client by service name, key and handlerName name
 func Object[I any, O any](c *Client, serviceName, objectKey, handlerName string) Requester[I, O] {
-	return client[I, O]{
+	return requester[I, O]{
 		client: c,
 		params: ingress.IngressParams{
-			ServiceName: serviceName,
-			ObjectKey:   objectKey,
-			HandlerName: handlerName,
+			Service: serviceName,
+			Key:     objectKey,
+			Handler: handlerName,
 		},
 	}
 }
 
 // ObjectSend gets an Object send ingress client by service name, key and handlerName name
 func ObjectSend[I any](c *Client, serviceName, objectKey, handlerName string) SendRequester[I] {
-	return client[I, any]{
+	return requester[I, any]{
 		client: c,
 		params: ingress.IngressParams{
-			ServiceName: serviceName,
-			ObjectKey:   objectKey,
-			HandlerName: handlerName,
+			Service: serviceName,
+			Key:     objectKey,
+			Handler: handlerName,
 		},
 	}
 }
 
 // Workflow gets a Workflow request ingress client by service name, workflow ID and handlerName name
 func Workflow[I any, O any](c *Client, serviceName, workflowID, handlerName string) Requester[I, O] {
-	return client[I, O]{
+	return requester[I, O]{
 		client: c,
 		params: ingress.IngressParams{
-			ServiceName: serviceName,
-			HandlerName: handlerName,
-			WorkflowID:  workflowID,
+			Service: serviceName,
+			Handler: handlerName,
+			Key:     workflowID,
 		},
 	}
 }
 
 // WorkflowSend gets a Workflow send ingress client by service name, workflow ID and handlerName name
 func WorkflowSend[I any](c *Client, serviceName, workflowID, handlerName string) SendRequester[I] {
-	return client[I, any]{
+	return requester[I, any]{
 		client: c,
 		params: ingress.IngressParams{
-			ServiceName: serviceName,
-			HandlerName: handlerName,
-			WorkflowID:  workflowID,
+			Service: serviceName,
+			Handler: handlerName,
+			Key:     workflowID,
 		},
 	}
 }
 
+type attachRequester[O any] struct {
+	client *ingress.Client
+	params ingress.IngressAttachParams
+	codec  encoding.PayloadCodec
+}
+
 // AttachInvocation gets an attachment client based on an invocation ID.
 func AttachInvocation[O any](c *Client, invocationID string) InvocationHandle[O] {
-	return attachClient[O]{
+	return attachRequester[O]{
 		client: c,
 		params: ingress.IngressAttachParams{
 			InvocationID: invocationID,
@@ -126,7 +146,7 @@ func AttachInvocation[O any](c *Client, invocationID string) InvocationHandle[O]
 
 // AttachService gets an attachment client based on a service handler and idempotency key.
 func AttachService[O any](c *Client, serviceName, handlerName, idempotencyKey string) InvocationHandle[O] {
-	return attachClient[O]{
+	return attachRequester[O]{
 		client: c,
 		params: ingress.IngressAttachParams{
 			ServiceName:    serviceName,
@@ -138,7 +158,7 @@ func AttachService[O any](c *Client, serviceName, handlerName, idempotencyKey st
 
 // AttachObject gets an attachment client based on a service handler, object key and idempotency key.
 func AttachObject[O any](c *Client, serviceName, objectKey, handlerName, idempotencyKey string) InvocationHandle[O] {
-	return attachClient[O]{
+	return attachRequester[O]{
 		client: c,
 		params: ingress.IngressAttachParams{
 			ServiceName:    serviceName,
@@ -151,7 +171,7 @@ func AttachObject[O any](c *Client, serviceName, objectKey, handlerName, idempot
 
 // AttachWorkflow gets and attachment client based on a service and a workflow ID.
 func AttachWorkflow[O any](c *Client, serviceName, workflowID string) InvocationHandle[O] {
-	return attachClient[O]{
+	return attachRequester[O]{
 		client: c,
 		params: ingress.IngressAttachParams{
 			ServiceName: serviceName,
@@ -160,9 +180,22 @@ func AttachWorkflow[O any](c *Client, serviceName, workflowID string) Invocation
 	}
 }
 
+// AttachWorkflow gets and attachment client based on a service and a workflow ID.
+func AttachWorkflowWithCodec[O any](c *Client, serviceName, workflowID string, codec encoding.PayloadCodec) InvocationHandle[O] {
+	return attachRequester[O]{
+		client: c,
+		params: ingress.IngressAttachParams{
+			ServiceName: serviceName,
+			WorkflowID:  workflowID,
+		},
+		codec: codec,
+	}
+}
+
 // Request calls the ingress API with the given input and returns the result.
-func (c client[I, O]) Request(ctx context.Context, input I, opts ...options.IngressRequestOption) (O, error) {
+func (c requester[I, O]) Request(ctx context.Context, input I, opts ...options.IngressRequestOption) (O, error) {
 	reqOpts := options.IngressRequestOptions{}
+	reqOpts.Codec = c.codec
 	for _, opt := range opts {
 		opt.BeforeIngressRequest(&reqOpts)
 	}
@@ -176,8 +209,9 @@ func (c client[I, O]) Request(ctx context.Context, input I, opts ...options.Ingr
 }
 
 // Send calls the ingress API with the given input and returns an Invocation instance.
-func (c client[I, O]) Send(ctx context.Context, input I, opts ...options.IngressSendOption) Invocation {
+func (c requester[I, O]) Send(ctx context.Context, input I, opts ...options.IngressSendOption) Invocation {
 	sendOpts := options.IngressSendOptions{}
+	sendOpts.Codec = c.codec
 	for _, opt := range opts {
 		opt.BeforeIngressSend(&sendOpts)
 	}
@@ -187,7 +221,7 @@ func (c client[I, O]) Send(ctx context.Context, input I, opts ...options.Ingress
 
 // Attach calls the attachment API and blocks until the output is available. Returns an
 // InvocationNotFoundError if the invocation does not exist.
-func (c attachClient[O]) Attach(ctx context.Context) (O, error) {
+func (c attachRequester[O]) Attach(ctx context.Context) (O, error) {
 	var output O
 	err := c.client.Attach(ctx, c.params, &output)
 	if err != nil {
@@ -199,7 +233,7 @@ func (c attachClient[O]) Attach(ctx context.Context) (O, error) {
 // Output calls the attachment API and returns the output if available, otherwise returns an
 // InvocationNotFoundError if the invocation does not exist or an InvocationNotReadyError if
 // the invocation is not complete.
-func (c attachClient[O]) Output(ctx context.Context) (O, error) {
+func (c attachRequester[O]) Output(ctx context.Context) (O, error) {
 	var output O
 	err := c.client.Output(ctx, c.params, &output)
 	if err != nil {
