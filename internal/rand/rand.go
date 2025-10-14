@@ -8,12 +8,15 @@ import (
 )
 
 type Rand interface {
+	// Deprecated: Use restate.RandUUID directly, instead of restate.Rand().UUID()
 	UUID() uuid.UUID
 	Float64() float64
 	Uint64() uint64
 	// Source returns a deterministic random source that can be provided to math/rand.New()
 	// and math/rand/v2.New(). The v2 version of rand is strongly recommended where Go 1.22
 	// is used, and once this library begins to depend on 1.22, it will be embedded in Rand.
+	//
+	// Deprecated: Use restate.RandSource directly, instead of restate.Rand().Source()
 	Source() Source
 }
 
