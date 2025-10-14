@@ -6,11 +6,12 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	restate "github.com/restatedev/sdk-go"
-	"github.com/restatedev/sdk-go/encoding"
 	"io"
 	"net/http"
 	"time"
+
+	restate "github.com/restatedev/sdk-go"
+	"github.com/restatedev/sdk-go/encoding"
 
 	"github.com/restatedev/sdk-go/internal/options"
 )
@@ -27,10 +28,9 @@ type Client struct {
 }
 
 type IngressParams struct {
-	ServiceName string
-	HandlerName string
-	ObjectKey   string
-	WorkflowID  string
+	Service string
+	Handler string
+	Key     string
 }
 
 type IngressAttachParams struct {
@@ -206,12 +206,10 @@ func sendOptionsToIngressOpts(sendOpts options.IngressSendOptions) ingressOpts {
 
 func makeIngressUrl(params IngressParams) string {
 	switch {
-	case params.ObjectKey != "":
-		return fmt.Sprintf("/%s/%s/%s", params.ServiceName, params.ObjectKey, params.HandlerName)
-	case params.WorkflowID != "":
-		return fmt.Sprintf("/%s/%s/%s", params.ServiceName, params.WorkflowID, params.HandlerName)
+	case params.Key != "":
+		return fmt.Sprintf("/%s/%s/%s", params.Service, params.Key, params.Handler)
 	default:
-		return fmt.Sprintf("/%s/%s", params.ServiceName, params.HandlerName)
+		return fmt.Sprintf("/%s/%s", params.Service, params.Handler)
 	}
 }
 
