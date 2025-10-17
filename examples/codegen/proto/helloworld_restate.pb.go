@@ -275,9 +275,9 @@ func (c *workflowClient) Status(opts ...sdk_go.ClientOption) sdk_go.Client[*Stat
 // This client is used to call the service from outside of a Restate context.
 type WorkflowIngressClient interface {
 	// Execute the workflow
-	Submit(input *RunRequest, opts ...sdk_go.IngressSendOption) (ingress.SendResponse[*RunResponse], error)
-	// Attach attaches to the submitted workflow and returns a handle to retrieve its output
-	Attach() ingress.InvocationHandle[*RunResponse]
+	Submit(ctx context.Context, input *RunRequest, opts ...sdk_go.IngressSendOption) (ingress.SendResponse[*RunResponse], error)
+	// Handle creates an handle to the submitted workflow, useful to retrieve its output or attach to it
+	Handle() ingress.InvocationHandle[*RunResponse]
 	// Unblock the workflow
 	Finish() ingress.Requester[*FinishRequest, *FinishResponse]
 	// Check the current status
@@ -298,9 +298,9 @@ func NewWorkflowIngressClient(client *ingress.Client, workflowID string) Workflo
 	}
 }
 
-func (c *workflowIngressClient) Submit(input *RunRequest, opts ...sdk_go.IngressSendOption) (ingress.SendResponse[*RunResponse], error) {
+func (c *workflowIngressClient) Submit(ctx context.Context, input *RunRequest, opts ...sdk_go.IngressSendOption) (ingress.SendResponse[*RunResponse], error) {
 	codec := encoding.ProtoJSONCodec
-	return ingress.NewRequester[*RunRequest, *RunResponse](c.client, c.serviceName, "Run", &c.workflowID, &codec).Send(context.Background(), input, opts...)
+	return ingress.NewRequester[*RunRequest, *RunResponse](c.client, c.serviceName, "Run", &c.workflowID, &codec).Send(ctx, input, opts...)
 }
 
 func (c *workflowIngressClient) Finish() ingress.Requester[*FinishRequest, *FinishResponse] {
@@ -313,7 +313,7 @@ func (c *workflowIngressClient) Status() ingress.Requester[*StatusRequest, *Stat
 	return ingress.NewRequester[*StatusRequest, *StatusResponse](c.client, c.serviceName, "Status", &c.workflowID, &codec)
 }
 
-func (c *workflowIngressClient) Attach() ingress.InvocationHandle[*RunResponse] {
+func (c *workflowIngressClient) Handle() ingress.InvocationHandle[*RunResponse] {
 	return ingress.WorkflowHandle[*RunResponse](c.client, c.serviceName, c.workflowID, sdk_go.WithProtoJSON)
 }
 
