@@ -8,7 +8,7 @@ import (
 )
 
 type Rand interface {
-	// Deprecated: Use restate.RandUUID directly, instead of restate.Rand().UUID()
+	// Deprecated: Use restate.UUID directly, instead of restate.Rand().UUID()
 	UUID() uuid.UUID
 	Float64() float64
 	Uint64() uint64

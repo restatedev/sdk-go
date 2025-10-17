@@ -1,8 +1,8 @@
 package restate
 
 import (
-	rand2 "math/rand/v2"
 	"iter"
+	rand2 "math/rand/v2"
 	"time"
 
 	"github.com/google/uuid"
@@ -20,8 +20,8 @@ func Rand(ctx Context) rand.Rand {
 	return ctx.inner().Rand()
 }
 
-// RandUUID returns a random UUID seeded deterministically for a given invocation.
-func RandUUID(ctx Context) uuid.UUID {
+// UUID returns a random UUID seeded deterministically for a given invocation.
+func UUID(ctx Context) uuid.UUID {
 	return ctx.inner().Rand().UUID()
 }
 
