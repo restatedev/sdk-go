@@ -21,7 +21,7 @@ func init() {
 				})).
 			Handler("callTerminallyFailingCall", restate.NewObjectHandler(
 				func(ctx restate.ObjectContext, errorMessage string) (string, error) {
-					if _, err := restate.Object[restate.Void](ctx, "Failing", restate.RandUUID(ctx).String(), "terminallyFailingCall").Request(errorMessage); err != nil {
+					if _, err := restate.Object[restate.Void](ctx, "Failing", restate.UUID(ctx).String(), "terminallyFailingCall").Request(errorMessage); err != nil {
 						return "", err
 					}
 
