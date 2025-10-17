@@ -218,8 +218,8 @@ func genService(gen *protogen.Plugin, g *protogen.GeneratedFile, service *protog
 		g.AnnotateSymbol(ingressClientName, protogen.Annotation{Location: service.Location})
 		g.P("type ", ingressClientName, " interface {")
 
-		// Generate methods, with Attach right after Submit for workflows
-		var hasGeneratedAttach bool
+		// Generate methods, with Handle right after Submit for workflows
+		var hasGeneratedHandle bool
 		for _, method := range service.Methods {
 			g.AnnotateSymbol(ingressClientName+"."+method.GoName, protogen.Annotation{Location: method.Location})
 			if method.Desc.Options().(*descriptorpb.MethodOptions).GetDeprecated() {
@@ -229,15 +229,15 @@ func genService(gen *protogen.Plugin, g *protogen.GeneratedFile, service *protog
 				ingressClientSignatureForMethod(g, method))
 
 			// Add Attach method right after Submit for workflow clients
-			if serviceType == sdk.ServiceType_WORKFLOW && !hasGeneratedAttach {
+			if serviceType == sdk.ServiceType_WORKFLOW && !hasGeneratedHandle {
 				handlerType := proto.GetExtension(method.Desc.Options().(*descriptorpb.MethodOptions), sdk.E_HandlerType).(sdk.HandlerType)
 				isWorkflowRun := handlerType == sdk.HandlerType_WORKFLOW_RUN || (handlerType == sdk.HandlerType_UNSET && method.GoName == "Run")
 				if isWorkflowRun {
 					workflowRunHandler := findWorkflowRunHandler(service)
 					if workflowRunHandler != nil {
-						g.P("// Attach attaches to the submitted workflow and returns a handle to retrieve its output")
-						g.P("Attach() ", g.QualifiedGoIdent(ingressPackage.Ident("InvocationHandle")), "[*", g.QualifiedGoIdent(workflowRunHandler.Output.GoIdent), "]")
-						hasGeneratedAttach = true
+						g.P("// Handle creates an handle to the submitted workflow, useful to retrieve its output or attach to it")
+						g.P("Handle() ", g.QualifiedGoIdent(ingressPackage.Ident("InvocationHandle")), "[*", g.QualifiedGoIdent(workflowRunHandler.Output.GoIdent), "]")
+						hasGeneratedHandle = true
 					}
 				}
 			}
@@ -277,9 +277,8 @@ func genService(gen *protogen.Plugin, g *protogen.GeneratedFile, service *protog
 		if serviceType == sdk.ServiceType_WORKFLOW {
 			workflowRunHandler := findWorkflowRunHandler(service)
 			if workflowRunHandler != nil {
-				g.P("func (c *", unexport(ingressClientName), ") Attach() ", g.QualifiedGoIdent(ingressPackage.Ident("InvocationHandle")), "[*", g.QualifiedGoIdent(workflowRunHandler.Output.GoIdent), "] {")
-				g.P("codec := ", g.QualifiedGoIdent(encodingPackage.Ident("ProtoJSONCodec")))
-				g.P("return ", g.QualifiedGoIdent(ingressPackage.Ident("AttachWorkflowWithCodec")), "[*", g.QualifiedGoIdent(workflowRunHandler.Output.GoIdent), "](c.client, c.serviceName, c.workflowID, codec)")
+				g.P("func (c *", unexport(ingressClientName), ") Handle() ", g.QualifiedGoIdent(ingressPackage.Ident("InvocationHandle")), "[*", g.QualifiedGoIdent(workflowRunHandler.Output.GoIdent), "] {")
+				g.P("return ", g.QualifiedGoIdent(ingressPackage.Ident("WorkflowHandle")), "[*", g.QualifiedGoIdent(workflowRunHandler.Output.GoIdent), "](c.client, c.serviceName, c.workflowID, ", g.QualifiedGoIdent(sdkPackage.Ident("WithProtoJSON")), ")")
 				g.P("}")
 				g.P()
 			}
@@ -593,8 +592,8 @@ func ingressClientSignatureForMethod(g *protogen.GeneratedFile, method *protogen
 
 	// For workflow run handler, use Submit signature
 	if serviceType == sdk.ServiceType_WORKFLOW && (handlerType == sdk.HandlerType_WORKFLOW_RUN || (handlerType == sdk.HandlerType_UNSET && method.GoName == "Run")) {
-		s := "Submit(input *" + g.QualifiedGoIdent(method.Input.GoIdent) + ", opts ..." + g.QualifiedGoIdent(sdkPackage.Ident("IngressSendOption")) + ") "
-		s += g.QualifiedGoIdent(ingressPackage.Ident("Invocation"))
+		s := "Submit(ctx " + g.QualifiedGoIdent(contextPackage.Ident("Context")) + ", input *" + g.QualifiedGoIdent(method.Input.GoIdent) + ", opts ..." + g.QualifiedGoIdent(sdkPackage.Ident("IngressSendOption")) + ") ("
+		s += g.QualifiedGoIdent(ingressPackage.Ident("SendResponse")) + "[*" + g.QualifiedGoIdent(method.Output.GoIdent) + "], error)"
 		return s
 	}
 
@@ -616,12 +615,12 @@ func genIngressClientMethod(gen *protogen.Plugin, g *protogen.GeneratedFile, met
 
 	if isWorkflowRun {
 		// Generate Submit method for workflow run handler
-		g.P("func (c *", unexport(clientName), ") Submit(input *", g.QualifiedGoIdent(method.Input.GoIdent), ", opts ...", g.QualifiedGoIdent(sdkPackage.Ident("IngressSendOption")), ") ", g.QualifiedGoIdent(ingressPackage.Ident("Invocation")), " {")
+		g.P("func (c *", unexport(clientName), ") Submit(ctx ", g.QualifiedGoIdent(contextPackage.Ident("Context")), ", input *", g.QualifiedGoIdent(method.Input.GoIdent), ", opts ...", g.QualifiedGoIdent(sdkPackage.Ident("IngressSendOption")), ") (", g.QualifiedGoIdent(ingressPackage.Ident("SendResponse")), "[*", g.QualifiedGoIdent(method.Output.GoIdent), "], error) {")
 		g.P("codec := ", g.QualifiedGoIdent(encodingPackage.Ident("ProtoJSONCodec")))
 		requester := g.QualifiedGoIdent(ingressPackage.Ident("NewRequester")) +
 			`[*` + g.QualifiedGoIdent(method.Input.GoIdent) + `, *` + g.QualifiedGoIdent(method.Output.GoIdent) + `]` +
 			`(c.client, c.serviceName, "` + methodName(method) + `", &c.workflowID, &codec)`
-		g.P("return ", requester, ".Send(", g.QualifiedGoIdent(contextPackage.Ident("Background")), "(), input, opts...)")
+		g.P("return ", requester, ".Send(ctx, input, opts...)")
 		g.P("}")
 		g.P()
 	} else {

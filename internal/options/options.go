@@ -167,6 +167,14 @@ type IngressSendOption interface {
 	BeforeIngressSend(*IngressSendOptions)
 }
 
+type IngressInvocationHandleOptions struct {
+	Codec encoding.PayloadCodec
+}
+
+type IngressInvocationHandleOption interface {
+	BeforeIngressInvocationHandle(*IngressInvocationHandleOptions)
+}
+
 type RunOptions struct {
 	// MaxRetryAttempts (including the initial attempt) before giving up.
 	//

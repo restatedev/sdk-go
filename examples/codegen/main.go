@@ -9,6 +9,7 @@ import (
 
 	restate "github.com/restatedev/sdk-go"
 	helloworld "github.com/restatedev/sdk-go/examples/codegen/proto"
+	"github.com/restatedev/sdk-go/ingress"
 	"github.com/restatedev/sdk-go/server"
 )
 
@@ -17,12 +18,14 @@ type greeter struct {
 }
 
 func (greeter) SayHello(ctx restate.Context, req *helloworld.HelloRequest) (*helloworld.HelloResponse, error) {
+	// Example usage of the generated client between services
 	counter := helloworld.NewCounterClient(ctx, req.Name)
 	count, err := counter.Add().
 		Request(&helloworld.AddRequest{Delta: 1})
 	if err != nil {
 		return nil, err
 	}
+
 	return &helloworld.HelloResponse{
 		Message: fmt.Sprintf("Hello, %s! Call number: %d", req.Name, count.Value),
 	}, nil
@@ -38,18 +41,8 @@ func (c counter) Add(ctx restate.ObjectContext, req *helloworld.AddRequest) (*he
 		return nil, err
 	}
 
-	watchers, err := restate.Get[[]string](ctx, "watchers")
-	if err != nil {
-		return nil, err
-	}
-
 	count += req.Delta
 	restate.Set(ctx, "counter", count)
-
-	for _, awakeableID := range watchers {
-		restate.ResolveAwakeable(ctx, awakeableID, count)
-	}
-	restate.Clear(ctx, "watchers")
 
 	return &helloworld.GetResponse{Value: count}, nil
 }
@@ -61,64 +54,6 @@ func (c counter) Get(ctx restate.ObjectSharedContext, _ *helloworld.GetRequest) 
 	}
 
 	return &helloworld.GetResponse{Value: count}, nil
-}
-
-func (c counter) AddWatcher(ctx restate.ObjectContext, req *helloworld.AddWatcherRequest) (*helloworld.AddWatcherResponse, error) {
-	watchers, err := restate.Get[[]string](ctx, "watchers")
-	if err != nil {
-		return nil, err
-	}
-	watchers = append(watchers, req.AwakeableId)
-	restate.Set(ctx, "watchers", watchers)
-	return &helloworld.AddWatcherResponse{}, nil
-}
-
-func (c counter) Watch(ctx restate.ObjectSharedContext, req *helloworld.WatchRequest) (*helloworld.GetResponse, error) {
-	awakeable := restate.Awakeable[int64](ctx)
-
-	// since this is a shared handler, we need to use a separate exclusive handler to store the awakeable ID
-	// if there is an in-flight Add call, this will take effect after it completes
-	// we could add a version counter check here to detect changes that happen mid-request and return immediately
-	if _, err := helloworld.NewCounterClient(ctx, restate.Key(ctx)).
-		AddWatcher().
-		Request(&helloworld.AddWatcherRequest{AwakeableId: awakeable.Id()}); err != nil {
-		return nil, err
-	}
-
-	timeout := time.Duration(req.TimeoutMillis) * time.Millisecond
-	if timeout == 0 {
-		// infinite timeout case; just await the next value
-		next, err := awakeable.Result()
-		if err != nil {
-			return nil, err
-		}
-
-		return &helloworld.GetResponse{Value: next}, nil
-	}
-
-	after := restate.After(ctx, timeout)
-
-	// this is the safe way to race two results
-	resultFut, err := restate.WaitFirst(ctx, after)
-	if err != nil {
-		return nil, err
-	}
-
-	if resultFut == after {
-		// the timeout won
-		if err := after.Done(); err != nil {
-			// an error here implies this invocation was cancelled
-			return nil, err
-		}
-		return nil, restate.TerminalError(context.DeadlineExceeded, 408)
-	}
-
-	// otherwise, the awakeable won
-	next, err := awakeable.Result()
-	if err != nil {
-		return nil, err
-	}
-	return &helloworld.GetResponse{Value: next}, nil
 }
 
 type workflow struct {
@@ -152,6 +87,57 @@ func main() {
 		Bind(helloworld.NewGreeterServer(greeter{})).
 		Bind(helloworld.NewCounterServer(counter{})).
 		Bind(helloworld.NewWorkflowServer(workflow{}))
+
+	go func() {
+		ctx := context.Background()
+		time.Sleep(15 * time.Second)
+
+		// Example usage of the generated ingress client
+
+		client := ingress.NewClient("http://localhost:8080")
+
+		counterClient := helloworld.NewCounterIngressClient(client, "fra")
+
+		addSendRes, err := counterClient.Add().Send(ctx, &helloworld.AddRequest{Delta: 1}, restate.WithDelay(10*time.Second))
+		if err != nil {
+			slog.Error("failed to send request", "err", err.Error())
+			os.Exit(1)
+		}
+		out, err := addSendRes.Attach(ctx)
+		if err != nil {
+			slog.Error("failed to attach response", "err", err.Error())
+			os.Exit(1)
+		}
+		slog.Info("client attached response", "out.value", out.Value)
+
+		out, err = counterClient.Get().Request(ctx, &helloworld.GetRequest{})
+		if err != nil {
+			slog.Error("failed to get response", "err", err.Error())
+			os.Exit(1)
+		}
+		slog.Info("client get response", "out.value", out.Value)
+
+		wf := helloworld.NewWorkflowIngressClient(client, "123")
+		submitRes, err := wf.Submit(ctx, &helloworld.RunRequest{})
+		if err != nil {
+			slog.Error("failed to submit workflow", "err", err.Error())
+			os.Exit(1)
+		}
+		slog.Info("started wf with invocation id " + addSendRes.Id())
+
+		_, err = wf.Finish().Request(ctx, &helloworld.FinishRequest{})
+		if err != nil {
+			slog.Error("failed to finish workflow", "err", err.Error())
+			os.Exit(1)
+		}
+
+		wfOut, err := submitRes.Attach(ctx)
+		if err != nil {
+			slog.Error("failed to attach response", "err", err.Error())
+			os.Exit(1)
+		}
+		slog.Info("client attached response", "out.value", wfOut.Status)
+	}()
 
 	if err := server.Start(context.Background(), ":9080"); err != nil {
 		slog.Error("application exited unexpectedly", "err", err.Error())

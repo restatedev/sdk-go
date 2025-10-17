@@ -29,14 +29,9 @@ var testCases = []testCase{
 		schema: `{"$schema":"https://json-schema.org/draft/2020-12/schema","$id":"https://github.com/restatedev/sdk-go/examples/codegen/proto/helloworld.-hello-request","$defs":{"helloworld.HelloRequest":{"$ref":"#"}},"properties":{"name":{"type":"string"}},"additionalProperties":false,"type":"object"}`,
 	},
 	{
-		desc:   "WatchRequest",
-		msg:    &helloworld.WatchRequest{},
-		schema: `{"$schema":"https://json-schema.org/draft/2020-12/schema","$id":"https://github.com/restatedev/sdk-go/examples/codegen/proto/helloworld.-watch-request","$defs":{"helloworld.WatchRequest":{"$ref":"#"}},"properties":{"timeoutMillis":{"type":"integer"}},"additionalProperties":false,"type":"object"}`,
-	},
-	{
 		desc:   "Test",
 		msg:    &helloworld.Test{},
-		schema: `{"$schema":"https://json-schema.org/draft/2020-12/schema","$id":"https://github.com/restatedev/sdk-go/examples/codegen/proto/helloworld.-test","$defs":{"helloworld.Test":{"$ref":"#"},"helloworld.WatchRequest":{"properties":{"timeoutMillis":{"type":"integer"}},"additionalProperties":false,"type":"object"}},"properties":{"inner":{"$ref":"#/$defs/helloworld.Test"},"primitive":{"type":"string"},"anotherInner":{"$ref":"#/$defs/helloworld.WatchRequest"}},"additionalProperties":false,"type":"object"}`,
+		schema: `{"$schema":"https://json-schema.org/draft/2020-12/schema","$id":"https://github.com/restatedev/sdk-go/examples/codegen/proto/helloworld.-test","$defs":{"helloworld.StatusResponse":{"properties":{"status":{"type":"string"}},"additionalProperties":false,"type":"object"},"helloworld.Test":{"$ref":"#"}},"properties":{"inner":{"$ref":"#/$defs/helloworld.Test"},"primitive":{"type":"string"},"anotherInner":{"$ref":"#/$defs/helloworld.StatusResponse"}},"additionalProperties":false,"type":"object"}`,
 	},
 	{
 		desc:   "google.protobuf.Duration",
