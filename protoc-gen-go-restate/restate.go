@@ -278,8 +278,7 @@ func genService(gen *protogen.Plugin, g *protogen.GeneratedFile, service *protog
 			workflowRunHandler := findWorkflowRunHandler(service)
 			if workflowRunHandler != nil {
 				g.P("func (c *", unexport(ingressClientName), ") Attach() ", g.QualifiedGoIdent(ingressPackage.Ident("InvocationHandle")), "[*", g.QualifiedGoIdent(workflowRunHandler.Output.GoIdent), "] {")
-				g.P("codec := ", g.QualifiedGoIdent(encodingPackage.Ident("ProtoJSONCodec")))
-				g.P("return ", g.QualifiedGoIdent(ingressPackage.Ident("AttachWorkflowWithCodec")), "[*", g.QualifiedGoIdent(workflowRunHandler.Output.GoIdent), "](c.client, c.serviceName, c.workflowID, codec)")
+				g.P("return ", g.QualifiedGoIdent(ingressPackage.Ident("WorkflowHandle")), "[*", g.QualifiedGoIdent(workflowRunHandler.Output.GoIdent), "](c.client, c.serviceName, c.workflowID, ", g.QualifiedGoIdent(sdkPackage.Ident("WithProtoJSON")), ")")
 				g.P("}")
 				g.P()
 			}
@@ -593,8 +592,8 @@ func ingressClientSignatureForMethod(g *protogen.GeneratedFile, method *protogen
 
 	// For workflow run handler, use Submit signature
 	if serviceType == sdk.ServiceType_WORKFLOW && (handlerType == sdk.HandlerType_WORKFLOW_RUN || (handlerType == sdk.HandlerType_UNSET && method.GoName == "Run")) {
-		s := "Submit(input *" + g.QualifiedGoIdent(method.Input.GoIdent) + ", opts ..." + g.QualifiedGoIdent(sdkPackage.Ident("IngressSendOption")) + ") "
-		s += g.QualifiedGoIdent(ingressPackage.Ident("Invocation"))
+		s := "Submit(input *" + g.QualifiedGoIdent(method.Input.GoIdent) + ", opts ..." + g.QualifiedGoIdent(sdkPackage.Ident("IngressSendOption")) + ") ("
+		s += g.QualifiedGoIdent(ingressPackage.Ident("SendResponse")) + "[*" + g.QualifiedGoIdent(method.Output.GoIdent) + "], error)"
 		return s
 	}
 
@@ -616,7 +615,7 @@ func genIngressClientMethod(gen *protogen.Plugin, g *protogen.GeneratedFile, met
 
 	if isWorkflowRun {
 		// Generate Submit method for workflow run handler
-		g.P("func (c *", unexport(clientName), ") Submit(input *", g.QualifiedGoIdent(method.Input.GoIdent), ", opts ...", g.QualifiedGoIdent(sdkPackage.Ident("IngressSendOption")), ") ", g.QualifiedGoIdent(ingressPackage.Ident("Invocation")), " {")
+		g.P("func (c *", unexport(clientName), ") Submit(input *", g.QualifiedGoIdent(method.Input.GoIdent), ", opts ...", g.QualifiedGoIdent(sdkPackage.Ident("IngressSendOption")), ") (", g.QualifiedGoIdent(ingressPackage.Ident("SendResponse")), "[*", g.QualifiedGoIdent(method.Output.GoIdent), "], error) {")
 		g.P("codec := ", g.QualifiedGoIdent(encodingPackage.Ident("ProtoJSONCodec")))
 		requester := g.QualifiedGoIdent(ingressPackage.Ident("NewRequester")) +
 			`[*` + g.QualifiedGoIdent(method.Input.GoIdent) + `, *` + g.QualifiedGoIdent(method.Output.GoIdent) + `]` +

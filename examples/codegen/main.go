@@ -9,6 +9,7 @@ import (
 
 	restate "github.com/restatedev/sdk-go"
 	helloworld "github.com/restatedev/sdk-go/examples/codegen/proto"
+	"github.com/restatedev/sdk-go/ingress"
 	"github.com/restatedev/sdk-go/server"
 )
 
@@ -63,64 +64,6 @@ func (c counter) Get(ctx restate.ObjectSharedContext, _ *helloworld.GetRequest) 
 	return &helloworld.GetResponse{Value: count}, nil
 }
 
-func (c counter) AddWatcher(ctx restate.ObjectContext, req *helloworld.AddWatcherRequest) (*helloworld.AddWatcherResponse, error) {
-	watchers, err := restate.Get[[]string](ctx, "watchers")
-	if err != nil {
-		return nil, err
-	}
-	watchers = append(watchers, req.AwakeableId)
-	restate.Set(ctx, "watchers", watchers)
-	return &helloworld.AddWatcherResponse{}, nil
-}
-
-func (c counter) Watch(ctx restate.ObjectSharedContext, req *helloworld.WatchRequest) (*helloworld.GetResponse, error) {
-	awakeable := restate.Awakeable[int64](ctx)
-
-	// since this is a shared handler, we need to use a separate exclusive handler to store the awakeable ID
-	// if there is an in-flight Add call, this will take effect after it completes
-	// we could add a version counter check here to detect changes that happen mid-request and return immediately
-	if _, err := helloworld.NewCounterClient(ctx, restate.Key(ctx)).
-		AddWatcher().
-		Request(&helloworld.AddWatcherRequest{AwakeableId: awakeable.Id()}); err != nil {
-		return nil, err
-	}
-
-	timeout := time.Duration(req.TimeoutMillis) * time.Millisecond
-	if timeout == 0 {
-		// infinite timeout case; just await the next value
-		next, err := awakeable.Result()
-		if err != nil {
-			return nil, err
-		}
-
-		return &helloworld.GetResponse{Value: next}, nil
-	}
-
-	after := restate.After(ctx, timeout)
-
-	// this is the safe way to race two results
-	resultFut, err := restate.WaitFirst(ctx, after)
-	if err != nil {
-		return nil, err
-	}
-
-	if resultFut == after {
-		// the timeout won
-		if err := after.Done(); err != nil {
-			// an error here implies this invocation was cancelled
-			return nil, err
-		}
-		return nil, restate.TerminalError(context.DeadlineExceeded, 408)
-	}
-
-	// otherwise, the awakeable won
-	next, err := awakeable.Result()
-	if err != nil {
-		return nil, err
-	}
-	return &helloworld.GetResponse{Value: next}, nil
-}
-
 type workflow struct {
 	helloworld.UnimplementedWorkflowServer
 }
@@ -152,6 +95,35 @@ func main() {
 		Bind(helloworld.NewGreeterServer(greeter{})).
 		Bind(helloworld.NewCounterServer(counter{})).
 		Bind(helloworld.NewWorkflowServer(workflow{}))
+
+	go func() {
+		time.Sleep(15 * time.Second)
+
+		// Example usage of the generated ingress client
+
+		c := ingress.NewClient("http://localhost:8080")
+
+		counterClient := helloworld.NewCounterIngressClient(c, "fra")
+
+		res, err := counterClient.Add().Send(context.Background(), &helloworld.AddRequest{Delta: 1}, restate.WithDelay(10*time.Second))
+		if err != nil {
+			slog.Error("failed to send request", "err", err.Error())
+			os.Exit(1)
+		}
+		out, err := res.Attach(context.Background())
+		if err != nil {
+			slog.Error("failed to attach response", "err", err.Error())
+			os.Exit(1)
+		}
+		slog.Info("client attached response", "out.value", out.Value)
+
+		out, err = counterClient.Get().Request(context.Background(), &helloworld.GetRequest{})
+		if err != nil {
+			slog.Error("failed to get response", "err", err.Error())
+			os.Exit(1)
+		}
+		slog.Info("client get response", "out.value", out.Value)
+	}()
 
 	if err := server.Start(context.Background(), ":9080"); err != nil {
 		slog.Error("application exited unexpectedly", "err", err.Error())

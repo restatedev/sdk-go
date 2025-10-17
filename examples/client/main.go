@@ -106,19 +106,19 @@ func serviceSendExample() {
 	var input MyInput
 	input.Name = "World"
 
-	invocation := restateingress.ServiceSend[*MyInput](
+	invocation, err := restateingress.ServiceSend[*MyInput](
 		client, "ServiceName", "handlerName").
 		Send(context.Background(), &input,
 			restate.WithIdempotencyKey("idem-key-1"),
 			restate.WithDelay(time.Minute),
 			restate.WithHeaders(map[string]string{"header-name": "header-value"}))
 
-	if invocation.Error != nil {
-		fmt.Println("Error:", invocation.Error)
+	if err != nil {
+		fmt.Println("Error:", err)
 		return
 	}
 
-	fmt.Println("ServiceSend invocation ID:", invocation.Id)
+	fmt.Println("ServiceSend invocation ID:", invocation.Id())
 }
 
 func objectExample() {
@@ -155,19 +155,19 @@ func objectSendExample() {
 	var input MyInput
 	input.Name = "World"
 
-	invocation := restateingress.ObjectSend[*MyInput](
+	invocation, err := restateingress.ObjectSend[*MyInput](
 		client, "ServiceName", "objectKey", "handlerName").
 		Send(context.Background(), &input,
 			restate.WithIdempotencyKey("idem-key-1"),
 			restate.WithDelay(time.Minute),
 			restate.WithHeaders(map[string]string{"header-name": "header-value"}))
 
-	if invocation.Error != nil {
-		fmt.Println("Error:", invocation.Error)
+	if err != nil {
+		fmt.Println("Error:", err)
 		return
 	}
 
-	fmt.Println("ObjectSend invocation ID:", invocation.Id)
+	fmt.Println("ObjectSend invocation ID:", invocation.Id())
 }
 
 func workflowExample() {
@@ -204,19 +204,19 @@ func workflowSendExample() {
 	var input MyInput
 	input.Name = "World"
 
-	invocation := restateingress.WorkflowSend[*MyInput](
+	invocation, err := restateingress.WorkflowSend[*MyInput](
 		client, "ServiceName", "workflowId", "handlerName").
 		Send(context.Background(), &input,
 			restate.WithIdempotencyKey("idem-key-1"),
 			restate.WithDelay(time.Minute),
 			restate.WithHeaders(map[string]string{"header-name": "header-value"}))
 
-	if invocation.Error != nil {
-		fmt.Println("Error:", invocation.Error)
+	if err != nil {
+		fmt.Println("Error:", err)
 		return
 	}
 
-	fmt.Println("WorkflowSend invocation ID:", invocation.Id)
+	fmt.Println("WorkflowSend invocation ID:", invocation.Id())
 }
 
 // ==========================================
@@ -233,7 +233,7 @@ func attachInvocationExample() {
 
 	invocationId := "some-invocation-id"
 
-	output, err := restateingress.AttachInvocation[*MyOutput](
+	output, err := restateingress.InvocationById[*MyOutput](
 		client, invocationId).
 		Attach(context.Background())
 
@@ -245,7 +245,7 @@ func attachInvocationExample() {
 	fmt.Printf("AttachInvocation output: %v\n", output)
 
 	// Non-blocking, returns error if invocation is not complete
-	outputNonBlocking, errNonBlocking := restateingress.AttachInvocation[*MyOutput](
+	outputNonBlocking, errNonBlocking := restateingress.InvocationById[*MyOutput](
 		client, invocationId).
 		Output(context.Background())
 
@@ -281,7 +281,7 @@ func attachServiceExample() {
 	fmt.Printf("AttachService output: %v\n", output)
 
 	// Non-blocking, returns error if service invocation is not complete
-	outputNonBlocking, errNonBlocking := restateingress.AttachService[*MyOutput](
+	outputNonBlocking, errNonBlocking := restateingress.ServiceInvocationByIdempotencyKey[*MyOutput](
 		client, serviceName, handlerName, idempotencyKey).
 		Output(context.Background())
 
@@ -306,7 +306,7 @@ func attachObjectExample() {
 	handlerName := "handlerName"
 	idempotencyKey := "idem-key-1"
 
-	output, err := restateingress.AttachObject[*MyOutput](
+	output, err := restateingress.ObjectInvocationByIdempotencyKey[*MyOutput](
 		client, serviceName, objectKey, handlerName, idempotencyKey).
 		Attach(context.Background())
 
@@ -318,7 +318,7 @@ func attachObjectExample() {
 	fmt.Printf("AttachObject output: %v\n", output)
 
 	// Non-blocking, returns error if object invocation is not complete
-	outputNonBlocking, errNonBlocking := restateingress.AttachObject[*MyOutput](
+	outputNonBlocking, errNonBlocking := restateingress.ObjectInvocationByIdempotencyKey[*MyOutput](
 		client, serviceName, objectKey, handlerName, idempotencyKey).
 		Output(context.Background())
 
@@ -341,7 +341,7 @@ func attachWorkflowExample() {
 	serviceName := "ServiceName"
 	workflowId := "workflowId"
 
-	output, err := restateingress.AttachWorkflow[*MyOutput](
+	output, err := restateingress.WorkflowHandle[*MyOutput](
 		client, serviceName, workflowId).
 		Attach(context.Background())
 
@@ -353,7 +353,7 @@ func attachWorkflowExample() {
 	fmt.Printf("AttachWorkflow output: %v\n", output)
 
 	// Non-blocking, returns error if workflow is not complete
-	outputNonBlocking, errNonBlocking := restateingress.AttachWorkflow[*MyOutput](
+	outputNonBlocking, errNonBlocking := restateingress.WorkflowHandle[*MyOutput](
 		client, serviceName, workflowId).
 		Output(context.Background())
 

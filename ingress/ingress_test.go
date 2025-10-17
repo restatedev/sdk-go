@@ -4,10 +4,11 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"github.com/restatedev/sdk-go/encoding"
 	"net/http"
 	"testing"
 	"time"
+
+	"github.com/restatedev/sdk-go/encoding"
 
 	"github.com/stretchr/testify/require"
 
@@ -92,15 +93,15 @@ func TestServiceSend(t *testing.T) {
 	require.NoError(t, json.Unmarshal(payload, &input))
 
 	c := newIngressClient(m.URL)
-	inv := ingress.ServiceSend[map[string]any](c, myService, myHandler).
+	inv, err := ingress.ServiceSend[map[string]any](c, myService, myHandler).
 		Send(context.Background(), input,
 			restate.WithIdempotencyKey(idempotencyKey),
 			restate.WithHeaders(headers),
 			restate.WithDelay(time.Millisecond),
 		)
-	require.NoError(t, inv.Error)
-	require.Equal(t, invocationId, inv.Id)
-	require.Equal(t, invocationStatus, inv.Status)
+	require.NoError(t, err)
+	require.Equal(t, invocationId, inv.Id())
+	require.Equal(t, invocationStatus, inv.Status())
 	m.AssertMethod(t, http.MethodPost)
 	m.AssertPath(t, fmt.Sprintf("/%s/%s/send", myService, myHandler))
 	m.AssertBody(t, payload)
@@ -141,15 +142,15 @@ func TestObjectSend(t *testing.T) {
 	require.NoError(t, json.Unmarshal(payload, &input))
 
 	c := newIngressClient(m.URL)
-	inv := ingress.ObjectSend[map[string]any](c, myService, myObjectKey, myHandler).
+	inv, err := ingress.ObjectSend[map[string]any](c, myService, myObjectKey, myHandler).
 		Send(context.Background(), input,
 			restate.WithIdempotencyKey(idempotencyKey),
 			restate.WithHeaders(headers),
 			restate.WithDelay(time.Millisecond),
 		)
-	require.NoError(t, inv.Error)
-	require.Equal(t, invocationId, inv.Id)
-	require.Equal(t, invocationStatus, inv.Status)
+	require.NoError(t, err)
+	require.Equal(t, invocationId, inv.Id())
+	require.Equal(t, invocationStatus, inv.Status())
 	m.AssertMethod(t, http.MethodPost)
 	m.AssertPath(t, fmt.Sprintf("/%s/%s/%s/send", myService, myObjectKey, myHandler))
 	m.AssertBody(t, payload)
@@ -190,15 +191,15 @@ func TestWorkflowSend(t *testing.T) {
 	require.NoError(t, json.Unmarshal(payload, &input))
 
 	c := newIngressClient(m.URL)
-	inv := ingress.WorkflowSend[map[string]any](c, myService, myWorkflowId, myHandler).
+	inv, err := ingress.WorkflowSend[map[string]any](c, myService, myWorkflowId, myHandler).
 		Send(context.Background(), input,
 			restate.WithIdempotencyKey(idempotencyKey),
 			restate.WithHeaders(headers),
 			restate.WithDelay(time.Millisecond),
 		)
-	require.NoError(t, inv.Error)
-	require.Equal(t, invocationId, inv.Id)
-	require.Equal(t, invocationStatus, inv.Status)
+	require.NoError(t, err)
+	require.Equal(t, invocationId, inv.Id())
+	require.Equal(t, invocationStatus, inv.Status())
 	m.AssertMethod(t, http.MethodPost)
 	m.AssertPath(t, fmt.Sprintf("/%s/%s/%s/send", myService, myWorkflowId, myHandler))
 	m.AssertBody(t, payload)
@@ -212,7 +213,7 @@ func TestInvocationAttachByInvocationID(t *testing.T) {
 	defer m.Close()
 
 	c := newIngressClient(m.URL)
-	_, err := ingress.AttachInvocation[any](c, invocationId).
+	_, err := ingress.InvocationById[any](c, invocationId).
 		Attach(context.Background())
 	require.NoError(t, err)
 	m.AssertMethod(t, http.MethodGet)
@@ -226,7 +227,7 @@ func TestInvocationOutputByInvocationID(t *testing.T) {
 	defer m.Close()
 
 	c := newIngressClient(m.URL)
-	_, err := ingress.AttachInvocation[any](c, invocationId).
+	_, err := ingress.InvocationById[any](c, invocationId).
 		Output(context.Background())
 	require.NoError(t, err)
 	m.AssertMethod(t, http.MethodGet)
@@ -240,7 +241,7 @@ func TestServiceAttachByIdempotencyKey(t *testing.T) {
 	defer m.Close()
 
 	c := newIngressClient(m.URL)
-	_, err := ingress.AttachService[any](c, myService, myHandler, idempotencyKey).
+	_, err := ingress.ServiceInvocationByIdempotencyKey[any](c, myService, myHandler, idempotencyKey).
 		Attach(context.Background())
 	require.NoError(t, err)
 	m.AssertMethod(t, http.MethodGet)
@@ -254,7 +255,7 @@ func TestServiceOutputByIdempotencyKey(t *testing.T) {
 	defer m.Close()
 
 	c := newIngressClient(m.URL)
-	_, err := ingress.AttachService[any](c, myService, myHandler, idempotencyKey).
+	_, err := ingress.ServiceInvocationByIdempotencyKey[any](c, myService, myHandler, idempotencyKey).
 		Output(context.Background())
 	require.NoError(t, err)
 	m.AssertMethod(t, http.MethodGet)
@@ -268,7 +269,7 @@ func TestObjectAttachByIdempotencyKey(t *testing.T) {
 	defer m.Close()
 
 	c := newIngressClient(m.URL)
-	_, err := ingress.AttachObject[any](c, myService, myObjectKey, myHandler, idempotencyKey).
+	_, err := ingress.ObjectInvocationByIdempotencyKey[any](c, myService, myObjectKey, myHandler, idempotencyKey).
 		Attach(context.Background())
 	require.NoError(t, err)
 	m.AssertMethod(t, http.MethodGet)
@@ -282,7 +283,7 @@ func TestObjectOutputByIdempotencyKey(t *testing.T) {
 	defer m.Close()
 
 	c := newIngressClient(m.URL)
-	_, err := ingress.AttachObject[any](c, myService, myObjectKey, myHandler, idempotencyKey).
+	_, err := ingress.ObjectInvocationByIdempotencyKey[any](c, myService, myObjectKey, myHandler, idempotencyKey).
 		Output(context.Background())
 	require.NoError(t, err)
 	m.AssertMethod(t, http.MethodGet)
@@ -296,7 +297,7 @@ func TestWorkflowAttach(t *testing.T) {
 	defer m.Close()
 
 	c := newIngressClient(m.URL)
-	_, err := ingress.AttachWorkflow[any](c, myService, myWorkflowId).
+	_, err := ingress.WorkflowHandle[any](c, myService, myWorkflowId).
 		Attach(context.Background())
 	require.NoError(t, err)
 	m.AssertMethod(t, http.MethodGet)
@@ -310,7 +311,7 @@ func TestWorkflowOutput(t *testing.T) {
 	defer m.Close()
 
 	c := newIngressClient(m.URL)
-	_, err := ingress.AttachWorkflow[any](c, myService, myWorkflowId).
+	_, err := ingress.WorkflowHandle[any](c, myService, myWorkflowId).
 		Output(context.Background())
 	require.NoError(t, err)
 	m.AssertMethod(t, http.MethodGet)

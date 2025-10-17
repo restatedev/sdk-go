@@ -109,10 +109,6 @@ type CounterClient interface {
 	Add(opts ...sdk_go.ClientOption) sdk_go.Client[*AddRequest, *GetResponse]
 	// Get the current value
 	Get(opts ...sdk_go.ClientOption) sdk_go.Client[*GetRequest, *GetResponse]
-	// Internal method to store an awakeable ID for the Watch method
-	AddWatcher(opts ...sdk_go.ClientOption) sdk_go.Client[*AddWatcherRequest, *AddWatcherResponse]
-	// Wait for the counter to change and then return the new value
-	Watch(opts ...sdk_go.ClientOption) sdk_go.Client[*WatchRequest, *GetResponse]
 }
 
 type counterClient struct {
@@ -145,22 +141,6 @@ func (c *counterClient) Get(opts ...sdk_go.ClientOption) sdk_go.Client[*GetReque
 	return sdk_go.WithRequestType[*GetRequest](sdk_go.Object[*GetResponse](c.ctx, "helloworld.Counter", c.key, "Get", cOpts...))
 }
 
-func (c *counterClient) AddWatcher(opts ...sdk_go.ClientOption) sdk_go.Client[*AddWatcherRequest, *AddWatcherResponse] {
-	cOpts := c.options
-	if len(opts) > 0 {
-		cOpts = append(append([]sdk_go.ClientOption{}, cOpts...), opts...)
-	}
-	return sdk_go.WithRequestType[*AddWatcherRequest](sdk_go.Object[*AddWatcherResponse](c.ctx, "helloworld.Counter", c.key, "AddWatcher", cOpts...))
-}
-
-func (c *counterClient) Watch(opts ...sdk_go.ClientOption) sdk_go.Client[*WatchRequest, *GetResponse] {
-	cOpts := c.options
-	if len(opts) > 0 {
-		cOpts = append(append([]sdk_go.ClientOption{}, cOpts...), opts...)
-	}
-	return sdk_go.WithRequestType[*WatchRequest](sdk_go.Object[*GetResponse](c.ctx, "helloworld.Counter", c.key, "Watch", cOpts...))
-}
-
 // CounterIngressClient is the ingress client API for helloworld.Counter service.
 //
 // This client is used to call the service from outside of a Restate context.
@@ -169,10 +149,6 @@ type CounterIngressClient interface {
 	Add() ingress.Requester[*AddRequest, *GetResponse]
 	// Get the current value
 	Get() ingress.Requester[*GetRequest, *GetResponse]
-	// Internal method to store an awakeable ID for the Watch method
-	AddWatcher() ingress.Requester[*AddWatcherRequest, *AddWatcherResponse]
-	// Wait for the counter to change and then return the new value
-	Watch() ingress.Requester[*WatchRequest, *GetResponse]
 }
 
 type counterIngressClient struct {
@@ -199,16 +175,6 @@ func (c *counterIngressClient) Get() ingress.Requester[*GetRequest, *GetResponse
 	return ingress.NewRequester[*GetRequest, *GetResponse](c.client, c.serviceName, "Get", &c.key, &codec)
 }
 
-func (c *counterIngressClient) AddWatcher() ingress.Requester[*AddWatcherRequest, *AddWatcherResponse] {
-	codec := encoding.ProtoJSONCodec
-	return ingress.NewRequester[*AddWatcherRequest, *AddWatcherResponse](c.client, c.serviceName, "AddWatcher", &c.key, &codec)
-}
-
-func (c *counterIngressClient) Watch() ingress.Requester[*WatchRequest, *GetResponse] {
-	codec := encoding.ProtoJSONCodec
-	return ingress.NewRequester[*WatchRequest, *GetResponse](c.client, c.serviceName, "Watch", &c.key, &codec)
-}
-
 // CounterServer is the server API for helloworld.Counter service.
 // All implementations should embed UnimplementedCounterServer
 // for forward compatibility.
@@ -217,10 +183,6 @@ type CounterServer interface {
 	Add(ctx sdk_go.ObjectContext, req *AddRequest) (*GetResponse, error)
 	// Get the current value
 	Get(ctx sdk_go.ObjectSharedContext, req *GetRequest) (*GetResponse, error)
-	// Internal method to store an awakeable ID for the Watch method
-	AddWatcher(ctx sdk_go.ObjectContext, req *AddWatcherRequest) (*AddWatcherResponse, error)
-	// Wait for the counter to change and then return the new value
-	Watch(ctx sdk_go.ObjectSharedContext, req *WatchRequest) (*GetResponse, error)
 }
 
 // UnimplementedCounterServer should be embedded to have
@@ -235,12 +197,6 @@ func (UnimplementedCounterServer) Add(ctx sdk_go.ObjectContext, req *AddRequest)
 }
 func (UnimplementedCounterServer) Get(ctx sdk_go.ObjectSharedContext, req *GetRequest) (*GetResponse, error) {
 	return nil, sdk_go.TerminalError(fmt.Errorf("method Get not implemented"), 501)
-}
-func (UnimplementedCounterServer) AddWatcher(ctx sdk_go.ObjectContext, req *AddWatcherRequest) (*AddWatcherResponse, error) {
-	return nil, sdk_go.TerminalError(fmt.Errorf("method AddWatcher not implemented"), 501)
-}
-func (UnimplementedCounterServer) Watch(ctx sdk_go.ObjectSharedContext, req *WatchRequest) (*GetResponse, error) {
-	return nil, sdk_go.TerminalError(fmt.Errorf("method Watch not implemented"), 501)
 }
 func (UnimplementedCounterServer) testEmbeddedByValue() {}
 
@@ -263,8 +219,6 @@ func NewCounterServer(srv CounterServer, opts ...sdk_go.ServiceDefinitionOption)
 	router := sdk_go.NewObject("helloworld.Counter", sOpts...)
 	router = router.Handler("Add", sdk_go.NewObjectHandler(srv.Add))
 	router = router.Handler("Get", sdk_go.NewObjectSharedHandler(srv.Get))
-	router = router.Handler("AddWatcher", sdk_go.NewObjectHandler(srv.AddWatcher))
-	router = router.Handler("Watch", sdk_go.NewObjectSharedHandler(srv.Watch))
 	return router
 }
 
@@ -321,7 +275,7 @@ func (c *workflowClient) Status(opts ...sdk_go.ClientOption) sdk_go.Client[*Stat
 // This client is used to call the service from outside of a Restate context.
 type WorkflowIngressClient interface {
 	// Execute the workflow
-	Submit(input *RunRequest, opts ...sdk_go.IngressSendOption) ingress.Invocation
+	Submit(input *RunRequest, opts ...sdk_go.IngressSendOption) (ingress.SendResponse[*RunResponse], error)
 	// Attach attaches to the submitted workflow and returns a handle to retrieve its output
 	Attach() ingress.InvocationHandle[*RunResponse]
 	// Unblock the workflow
@@ -344,7 +298,7 @@ func NewWorkflowIngressClient(client *ingress.Client, workflowID string) Workflo
 	}
 }
 
-func (c *workflowIngressClient) Submit(input *RunRequest, opts ...sdk_go.IngressSendOption) ingress.Invocation {
+func (c *workflowIngressClient) Submit(input *RunRequest, opts ...sdk_go.IngressSendOption) (ingress.SendResponse[*RunResponse], error) {
 	codec := encoding.ProtoJSONCodec
 	return ingress.NewRequester[*RunRequest, *RunResponse](c.client, c.serviceName, "Run", &c.workflowID, &codec).Send(context.Background(), input, opts...)
 }
@@ -360,8 +314,7 @@ func (c *workflowIngressClient) Status() ingress.Requester[*StatusRequest, *Stat
 }
 
 func (c *workflowIngressClient) Attach() ingress.InvocationHandle[*RunResponse] {
-	codec := encoding.ProtoJSONCodec
-	return ingress.AttachWorkflowWithCodec[*RunResponse](c.client, c.serviceName, c.workflowID, codec)
+	return ingress.WorkflowHandle[*RunResponse](c.client, c.serviceName, c.workflowID, sdk_go.WithProtoJSON)
 }
 
 // WorkflowServer is the server API for helloworld.Workflow service.

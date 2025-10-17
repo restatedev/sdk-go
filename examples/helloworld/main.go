@@ -3,10 +3,11 @@ package main
 import (
 	"context"
 	"fmt"
-	restate "github.com/restatedev/sdk-go"
-	"github.com/restatedev/sdk-go/server"
 	"log/slog"
 	"os"
+
+	restate "github.com/restatedev/sdk-go"
+	"github.com/restatedev/sdk-go/server"
 )
 
 type Greeter struct{}

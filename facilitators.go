@@ -1,8 +1,8 @@
 package restate
 
 import (
-	rand2 "math/rand/v2"
 	"iter"
+	rand2 "math/rand/v2"
 	"time"
 
 	"github.com/google/uuid"
