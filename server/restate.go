@@ -696,7 +696,7 @@ func (r *Restate) Start(ctx context.Context, address string) error {
 		return fmt.Errorf("failed to listen on address %s: %w", address, err)
 	}
 
-	slog.Info(fmt.Sprintf("Restate SDK started listening on %s", listener.Addr()))
+	r.systemLog.Info(fmt.Sprintf("Restate SDK started listening on %s", listener.Addr()))
 
 	if err := server.Serve(listener); err != nil && !errors.Is(err, http.ErrServerClosed) {
 		return fmt.Errorf("server error: %w", err)
