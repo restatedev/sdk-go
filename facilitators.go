@@ -344,6 +344,22 @@ func RunAsync[T any](ctx Context, fn func(ctx RunContext) (T, error), options ..
 	}, options...)}
 }
 
+// RunVoid runs the function (fn), storing final results (including terminal errors)
+// durably in the journal, or otherwise for transient errors stopping execution
+// so Restate can retry the invocation. Replays will produce the same value, so
+// all non-deterministic operations (eg, generating a unique ID) *must* happen
+// inside RunVoid blocks.
+//
+// This is similar to Run, but for functions that don't return a value.
+func RunVoid(ctx Context, fn func(ctx RunContext) error, options ...options.RunOption) error {
+	var output Void
+	err := ctx.inner().Run(func(ctx RunContext) (any, error) {
+		return nil, fn(ctx)
+	}, &output, options...)
+
+	return err
+}
+
 // RunAsyncFuture is a 'promise' for a RunAsync operation.
 type RunAsyncFuture[T any] interface {
 	// Result blocks on receiving the RunAsync result, returning the value it was
