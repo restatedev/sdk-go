@@ -1393,6 +1393,67 @@ func (_c *MockContext_Value_Call) RunAndReturn(run func(any) any) *MockContext_V
 	return _c
 }
 
+// WaitIter provides a mock function with given fields: futs
+func (_m *MockContext) WaitIter(futs ...restatecontext.Selectable) restatecontext.WaitIterator {
+	_va := make([]interface{}, len(futs))
+	for _i := range futs {
+		_va[_i] = futs[_i]
+	}
+	var _ca []interface{}
+	_ca = append(_ca, _va...)
+	ret := _m.Called(_ca...)
+
+	if len(ret) == 0 {
+		panic("no return value specified for WaitIter")
+	}
+
+	var r0 restatecontext.WaitIterator
+	if rf, ok := ret.Get(0).(func(...restatecontext.Selectable) restatecontext.WaitIterator); ok {
+		r0 = rf(futs...)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(restatecontext.WaitIterator)
+		}
+	}
+
+	return r0
+}
+
+// MockContext_WaitIter_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'WaitIter'
+type MockContext_WaitIter_Call struct {
+	*mock.Call
+}
+
+// WaitIter is a helper method to define mock.On call
+//   - futs ...restatecontext.Selectable
+func (_e *MockContext_Expecter) WaitIter(futs ...interface{}) *MockContext_WaitIter_Call {
+	return &MockContext_WaitIter_Call{Call: _e.mock.On("WaitIter",
+		append([]interface{}{}, futs...)...)}
+}
+
+func (_c *MockContext_WaitIter_Call) Run(run func(futs ...restatecontext.Selectable)) *MockContext_WaitIter_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		variadicArgs := make([]restatecontext.Selectable, len(args)-0)
+		for i, a := range args[0:] {
+			if a != nil {
+				variadicArgs[i] = a.(restatecontext.Selectable)
+			}
+		}
+		run(variadicArgs...)
+	})
+	return _c
+}
+
+func (_c *MockContext_WaitIter_Call) Return(_a0 restatecontext.WaitIterator) *MockContext_WaitIter_Call {
+	_c.Call.Return(_a0)
+	return _c
+}
+
+func (_c *MockContext_WaitIter_Call) RunAndReturn(run func(...restatecontext.Selectable) restatecontext.WaitIterator) *MockContext_WaitIter_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // Workflow provides a mock function with given fields: seservice, workflowID, method, _a3
 func (_m *MockContext) Workflow(seservice string, workflowID string, method string, _a3 ...options.ClientOption) restatecontext.Client {
 	_va := make([]interface{}, len(_a3))

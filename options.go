@@ -75,6 +75,7 @@ var _ options.ServiceDefinitionOption = withPayloadCodec{}
 var _ options.IngressClientOption = withPayloadCodec{}
 var _ options.IngressRequestOption = withPayloadCodec{}
 var _ options.IngressSendOption = withPayloadCodec{}
+var _ options.IngressInvocationHandleOption = withPayloadCodec{}
 
 func (w withPayloadCodec) BeforeHandler(opts *options.HandlerOptions) {
 	opts.Codec = w.codec
@@ -89,6 +90,9 @@ func (w withPayloadCodec) BeforeIngressRequest(opts *options.IngressRequestOptio
 	opts.Codec = w.codec
 }
 func (w withPayloadCodec) BeforeIngressSend(opts *options.IngressSendOptions) {
+	opts.Codec = w.codec
+}
+func (w withPayloadCodec) BeforeIngressInvocationHandle(opts *options.IngressInvocationHandleOptions) {
 	opts.Codec = w.codec
 }
 

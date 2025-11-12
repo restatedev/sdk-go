@@ -309,3 +309,34 @@ func (_e *MockContext_Expecter) MockSelector(futs ...interface{}) *MockSelector_
 	_e.Select(outFuts...).Once().Return(mockSelector)
 	return mockSelector.EXPECT()
 }
+
+// MockWaitIter is a helper method to mock a typical WaitIter call on a ctx; return a mocked WaitIterator object
+func (_e *MockContext_Expecter) MockWaitIter(futs ...interface{}) *MockWaitIterator_Expecter {
+	outFuts := make([]interface{}, 0, len(futs))
+
+	for _, expected := range futs {
+		expected := expected
+
+		if assert.ObjectsAreEqual(expected, mock.Anything) {
+			outFuts = append(outFuts, expected)
+			continue
+		}
+
+		outFuts = append(outFuts, mock.MatchedBy(func(actual interface{}) bool {
+			if assert.ObjectsAreEqual(actual, mock.Anything) {
+				return true
+			}
+
+			// support the case where the future is wrapped in some converter
+			if toInner, ok := actual.(converters.ToInnerFuture); ok {
+				actual = toInner.InnerFuture()
+			}
+
+			return assert.ObjectsAreEqual(actual, expected)
+		}))
+	}
+
+	mockWaitIter := NewMockWaitIterator(getT(_e.mock))
+	_e.WaitIter(outFuts...).Once().Return(mockWaitIter)
+	return mockWaitIter.EXPECT()
+}

@@ -12,8 +12,11 @@ import (
 )
 
 const (
-	fmtPackage = protogen.GoImportPath("fmt")
-	sdkPackage = protogen.GoImportPath("github.com/restatedev/sdk-go")
+	fmtPackage      = protogen.GoImportPath("fmt")
+	sdkPackage      = protogen.GoImportPath("github.com/restatedev/sdk-go")
+	ingressPackage  = protogen.GoImportPath("github.com/restatedev/sdk-go/ingress")
+	encodingPackage = protogen.GoImportPath("github.com/restatedev/sdk-go/encoding")
+	contextPackage  = protogen.GoImportPath("context")
 )
 
 type serviceGenerateHelper struct{}
@@ -196,6 +199,89 @@ func genService(gen *protogen.Plugin, g *protogen.GeneratedFile, service *protog
 			methodIndex++
 		} else {
 			gen.Error(fmt.Errorf("streaming methods are not currently supported in Restate."))
+		}
+	}
+
+	// Generate ingress client for all service types
+	{
+		// Ingress Client interface.
+		ingressClientName := service.GoName + "IngressClient"
+
+		g.P("// ", ingressClientName, " is the ingress client API for ", serviceName(service), " service.")
+		g.P("//")
+		g.P("// This client is used to call the service from outside of a Restate context.")
+
+		if service.Desc.Options().(*descriptorpb.ServiceOptions).GetDeprecated() {
+			g.P("//")
+			g.P(deprecationComment)
+		}
+		g.AnnotateSymbol(ingressClientName, protogen.Annotation{Location: service.Location})
+		g.P("type ", ingressClientName, " interface {")
+
+		// Generate methods, with Handle right after Submit for workflows
+		var hasGeneratedHandle bool
+		for _, method := range service.Methods {
+			g.AnnotateSymbol(ingressClientName+"."+method.GoName, protogen.Annotation{Location: method.Location})
+			if method.Desc.Options().(*descriptorpb.MethodOptions).GetDeprecated() {
+				g.P(deprecationComment)
+			}
+			g.P(method.Comments.Leading,
+				ingressClientSignatureForMethod(g, method))
+
+			// Add Attach method right after Submit for workflow clients
+			if serviceType == sdk.ServiceType_WORKFLOW && !hasGeneratedHandle {
+				handlerType := proto.GetExtension(method.Desc.Options().(*descriptorpb.MethodOptions), sdk.E_HandlerType).(sdk.HandlerType)
+				isWorkflowRun := handlerType == sdk.HandlerType_WORKFLOW_RUN || (handlerType == sdk.HandlerType_UNSET && method.GoName == "Run")
+				if isWorkflowRun {
+					workflowRunHandler := findWorkflowRunHandler(service)
+					if workflowRunHandler != nil {
+						g.P("// Handle creates an handle to the submitted workflow, useful to retrieve its output or attach to it")
+						g.P("Handle() ", g.QualifiedGoIdent(ingressPackage.Ident("InvocationHandle")), "[*", g.QualifiedGoIdent(workflowRunHandler.Output.GoIdent), "]")
+						hasGeneratedHandle = true
+					}
+				}
+			}
+		}
+		g.P("}")
+		g.P()
+
+		// Ingress Client structure.
+		generateIngressClientStruct(g, service, ingressClientName)
+
+		// NewIngressClient factory.
+		if service.Desc.Options().(*descriptorpb.ServiceOptions).GetDeprecated() {
+			g.P(deprecationComment)
+		}
+		newIngressClientSignature := "New" + ingressClientName + " (client *" + g.QualifiedGoIdent(ingressPackage.Ident("Client"))
+		switch serviceType {
+		case sdk.ServiceType_VIRTUAL_OBJECT:
+			newIngressClientSignature += ", key string"
+		case sdk.ServiceType_WORKFLOW:
+			newIngressClientSignature += ", workflowID string"
+		}
+		newIngressClientSignature += ") " + ingressClientName
+
+		g.P("func ", newIngressClientSignature, " {")
+		generateNewIngressClientDefinitions(g, service, ingressClientName)
+		g.P("}")
+		g.P()
+
+		// Ingress Client method implementations.
+		for _, method := range service.Methods {
+			if !method.Desc.IsStreamingServer() && !method.Desc.IsStreamingClient() {
+				genIngressClientMethod(gen, g, method, ingressClientName)
+			}
+		}
+
+		// Add Attach method implementation for workflow clients
+		if serviceType == sdk.ServiceType_WORKFLOW {
+			workflowRunHandler := findWorkflowRunHandler(service)
+			if workflowRunHandler != nil {
+				g.P("func (c *", unexport(ingressClientName), ") Handle() ", g.QualifiedGoIdent(ingressPackage.Ident("InvocationHandle")), "[*", g.QualifiedGoIdent(workflowRunHandler.Output.GoIdent), "] {")
+				g.P("return ", g.QualifiedGoIdent(ingressPackage.Ident("WorkflowHandle")), "[*", g.QualifiedGoIdent(workflowRunHandler.Output.GoIdent), "](c.client, c.serviceName, c.workflowID, ", g.QualifiedGoIdent(sdkPackage.Ident("WithProtoJSON")), ")")
+				g.P("}")
+				g.P()
+			}
 		}
 	}
 
@@ -448,3 +534,123 @@ func genLeadingComments(g *protogen.GeneratedFile, loc protoreflect.SourceLocati
 const deprecationComment = "// Deprecated: Do not use."
 
 func unexport(s string) string { return strings.ToLower(s[:1]) + s[1:] }
+
+// Ingress client generation helpers
+
+func generateIngressClientStruct(g *protogen.GeneratedFile, service *protogen.Service, clientName string) {
+	g.P("type ", unexport(clientName), " struct {")
+	g.P("client *", ingressPackage.Ident("Client"))
+	g.P("serviceName string")
+	serviceType := proto.GetExtension(service.Desc.Options().(*descriptorpb.ServiceOptions), sdk.E_ServiceType).(sdk.ServiceType)
+	switch serviceType {
+	case sdk.ServiceType_VIRTUAL_OBJECT:
+		g.P("key string")
+	case sdk.ServiceType_WORKFLOW:
+		g.P("workflowID string")
+	}
+	g.P("}")
+}
+
+func generateNewIngressClientDefinitions(g *protogen.GeneratedFile, service *protogen.Service, clientName string) {
+	g.P("return &", unexport(clientName), "{")
+	g.P("client,")
+	g.P(`"`, serviceName(service), `",`)
+	serviceType := proto.GetExtension(service.Desc.Options().(*descriptorpb.ServiceOptions), sdk.E_ServiceType).(sdk.ServiceType)
+	switch serviceType {
+	case sdk.ServiceType_VIRTUAL_OBJECT:
+		g.P("key,")
+	case sdk.ServiceType_WORKFLOW:
+		g.P("workflowID,")
+	}
+	g.P("}")
+}
+
+func ingressClientSignature(g *protogen.GeneratedFile, method *protogen.Method) string {
+	s := method.GoName + "() "
+	s += g.QualifiedGoIdent(ingressPackage.Ident("Requester")) + "[*" + g.QualifiedGoIdent(method.Input.GoIdent) + ", *" + g.QualifiedGoIdent(method.Output.GoIdent) + "]"
+	return s
+}
+
+func findWorkflowRunHandler(service *protogen.Service) *protogen.Method {
+	serviceType := proto.GetExtension(service.Desc.Options().(*descriptorpb.ServiceOptions), sdk.E_ServiceType).(sdk.ServiceType)
+	if serviceType != sdk.ServiceType_WORKFLOW {
+		return nil
+	}
+
+	for _, method := range service.Methods {
+		handlerType := proto.GetExtension(method.Desc.Options().(*descriptorpb.MethodOptions), sdk.E_HandlerType).(sdk.HandlerType)
+		if handlerType == sdk.HandlerType_WORKFLOW_RUN || (handlerType == sdk.HandlerType_UNSET && method.GoName == "Run") {
+			return method
+		}
+	}
+	return nil
+}
+
+func ingressClientSignatureForMethod(g *protogen.GeneratedFile, method *protogen.Method) string {
+	serviceType := proto.GetExtension(method.Parent.Desc.Options().(*descriptorpb.ServiceOptions), sdk.E_ServiceType).(sdk.ServiceType)
+	handlerType := proto.GetExtension(method.Desc.Options().(*descriptorpb.MethodOptions), sdk.E_HandlerType).(sdk.HandlerType)
+
+	// For workflow run handler, use Submit signature
+	if serviceType == sdk.ServiceType_WORKFLOW && (handlerType == sdk.HandlerType_WORKFLOW_RUN || (handlerType == sdk.HandlerType_UNSET && method.GoName == "Run")) {
+		s := "Submit(ctx " + g.QualifiedGoIdent(contextPackage.Ident("Context")) + ", input *" + g.QualifiedGoIdent(method.Input.GoIdent) + ", opts ..." + g.QualifiedGoIdent(sdkPackage.Ident("IngressSendOption")) + ") ("
+		s += g.QualifiedGoIdent(ingressPackage.Ident("SendResponse")) + "[*" + g.QualifiedGoIdent(method.Output.GoIdent) + "], error)"
+		return s
+	}
+
+	// For shared handlers and other methods, use Requester signature
+	return ingressClientSignature(g, method)
+}
+
+func genIngressClientMethod(gen *protogen.Plugin, g *protogen.GeneratedFile, method *protogen.Method, clientName string) {
+	service := method.Parent
+	serviceType := proto.GetExtension(service.Desc.Options().(*descriptorpb.ServiceOptions), sdk.E_ServiceType).(sdk.ServiceType)
+	handlerType := proto.GetExtension(method.Desc.Options().(*descriptorpb.MethodOptions), sdk.E_HandlerType).(sdk.HandlerType)
+
+	if method.Desc.Options().(*descriptorpb.MethodOptions).GetDeprecated() {
+		g.P(deprecationComment)
+	}
+
+	// Check if this is a workflow run handler (needs Submit method)
+	isWorkflowRun := serviceType == sdk.ServiceType_WORKFLOW && (handlerType == sdk.HandlerType_WORKFLOW_RUN || (handlerType == sdk.HandlerType_UNSET && method.GoName == "Run"))
+
+	if isWorkflowRun {
+		// Generate Submit method for workflow run handler
+		g.P("func (c *", unexport(clientName), ") Submit(ctx ", g.QualifiedGoIdent(contextPackage.Ident("Context")), ", input *", g.QualifiedGoIdent(method.Input.GoIdent), ", opts ...", g.QualifiedGoIdent(sdkPackage.Ident("IngressSendOption")), ") (", g.QualifiedGoIdent(ingressPackage.Ident("SendResponse")), "[*", g.QualifiedGoIdent(method.Output.GoIdent), "], error) {")
+		g.P("codec := ", g.QualifiedGoIdent(encodingPackage.Ident("ProtoJSONCodec")))
+		requester := g.QualifiedGoIdent(ingressPackage.Ident("NewRequester")) +
+			`[*` + g.QualifiedGoIdent(method.Input.GoIdent) + `, *` + g.QualifiedGoIdent(method.Output.GoIdent) + `]` +
+			`(c.client, c.serviceName, "` + methodName(method) + `", &c.workflowID, &codec)`
+		g.P("return ", requester, ".Send(ctx, input, opts...)")
+		g.P("}")
+		g.P()
+	} else {
+		// Generate regular Requester method
+		g.P("func (c *", unexport(clientName), ") ", ingressClientSignature(g, method), "{")
+
+		// Prepare codec parameter
+		g.P("codec := ", g.QualifiedGoIdent(encodingPackage.Ident("ProtoJSONCodec")))
+
+		// Prepare key parameter (nil for services, &c.key for objects/workflows)
+		var keyParam string
+		switch serviceType {
+		case sdk.ServiceType_SERVICE:
+			keyParam = "nil"
+		case sdk.ServiceType_VIRTUAL_OBJECT:
+			keyParam = "&c.key"
+		case sdk.ServiceType_WORKFLOW:
+			keyParam = "&c.workflowID"
+		default:
+			gen.Error(fmt.Errorf("Unexpected service type for ingress client: %s", serviceType.String()))
+			return
+		}
+
+		getClient := g.QualifiedGoIdent(ingressPackage.Ident("NewRequester")) +
+			`[*` + g.QualifiedGoIdent(method.Input.GoIdent) + `, *` + g.QualifiedGoIdent(method.Output.GoIdent) + `]` +
+			`(c.client, c.serviceName, "` + methodName(method) + `", ` + keyParam + `, &codec)`
+
+		g.P("return ", getClient)
+		g.P("}")
+		g.P()
+	}
+	return
+}

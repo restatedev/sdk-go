@@ -128,9 +128,9 @@ func interpret(ctx restate.ObjectContext, layer uint32, value Program) error {
 			}
 			break
 		case SlowSideEffect:
-			_, err := restate.Run[restate.Void](ctx, func(ctx restate.RunContext) (restate.Void, error) {
+			err := restate.RunVoid(ctx, func(ctx restate.RunContext) error {
 				time.Sleep(1 * time.Millisecond)
-				return restate.Void{}, nil
+				return nil
 			})
 			if err != nil {
 				return err
@@ -145,11 +145,11 @@ func interpret(ctx restate.ObjectContext, layer uint32, value Program) error {
 			}
 			break
 		case ThrowingSideEffect:
-			_, err := restate.Run[restate.Void](ctx, func(ctx restate.RunContext) (restate.Void, error) {
+			err := restate.RunVoid(ctx, func(ctx restate.RunContext) error {
 				if rand.IntN(2) == 1 {
-					return restate.Void{}, fmt.Errorf("Too many 'if err != nil', and no there's no feelings attached to it at all.")
+					return fmt.Errorf("Too many 'if err != nil', and no there's no feelings attached to it at all.")
 				}
-				return restate.Void{}, nil
+				return nil
 			})
 			if err != nil {
 				return err

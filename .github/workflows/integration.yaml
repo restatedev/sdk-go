@@ -52,8 +52,9 @@ jobs:
 
       # support importing oci-format restate.tar
       - name: Set up Docker containerd snapshotter
-        uses: crazy-max/ghaction-setup-docker@v3
+        uses: docker/setup-docker-action@v4
         with:
+          version: "v28.5.2"
           set-host: true
           daemon-config: |
             {
@@ -106,7 +107,7 @@ jobs:
         run: KO_DOCKER_REPO=restatedev ko build -B -L github.com/restatedev/sdk-go/test-services
 
       - name: Run test tool
-        uses: restatedev/sdk-test-suite@v3.0
+        uses: restatedev/sdk-test-suite@v3.2
         with:
           restateContainerImage: ${{ inputs.restateCommit != '' && 'localhost/restatedev/restate-commit-download:latest' || (inputs.restateImage != '' && inputs.restateImage || 'ghcr.io/restatedev/restate:main') }}
           serviceContainerImage: "restatedev/test-services"

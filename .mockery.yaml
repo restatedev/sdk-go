@@ -16,6 +16,7 @@ packages:
       ResponseFuture:
       RunAsyncFuture:
       Selector:
+      WaitIterator:
   github.com/restatedev/sdk-go/internal/rand:
     interfaces:
       Rand:

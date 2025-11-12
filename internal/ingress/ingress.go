@@ -6,11 +6,12 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	restate "github.com/restatedev/sdk-go"
-	"github.com/restatedev/sdk-go/encoding"
 	"io"
 	"net/http"
 	"time"
+
+	restate "github.com/restatedev/sdk-go"
+	"github.com/restatedev/sdk-go/encoding"
 
 	"github.com/restatedev/sdk-go/internal/options"
 )
@@ -27,10 +28,9 @@ type Client struct {
 }
 
 type IngressParams struct {
-	ServiceName string
-	HandlerName string
-	ObjectKey   string
-	WorkflowID  string
+	Service string
+	Handler string
+	Key     string
 }
 
 type IngressAttachParams struct {
@@ -57,47 +57,56 @@ func NewClient(baseUri string, opts options.IngressClientOptions) *Client {
 }
 
 func (c *Client) Request(ctx context.Context, params IngressParams, input, output any, reqOpts options.IngressRequestOptions) error {
-	return c.do(ctx, http.MethodPost, makeIngressUrl(params), input, output, requestOptionsToIngressOpts(reqOpts))
+	return c.do(ctx, http.MethodPost, makeIngressUrl(params), input, output,
+		reqOpts.IdempotencyKey,
+		reqOpts.Headers,
+		0,
+		reqOpts.Codec,
+		reqOpts.Codec)
 }
 
-func (c *Client) Send(ctx context.Context, params IngressParams, input any, sendOpts options.IngressSendOptions) Invocation {
+func (c *Client) Send(ctx context.Context, params IngressParams, input any, sendOpts options.IngressSendOptions) (Invocation, error) {
 	url := fmt.Sprintf("%s/%s", makeIngressUrl(params), "send")
 	var output Invocation
-	err := c.do(ctx, http.MethodPost, url, input, &output, sendOptionsToIngressOpts(sendOpts))
-	if err != nil {
-		output.Error = err
-	}
-	return output
+	err := c.do(ctx, http.MethodPost, url, input, &output, sendOpts.IdempotencyKey, sendOpts.Headers, sendOpts.Delay, sendOpts.Codec, encoding.JSONCodec)
+	return output, err
 }
 
-func (c *Client) Attach(ctx context.Context, params IngressAttachParams, output any) error {
+func (c *Client) Attach(ctx context.Context, params IngressAttachParams, output any, attachOpts options.IngressInvocationHandleOptions) error {
 	path, err := makeAttachUrl(params)
 	if err != nil {
 		return err
 	}
-	return c.do(ctx, http.MethodGet, fmt.Sprintf("%s/attach", path), restate.Void{}, output, ingressOpts{})
+	return c.do(ctx, http.MethodGet, fmt.Sprintf("%s/attach", path), restate.Void{}, output, "", nil, 0, nil, attachOpts.Codec)
 }
 
-func (c *Client) Output(ctx context.Context, params IngressAttachParams, output any) error {
+func (c *Client) Output(ctx context.Context, params IngressAttachParams, output any, outputOpts options.IngressInvocationHandleOptions) error {
 	path, err := makeAttachUrl(params)
 	if err != nil {
 		return err
 	}
-	return c.do(ctx, http.MethodGet, fmt.Sprintf("%s/output", path), restate.Void{}, output, ingressOpts{})
+	return c.do(ctx, http.MethodGet, fmt.Sprintf("%s/output", path), restate.Void{}, output, "", nil, 0, nil, outputOpts.Codec)
 }
 
-func (c *Client) do(ctx context.Context, httpMethod, path string, requestData any, responseData any, opts ingressOpts) error {
-	// Establish the codec to use
-	codec := opts.Codec
-	if codec == nil {
-		codec = c.clientOpts.Codec
+func (c *Client) do(ctx context.Context, httpMethod, path string, requestData any, responseData any, idempotencyKey string, headers map[string]string,
+	delay time.Duration,
+	inputCodec encoding.PayloadCodec, outputCodec encoding.PayloadCodec) error {
+	// Set input/output codec
+	if inputCodec == nil {
+		inputCodec = c.clientOpts.Codec
 	}
-	if codec == nil {
-		codec = encoding.JSONCodec
+	if inputCodec == nil {
+		inputCodec = encoding.JSONCodec
+	}
+	if outputCodec == nil {
+		outputCodec = c.clientOpts.Codec
+	}
+	if outputCodec == nil {
+		outputCodec = encoding.JSONCodec
 	}
 
 	// marshal the request data if provided
-	requestBodyBuf, err := encoding.Marshal(codec, requestData)
+	requestBodyBuf, err := encoding.Marshal(inputCodec, requestData)
 	if err != nil {
 		return fmt.Errorf("failed to marshal request data: %w", err)
 	}
@@ -105,8 +114,8 @@ func (c *Client) do(ctx context.Context, httpMethod, path string, requestData an
 
 	// build the http request
 	url := fmt.Sprintf("%s%s", c.baseUri, path)
-	if opts.Delay != 0 {
-		url = fmt.Sprintf("%s?%s=%dms", url, delayQuery, opts.Delay/time.Millisecond)
+	if delay != 0 {
+		url = fmt.Sprintf("%s?%s=%dms", url, delayQuery, delay/time.Millisecond)
 	}
 	req, err := http.NewRequest(httpMethod, url, requestBody)
 	if err != nil {
@@ -115,7 +124,7 @@ func (c *Client) do(ctx context.Context, httpMethod, path string, requestData an
 	req = req.WithContext(ctx)
 
 	// Figure out the content type
-	inputPayloadMetadata := encoding.InputPayloadFor(codec, requestData)
+	inputPayloadMetadata := encoding.InputPayloadFor(inputCodec, requestData)
 	if inputPayloadMetadata != nil && inputPayloadMetadata.ContentType != nil {
 		req.Header.Set("Content-Type", *inputPayloadMetadata.ContentType)
 	}
@@ -124,11 +133,11 @@ func (c *Client) do(ctx context.Context, httpMethod, path string, requestData an
 	if c.clientOpts.AuthKey != "" {
 		req.Header.Set("Authorization", "Bearer "+c.clientOpts.AuthKey)
 	}
-	if opts.IdempotencyKey != "" {
-		req.Header.Set(idempotencyKeyHeader, opts.IdempotencyKey)
+	if idempotencyKey != "" {
+		req.Header.Set(idempotencyKeyHeader, idempotencyKey)
 	}
-	if opts.Headers != nil {
-		for name, value := range opts.Headers {
+	if headers != nil {
+		for name, value := range headers {
 			req.Header.Set(name, value)
 		}
 	}
@@ -179,7 +188,7 @@ func (c *Client) do(ctx context.Context, httpMethod, path string, requestData an
 	}
 
 	if responseData != nil {
-		if err = encoding.Unmarshal(codec, resBody, responseData); err != nil {
+		if err = encoding.Unmarshal(outputCodec, resBody, responseData); err != nil {
 			return fmt.Errorf("failed to unmarshal response data: %w", err)
 		}
 	}
@@ -206,12 +215,10 @@ func sendOptionsToIngressOpts(sendOpts options.IngressSendOptions) ingressOpts {
 
 func makeIngressUrl(params IngressParams) string {
 	switch {
-	case params.ObjectKey != "":
-		return fmt.Sprintf("/%s/%s/%s", params.ServiceName, params.ObjectKey, params.HandlerName)
-	case params.WorkflowID != "":
-		return fmt.Sprintf("/%s/%s/%s", params.ServiceName, params.WorkflowID, params.HandlerName)
+	case params.Key != "":
+		return fmt.Sprintf("/%s/%s/%s", params.Service, params.Key, params.Handler)
 	default:
-		return fmt.Sprintf("/%s/%s", params.ServiceName, params.HandlerName)
+		return fmt.Sprintf("/%s/%s", params.Service, params.Handler)
 	}
 }
 

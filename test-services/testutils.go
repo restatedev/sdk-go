@@ -30,14 +30,15 @@ func init() {
 				}, restate.WithBinary)).
 			Handler("sleepConcurrently", restate.NewServiceHandler(
 				func(ctx restate.Context, millisDuration []int64) (restate.Void, error) {
-					timers := make([]restate.Selectable, 0, len(millisDuration))
+					timers := make([]restate.Future, 0, len(millisDuration))
 					for _, d := range millisDuration {
 						timers = append(timers, restate.After(ctx, time.Duration(d)*time.Millisecond))
 					}
-					selector := restate.Select(ctx, timers...)
 					i := 0
-					for selector.Remaining() {
-						_ = selector.Select()
+					for _, err := range restate.Wait(ctx, timers...) {
+						if err != nil {
+							return restate.Void{}, err
+						}
 						i++
 					}
 					if i != len(timers) {
