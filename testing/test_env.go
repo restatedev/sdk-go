@@ -1,13 +1,13 @@
 package testing
 
 import (
+	"bufio"
 	"bytes"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strconv"
 	"strings"
-	"sync"
 	"testing"
 	"time"
 
@@ -25,19 +25,6 @@ const (
 	RESTATE_INGRESS_ENDPOINT_PORT = "8080"
 )
 
-// testLogConsumer is a simple implementation of LogConsumer that logs to the test output.
-// It is safe to use concurrently.
-type testLogConsumer struct {
-	t  *testing.T
-	mx sync.Mutex
-}
-
-func (l *testLogConsumer) Accept(log testcontainers.Log) {
-	l.mx.Lock()
-	defer l.mx.Unlock()
-	l.t.Log(log.LogType + ": " + strings.TrimSpace(string(log.Content)))
-}
-
 type TestEnvironment struct {
 	t *testing.T
 
@@ -53,6 +40,7 @@ type TestEnvironmentOption func(*testEnvironmentConfig)
 type testEnvironmentConfig struct {
 	restateEnv   map[string]string
 	restateImage string
+	followLogs   bool
 }
 
 // WithRestateEnv adds environment variables for the Restate service container
@@ -71,12 +59,18 @@ func WithRestateImage(image string) TestEnvironmentOption {
 	}
 }
 
+// DisableRestateLogs disables restate log output
+var DisableRestateLogs = func(c *testEnvironmentConfig) {
+	c.followLogs = false
+}
+
 func defaultTestEnvironmentConfig() *testEnvironmentConfig {
 	return &testEnvironmentConfig{
 		restateEnv: map[string]string{
 			"RUST_LOG": "warn",
 		},
 		restateImage: "docker.io/restatedev/restate:latest",
+		followLogs:   true,
 	}
 }
 
@@ -159,11 +153,24 @@ func StartWithOptions(t *testing.T, restateSrv *server.Restate, opts ...TestEnvi
 				wait.ForHTTP("/restate/health").WithPort(RESTATE_INGRESS_ENDPOINT_PORT+"/tcp"),
 			),
 		),
-		testcontainers.WithLogConsumers(&testLogConsumer{t: t}),
 		testcontainers.WithHostPortAccess(sdkPort),
 	)
 	testcontainers.CleanupContainer(t, restateC)
 	require.NoError(t, err)
+
+	if config.followLogs {
+		reader, err := restateC.Logs(t.Context())
+		require.NoError(t, err)
+		go func() {
+			scanner := bufio.NewScanner(reader)
+			for scanner.Scan() {
+				t.Log(scanner.Text())
+			}
+			if err := scanner.Err(); err != nil {
+				t.Logf("Error when reading container logs: %e", err)
+			}
+		}()
+	}
 
 	adminPort, err := restateC.MappedPort(t.Context(), RESTATE_ADMIN_ENDPOINT_PORT)
 	require.NoError(t, err)
