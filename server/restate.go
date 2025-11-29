@@ -115,7 +115,7 @@ func (r *Restate) Bidirectional(bidi bool) *Restate {
 // WithDisablePayloadChecks disables payload comparison during replay.
 // This is useful when using protojson which produces non-deterministic JSON output.
 // When enabled, the SDK will not verify that payloads match during replay,
-// which can prevent panics caused by non-deterministic serialization.
+// which can prevent errors caused by non-deterministic serialization.
 func (r *Restate) WithDisablePayloadChecks() *Restate {
 	r.disablePayloadChecks = true
 	return r
