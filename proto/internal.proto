@@ -31,8 +31,15 @@ message FailureWithStacktrace {
   string stacktrace = 3;
 }
 
+message VmOptions {
+  // When true, disables payload comparison during replay.
+  // This is useful when using protojson which produces non-deterministic output.
+  bool disable_payload_checks = 1;
+}
+
 message VmNewParameters {
   repeated Header headers = 1;
+  optional VmOptions options = 2;
 }
 
 message VmNewReturn {
