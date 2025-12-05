@@ -6,7 +6,11 @@ extern crate core;
 use alloc::borrow::Cow;
 use alloc::rc::Rc;
 use alloc::vec::Vec;
-use restate_sdk_shared_core::{AttachInvocationTarget, CoreVM, DoProgressResponse, Error, Header, HeaderMap, NonEmptyValue, NotificationHandle, ResponseHead, RetryPolicy, RunExitResult, TakeOutputResult, Target, TerminalFailure, Value, Version, VM};
+use restate_sdk_shared_core::{
+    AttachInvocationTarget, CoreVM, DoProgressResponse, Error, Header, HeaderMap,
+    NonDeterministicChecksOption, NonEmptyValue, NotificationHandle, ResponseHead, RetryPolicy,
+    RunExitResult, TakeOutputResult, Target, TerminalFailure, VMOptions, Value, Version, VM,
+};
 use std::cell::RefCell;
 use std::convert::Infallible;
 use std::io::Write;
@@ -185,7 +189,10 @@ pub unsafe extern "C" fn _vm_new(ptr: *mut u8, len: usize) -> u64 {
 fn vm_new(input: pb::VmNewParameters) -> pb::VmNewReturn {
     pb::VmNewReturn {
         result: Some(
-            match CoreVM::new(WasmHeaders(input.headers), Default::default()) {
+            match CoreVM::new(
+                WasmHeaders(input.headers),
+                vm_options_from_proto(input.options),
+            ) {
                 Ok(vm) => {
                     let wasm_vm = WasmVM { vm };
                     pb::vm_new_return::Result::Pointer(
@@ -322,9 +329,7 @@ fn vm_do_progress(
                 Err(e) if e.is_suspended_error() => {
                     pb::vm_do_progress_return::Result::Suspended(Default::default())
                 }
-                Err(e) => {
-                    pb::vm_do_progress_return::Result::Failure(e.into())
-                }
+                Err(e) => pb::vm_do_progress_return::Result::Failure(e.into()),
             },
         ),
     }
@@ -362,9 +367,7 @@ fn vm_take_notification(
                 Err(e) if e.is_suspended_error() => {
                     pb::vm_take_notification_return::Result::Suspended(Default::default())
                 }
-                Err(e) => {
-                    pb::vm_take_notification_return::Result::Failure(e.into())
-                }
+                Err(e) => pb::vm_take_notification_return::Result::Failure(e.into()),
             },
         ),
     }
@@ -388,7 +391,7 @@ fn vm_sys_input(rc_vm: &Rc<RefCell<WasmVM>>) -> pb::VmSysInputReturn {
                 headers: input.headers.into_iter().map(Into::into).collect(),
                 input: input.input,
                 random_seed: input.random_seed,
-                should_use_random_seed: protocol_version >= Version::V6
+                should_use_random_seed: protocol_version >= Version::V6,
             }),
             Err(e) => pb::vm_sys_input_return::Result::Failure(e.into()),
         }),
@@ -1053,5 +1056,17 @@ impl From<ResponseHead> for pb::VmGetResponseHeadReturn {
             status_code: value.status_code.into(),
             headers: value.headers.into_iter().map(Into::into).collect(),
         }
+    }
+}
+
+fn vm_options_from_proto(opts: Option<pb::VmOptions>) -> VMOptions {
+    let disable_payload_checks = opts.map_or(false, |o| o.disable_payload_checks);
+    VMOptions {
+        non_determinism_checks: if disable_payload_checks {
+            NonDeterministicChecksOption::PayloadChecksDisabled
+        } else {
+            NonDeterministicChecksOption::Enabled
+        },
+        ..Default::default()
     }
 }

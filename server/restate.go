@@ -58,13 +58,14 @@ func init() {
 
 // Restate represents a Restate HTTP handler to which services or virtual objects may be attached.
 type Restate struct {
-	logHandler     slog.Handler
-	dropReplayLogs bool
-	systemLog      *slog.Logger
-	definitions    map[string]restate.ServiceDefinition
-	keyIDs         []string
-	keySet         identity.KeySetV1
-	protocolMode   internal.ProtocolMode
+	logHandler           slog.Handler
+	dropReplayLogs       bool
+	systemLog            *slog.Logger
+	definitions          map[string]restate.ServiceDefinition
+	keyIDs               []string
+	keySet               identity.KeySetV1
+	protocolMode         internal.ProtocolMode
+	disablePayloadChecks bool
 }
 
 // NewRestate creates a new instance of Restate server
@@ -108,6 +109,15 @@ func (r *Restate) Bidirectional(bidi bool) *Restate {
 	} else {
 		r.protocolMode = internal.ProtocolMode_REQUEST_RESPONSE
 	}
+	return r
+}
+
+// WithDisablePayloadChecks disables payload comparison during replay.
+// This is useful when using protojson which produces non-deterministic JSON output.
+// When enabled, the SDK will not verify that payloads match during replay,
+// which can prevent errors caused by non-deterministic serialization.
+func (r *Restate) WithDisablePayloadChecks() *Restate {
+	r.disablePayloadChecks = true
 	return r
 }
 
@@ -500,7 +510,12 @@ func (r *Restate) handleInvokeRequest(service, method string, writer http.Respon
 		header.SetValue(v[0])
 		headers = append(headers, &header)
 	}
-	stateMachine, err := core.NewStateMachine(ctx, headers)
+	var vmOpts *pbinternal.VmOptions
+	if r.disablePayloadChecks {
+		vmOpts = &pbinternal.VmOptions{}
+		vmOpts.SetDisablePayloadChecks(true)
+	}
+	stateMachine, err := core.NewStateMachine(ctx, headers, vmOpts)
 	if err != nil {
 		logger.WarnContext(ctx, "Error when instantiating the state machine", slog.Any("err", err))
 		writer.WriteHeader(int(restate.ErrorCode(err)))
