@@ -11,7 +11,6 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace"
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc"
-	"go.opentelemetry.io/otel/propagation"
 	"go.opentelemetry.io/otel/sdk/resource"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 )
@@ -19,7 +18,7 @@ import (
 type Greeter struct{}
 
 func (Greeter) Greet(ctx restate.Context, message string) (string, error) {
-	_, span := otel.Tracer("").Start(ctx, "Greet")
+	_, span := otel.Tracer("example-tracer").Start(ctx, "Greet")
 	defer span.End()
 
 	return fmt.Sprintf("%s!", message), nil
@@ -55,8 +54,6 @@ func main() {
 			sdktrace.WithResource(resources),
 		),
 	)
-
-	otel.SetTextMapPropagator(propagation.TraceContext{})
 
 	if err := server.NewRestate().
 		Bind(restate.Reflect(Greeter{})).
