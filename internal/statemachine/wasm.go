@@ -223,9 +223,10 @@ func NewCore(ctx context.Context) (*Core, error) {
 		vmFree:                 instance.ExportedFunction("vm_free"),
 	}
 
+    // Adds a finalizer to `core` to correctly close the WASM module, deallocating its memory.
+    // This gets invoked when the Pool decides to deallocate some of its entries. 
 	runtime.AddCleanup(core, func(instance api.Module) {
-		// the module has to be closed or it will never be gc'd
-		instance.Close(context.Background())
+		core.instance.Close(context.Background())
 	}, instance)
 
 	return core, nil
