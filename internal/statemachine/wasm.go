@@ -226,7 +226,7 @@ func NewCore(ctx context.Context) (*Core, error) {
     // Adds a finalizer to `core` to correctly close the WASM module, deallocating its memory.
     // This gets invoked when the Pool decides to deallocate some of its entries. 
 	runtime.AddCleanup(core, func(instance api.Module) {
-		core.instance.Close(context.Background())
+		instance.Close(context.Background())
 	}, instance)
 
 	return core, nil
