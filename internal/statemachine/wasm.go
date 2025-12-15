@@ -14,6 +14,7 @@ import (
 	"log"
 	"log/slog"
 	"os"
+	"runtime"
 	"strings"
 	"sync"
 	"time"
@@ -183,7 +184,7 @@ func NewCore(ctx context.Context) (*Core, error) {
 		return nil, fmt.Errorf("cannot instantiate new core: %e", err)
 	}
 
-	return &Core{
+	core := &Core{
 		mod:                    instance,
 		callStack:              make([]uint64, 4),
 		allocate:               instance.ExportedFunction("allocate"),
@@ -220,7 +221,15 @@ func NewCore(ctx context.Context) (*Core, error) {
 		vmSysWriteOutput:       instance.ExportedFunction("vm_sys_write_output"),
 		vmSysEnd:               instance.ExportedFunction("vm_sys_end"),
 		vmFree:                 instance.ExportedFunction("vm_free"),
-	}, nil
+	}
+
+    // Adds a finalizer to `core` to correctly close the WASM module, deallocating its memory.
+    // This gets invoked when the Pool decides to deallocate some of its entries. 
+	runtime.AddCleanup(core, func(instance api.Module) {
+		instance.Close(context.Background())
+	}, instance)
+
+	return core, nil
 }
 
 func (core *Core) Close(ctx context.Context) error {
