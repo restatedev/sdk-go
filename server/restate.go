@@ -22,7 +22,6 @@ import (
 	"github.com/restatedev/sdk-go/internal/log"
 	"github.com/restatedev/sdk-go/internal/restatecontext"
 	"github.com/restatedev/sdk-go/internal/statemachine"
-	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/propagation"
 )
 
@@ -42,6 +41,8 @@ const (
 )
 
 var xRestateServer = `restate-sdk-go/unknown`
+
+var tracePropagator = propagation.TraceContext{}
 
 func init() {
 	bi, ok := debug.ReadBuildInfo()
@@ -581,7 +582,7 @@ func (r *Restate) handleInvokeRequest(service, method string, writer http.Respon
 }
 
 func (r *Restate) handler(writer http.ResponseWriter, request *http.Request) {
-	ctx := otel.GetTextMapPropagator().Extract(request.Context(), propagation.HeaderCarrier(request.Header))
+	ctx := tracePropagator.Extract(request.Context(), propagation.HeaderCarrier(request.Header))
 	request = request.WithContext(ctx)
 
 	writer.Header().Add("x-restate-server", xRestateServer)
