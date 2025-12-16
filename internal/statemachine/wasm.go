@@ -4,12 +4,6 @@ import (
 	"context"
 	_ "embed"
 	"fmt"
-	"github.com/restatedev/sdk-go/internal/errors"
-	pbinternal "github.com/restatedev/sdk-go/internal/generated"
-	loginternal "github.com/restatedev/sdk-go/internal/log"
-	"github.com/tetratelabs/wazero"
-	"github.com/tetratelabs/wazero/api"
-	"google.golang.org/protobuf/proto"
 	"io"
 	"log"
 	"log/slog"
@@ -18,6 +12,13 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/restatedev/sdk-go/internal/errors"
+	pbinternal "github.com/restatedev/sdk-go/internal/generated"
+	loginternal "github.com/restatedev/sdk-go/internal/log"
+	"github.com/tetratelabs/wazero"
+	"github.com/tetratelabs/wazero/api"
+	"google.golang.org/protobuf/proto"
 )
 
 // -- WASM core initialization
@@ -243,7 +244,7 @@ func (c concurrentContextUseError) Error() string {
 	return "Concurrent context use detected; either a Context method was used while a Run() is in progress, or Context methods are being called from multiple goroutines. Failing invocation."
 }
 
-func (core *Core) NewStateMachine(ctx context.Context, headers []*pbinternal.Header) (*StateMachine, error) {
+func (core *Core) NewStateMachine(ctx context.Context, headers []*pbinternal.Header, opts *pbinternal.VmOptions) (*StateMachine, error) {
 	if !core.coreMutex.TryLock() {
 		panic(concurrentContextUseError{})
 	}
@@ -251,6 +252,9 @@ func (core *Core) NewStateMachine(ctx context.Context, headers []*pbinternal.Hea
 
 	params := pbinternal.VmNewParameters{}
 	params.SetHeaders(headers)
+	if opts != nil {
+		params.SetOptions(opts)
+	}
 	inputPtr, inputLen := core.transferInputStructToWasmMemory(ctx, &params)
 
 	core.callStack[0] = inputPtr
