@@ -18,7 +18,8 @@ import (
 type Greeter struct{}
 
 func (Greeter) Greet(ctx restate.Context, message string) (string, error) {
-	_, span := otel.Tracer("example-tracer").Start(ctx, "Greet")
+	traceCtx, span := otel.Tracer("example-tracer").Start(ctx, "Greet")
+	ctx = restate.WrapContext(ctx, traceCtx)
 	defer span.End()
 
 	return fmt.Sprintf("%s!", message), nil
