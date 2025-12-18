@@ -1,6 +1,8 @@
 package restate
 
 import (
+	"context"
+
 	"github.com/restatedev/sdk-go/internal/restatecontext"
 )
 
@@ -44,4 +46,12 @@ type WorkflowContext interface {
 	WorkflowSharedContext
 	ObjectContext
 	runWorkflow()
+}
+
+// WrapContext wraps the provided Restate context with a context.Context,
+// making sure all Context.Values from the wrappedCtx are accessible from the Restate context.
+func WrapContext[T Context](restateCtx T, wrappedCtx context.Context) T {
+	var temp context.Context
+	temp = ctxWrapper{restateCtx.inner().Wrap(wrappedCtx)}
+	return temp.(T)
 }
