@@ -1,7 +1,8 @@
 package testing
 
 import (
-	"context"
+	"fmt"
+	"strings"
 	"testing"
 
 	restate "github.com/restatedev/sdk-go"
@@ -18,9 +19,12 @@ func (Greeter) Greet(ctx restate.Context, name string) (string, error) {
 }
 
 func (Greeter) CheckContextPropagation(ctx restate.Context, name string) (string, error) {
-	newCtx := restate.WrapContext(ctx, context.WithValue(ctx, "name", name))
-	return restate.Run(newCtx, func(ctx restate.RunContext) (string, error) {
-		return ctx.Value("name").(string), nil
+	// Bunch of test wrappings
+	ctx = restate.WithValue(ctx, "name", name)
+	ctx = restate.WithValue(ctx, "upper", strings.ToUpper(name))
+
+	return restate.Run(ctx, func(ctx restate.RunContext) (string, error) {
+		return fmt.Sprintf("%s-%s", ctx.Value("name").(string), ctx.Value("upper").(string)), nil
 	})
 }
 
@@ -47,7 +51,7 @@ func TestWithTestcontainers(t *testing.T) {
 				// Check context propagation works correctly
 				out, err := ingress.Service[string, string](client, "Greeter", "CheckContextPropagation").Request(t.Context(), "Pippo")
 				require.NoError(t, err)
-				require.Equal(t, "Pippo", out)
+				require.Equal(t, "Pippo-PIPPO", out)
 			},
 		},
 	}

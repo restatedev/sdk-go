@@ -55,3 +55,8 @@ func WrapContext[T Context](restateCtx T, wrappedCtx context.Context) T {
 	temp = ctxWrapper{restateCtx.inner().Wrap(wrappedCtx)}
 	return temp.(T)
 }
+
+// WithValue is like context.WithValue, but wrapping the restate context
+func WithValue[T Context](restateCtx T, key, val any) T {
+	return WrapContext(restateCtx, context.WithValue(restateCtx, key, val))
+}
