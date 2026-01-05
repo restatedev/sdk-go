@@ -3,13 +3,14 @@ package restatecontext
 import (
 	"context"
 	"fmt"
+	"io"
+	"log/slog"
+	"runtime/debug"
+
 	"github.com/restatedev/sdk-go/internal/errors"
 	pbinternal "github.com/restatedev/sdk-go/internal/generated"
 	"github.com/restatedev/sdk-go/internal/log"
 	"github.com/restatedev/sdk-go/internal/statemachine"
-	"io"
-	"log/slog"
-	"runtime/debug"
 )
 
 func ExecuteInvocation(ctx context.Context, logger *slog.Logger, stateMachine *statemachine.StateMachine, conn io.ReadWriteCloser, handler Handler, dropReplayLogs bool, logHandler slog.Handler, attemptHeaders map[string][]string) error {
@@ -73,7 +74,7 @@ func invoke(restateCtx *ctx, handler Handler, logger *slog.Logger) {
 	bytes, err = handler.Call(restateCtx, restateCtx.request.Body)
 
 	if err != nil && errors.IsTerminalError(err) {
-		restateCtx.internalLogger.LogAttrs(restateCtx, slog.LevelError, "Invocation returned a terminal failure", log.Error(err))
+		restateCtx.internalLogger.LogAttrs(restateCtx, slog.LevelWarn, "Invocation returned a terminal failure", log.Error(err))
 
 		failure := pbinternal.Failure{}
 		failure.SetCode(uint32(errors.ErrorCode(err)))
@@ -85,7 +86,7 @@ func invoke(restateCtx *ctx, handler Handler, logger *slog.Logger) {
 			panic(err)
 		}
 	} else if err != nil {
-		restateCtx.internalLogger.LogAttrs(restateCtx, slog.LevelError, "Invocation returned a non-terminal failure", log.Error(err))
+		restateCtx.internalLogger.LogAttrs(restateCtx, slog.LevelWarn, "Invocation returned a non-terminal failure", log.Error(err))
 
 		// This is handled by the panic catcher above
 		panic(err)
