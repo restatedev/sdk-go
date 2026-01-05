@@ -3,9 +3,12 @@
 package mocks
 
 import (
+	context "context"
+
 	options "github.com/restatedev/sdk-go/internal/options"
-	rand "github.com/restatedev/sdk-go/internal/rand"
 	mock "github.com/stretchr/testify/mock"
+
+	rand "github.com/restatedev/sdk-go/internal/rand"
 
 	restatecontext "github.com/restatedev/sdk-go/internal/restatecontext"
 
@@ -1515,6 +1518,54 @@ func (_c *MockContext_Workflow_Call) Return(_a0 restatecontext.Client) *MockCont
 }
 
 func (_c *MockContext_Workflow_Call) RunAndReturn(run func(string, string, string, ...options.ClientOption) restatecontext.Client) *MockContext_Workflow_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// Wrap provides a mock function with given fields: wrappedCtx
+func (_m *MockContext) Wrap(wrappedCtx context.Context) restatecontext.Context {
+	ret := _m.Called(wrappedCtx)
+
+	if len(ret) == 0 {
+		panic("no return value specified for Wrap")
+	}
+
+	var r0 restatecontext.Context
+	if rf, ok := ret.Get(0).(func(context.Context) restatecontext.Context); ok {
+		r0 = rf(wrappedCtx)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(restatecontext.Context)
+		}
+	}
+
+	return r0
+}
+
+// MockContext_Wrap_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'Wrap'
+type MockContext_Wrap_Call struct {
+	*mock.Call
+}
+
+// Wrap is a helper method to define mock.On call
+//   - wrappedCtx context.Context
+func (_e *MockContext_Expecter) Wrap(wrappedCtx interface{}) *MockContext_Wrap_Call {
+	return &MockContext_Wrap_Call{Call: _e.mock.On("Wrap", wrappedCtx)}
+}
+
+func (_c *MockContext_Wrap_Call) Run(run func(wrappedCtx context.Context)) *MockContext_Wrap_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context))
+	})
+	return _c
+}
+
+func (_c *MockContext_Wrap_Call) Return(_a0 restatecontext.Context) *MockContext_Wrap_Call {
+	_c.Call.Return(_a0)
+	return _c
+}
+
+func (_c *MockContext_Wrap_Call) RunAndReturn(run func(context.Context) restatecontext.Context) *MockContext_Wrap_Call {
 	_c.Call.Return(run)
 	return _c
 }

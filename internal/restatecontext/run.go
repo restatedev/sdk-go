@@ -3,14 +3,15 @@ package restatecontext
 import (
 	"context"
 	"fmt"
+	"log/slog"
+	"runtime/debug"
+	"time"
+
 	"github.com/restatedev/sdk-go/encoding"
 	"github.com/restatedev/sdk-go/internal/errors"
 	pbinternal "github.com/restatedev/sdk-go/internal/generated"
 	"github.com/restatedev/sdk-go/internal/options"
 	"github.com/restatedev/sdk-go/internal/statemachine"
-	"log/slog"
-	"runtime/debug"
-	"time"
 )
 
 func (restateCtx *ctx) Run(fn func(ctx RunContext) (any, error), output any, opts ...options.RunOption) error {
@@ -18,6 +19,11 @@ func (restateCtx *ctx) Run(fn func(ctx RunContext) (any, error), output any, opt
 }
 
 func (restateCtx *ctx) RunAsync(fn func(ctx RunContext) (any, error), opts ...options.RunOption) RunAsyncFuture {
+	return restateCtx.runAsync(restateCtx, fn, opts...)
+}
+
+// The first context parameter is used in the context wrapper created by restate.WrapContext
+func (restateCtx *ctx) runAsync(goCtx context.Context, fn func(ctx RunContext) (any, error), opts ...options.RunOption) RunAsyncFuture {
 	o := options.RunOptions{}
 	for _, opt := range opts {
 		opt.BeforeRun(&o)
@@ -39,7 +45,7 @@ func (restateCtx *ctx) RunAsync(fn func(ctx RunContext) (any, error), opts ...op
 		now := time.Now()
 
 		// Run the user closure
-		output, err := runWrapPanic(fn)(runContext{Context: restateCtx, log: restateCtx.userLogger, request: &restateCtx.request})
+		output, err := runWrapPanic(fn)(runContext{Context: goCtx, log: restateCtx.userLogger, request: &restateCtx.request})
 
 		// Let's prepare the proposal of the run completion
 		proposal := pbinternal.VmProposeRunCompletionParameters{}

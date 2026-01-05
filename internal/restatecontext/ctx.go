@@ -34,6 +34,7 @@ type Context interface {
 	context.Context
 	Log() *slog.Logger
 	Request() *Request
+	Wrap(wrappedCtx context.Context) Context
 
 	// available outside of .Run()
 	Rand() rand.Rand
@@ -161,6 +162,13 @@ func (restateCtx *ctx) Key() string {
 	return restateCtx.key
 }
 
+func (restateCtx *ctx) Wrap(wrapped context.Context) Context {
+	return &restateCtxWithWrappedContext{
+		restateCtx,
+		wrapped,
+	}
+}
+
 func (restateCtx *ctx) checkStateTransition() {
 	if restateCtx.isProcessing {
 		return
@@ -175,3 +183,25 @@ func (restateCtx *ctx) checkStateTransition() {
 		restateCtx.isProcessing = true
 	}
 }
+
+type restateCtxWithWrappedContext struct {
+	*ctx
+	wrapped context.Context
+}
+
+func (restateCtx *restateCtxWithWrappedContext) Run(fn func(ctx RunContext) (any, error), output any, opts ...options.RunOption) error {
+	return restateCtx.runAsync(restateCtx, fn, opts...).Result(output)
+}
+
+func (restateCtx *restateCtxWithWrappedContext) RunAsync(fn func(ctx RunContext) (any, error), opts ...options.RunOption) RunAsyncFuture {
+	return restateCtx.runAsync(restateCtx, fn, opts...)
+}
+
+func (restateCtx *restateCtxWithWrappedContext) Value(key interface{}) interface{} {
+	if value := restateCtx.wrapped.Value(key); value != nil {
+		return value
+	}
+	return restateCtx.ctx.Value(key)
+}
+
+var _ Context = (*restateCtxWithWrappedContext)(nil)
