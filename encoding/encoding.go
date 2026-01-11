@@ -264,7 +264,10 @@ func (j protoJSONCodec) Unmarshal(data []byte, input any) (err error) {
 func (j protoJSONCodec) Marshal(output any) ([]byte, error) {
 	switch output := output.(type) {
 	case proto.Message:
-		return protojson.Marshal(output)
+		return protojson.MarshalOptions{
+			Indent:    "",
+			Multiline: false,
+		}.Marshal(output)
 	default:
 		return nil, fmt.Errorf("ProtoJSONCodec.Marshal called with a type that is not a proto.Message")
 	}
