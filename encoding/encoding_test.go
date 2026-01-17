@@ -95,3 +95,23 @@ func TestGenerateJsonSchema(t *testing.T) {
 		})
 	}
 }
+
+func TestIsUnstableSerialization(t *testing.T) {
+	tests := []struct {
+		name     string
+		codec    Codec
+		expected bool
+	}{
+		{"JSONCodec", JSONCodec, false},
+		{"ProtoCodec", ProtoCodec, false},
+		{"ProtoJSONCodec", ProtoJSONCodec, true},
+		{"BinaryCodec", BinaryCodec, false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := IsUnstableSerialization(tt.codec)
+			require.Equal(t, tt.expected, result, "IsUnstableSerialization(%s) = %v, want %v", tt.name, result, tt.expected)
+		})
+	}
+}

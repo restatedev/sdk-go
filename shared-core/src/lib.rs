@@ -6,7 +6,11 @@ extern crate core;
 use alloc::borrow::Cow;
 use alloc::rc::Rc;
 use alloc::vec::Vec;
-use restate_sdk_shared_core::{AttachInvocationTarget, CoreVM, DoProgressResponse, Error, Header, HeaderMap, NonEmptyValue, NotificationHandle, ResponseHead, RetryPolicy, RunExitResult, TakeOutputResult, Target, TerminalFailure, Value, Version, VM};
+use restate_sdk_shared_core::{
+    AttachInvocationTarget, CoreVM, DoProgressResponse, Error, Header, HeaderMap, NonEmptyValue,
+    NotificationHandle, PayloadOptions, ResponseHead, RetryPolicy, RunExitResult, TakeOutputResult,
+    Target, TerminalFailure, VMOptions, Value, Version, VM,
+};
 use std::cell::RefCell;
 use std::convert::Infallible;
 use std::io::Write;
@@ -185,7 +189,7 @@ pub unsafe extern "C" fn _vm_new(ptr: *mut u8, len: usize) -> u64 {
 fn vm_new(input: pb::VmNewParameters) -> pb::VmNewReturn {
     pb::VmNewReturn {
         result: Some(
-            match CoreVM::new(WasmHeaders(input.headers), Default::default()) {
+            match CoreVM::new(WasmHeaders(input.headers), VMOptions::default()) {
                 Ok(vm) => {
                     let wasm_vm = WasmVM { vm };
                     pb::vm_new_return::Result::Pointer(
@@ -322,9 +326,7 @@ fn vm_do_progress(
                 Err(e) if e.is_suspended_error() => {
                     pb::vm_do_progress_return::Result::Suspended(Default::default())
                 }
-                Err(e) => {
-                    pb::vm_do_progress_return::Result::Failure(e.into())
-                }
+                Err(e) => pb::vm_do_progress_return::Result::Failure(e.into()),
             },
         ),
     }
@@ -362,9 +364,7 @@ fn vm_take_notification(
                 Err(e) if e.is_suspended_error() => {
                     pb::vm_take_notification_return::Result::Suspended(Default::default())
                 }
-                Err(e) => {
-                    pb::vm_take_notification_return::Result::Failure(e.into())
-                }
+                Err(e) => pb::vm_take_notification_return::Result::Failure(e.into()),
             },
         ),
     }
@@ -388,7 +388,7 @@ fn vm_sys_input(rc_vm: &Rc<RefCell<WasmVM>>) -> pb::VmSysInputReturn {
                 headers: input.headers.into_iter().map(Into::into).collect(),
                 input: input.input,
                 random_seed: input.random_seed,
-                should_use_random_seed: protocol_version >= Version::V6
+                should_use_random_seed: protocol_version >= Version::V6,
             }),
             Err(e) => pb::vm_sys_input_return::Result::Failure(e.into()),
         }),
@@ -411,7 +411,12 @@ fn vm_sys_state_get(
     rc_vm: &Rc<RefCell<WasmVM>>,
     input: pb::VmSysStateGetParameters,
 ) -> pb::SimpleSysAsyncResultReturn {
-    VM::sys_state_get(&mut rc_vm.borrow_mut().vm, input.key).into()
+    VM::sys_state_get(
+        &mut rc_vm.borrow_mut().vm,
+        input.key,
+        payload_options_from_proto(input.payload_options),
+    )
+    .into()
 }
 
 #[export_name = "vm_sys_state_get_keys"]
@@ -441,7 +446,13 @@ fn vm_sys_state_set(
     rc_vm: &Rc<RefCell<WasmVM>>,
     input: pb::VmSysStateSetParameters,
 ) -> pb::GenericEmptyReturn {
-    VM::sys_state_set(&mut rc_vm.borrow_mut().vm, input.key, input.value).into()
+    VM::sys_state_set(
+        &mut rc_vm.borrow_mut().vm,
+        input.key,
+        input.value,
+        payload_options_from_proto(input.payload_options),
+    )
+    .into()
 }
 
 #[export_name = "vm_sys_state_clear"]
@@ -547,6 +558,7 @@ fn vm_sys_complete_awakeable(
                 NonEmptyValue::Failure(f.into())
             }
         },
+        payload_options_from_proto(input.payload_options),
     )
     .into()
 }
@@ -576,6 +588,7 @@ fn vm_sys_call(rc_vm: &Rc<RefCell<WasmVM>>, input: pb::VmSysCallParameters) -> p
                     headers: input.headers.into_iter().map(Into::into).collect(),
                 },
                 input.input,
+                payload_options_from_proto(input.payload_options),
             ) {
                 Ok(call_handle) => {
                     pb::vm_sys_call_return::Result::Ok(pb::vm_sys_call_return::CallHandles {
@@ -618,6 +631,7 @@ fn vm_sys_send(
         input
             .execution_time_since_unix_epoch_millis
             .map(Duration::from_millis),
+        payload_options_from_proto(input.payload_options),
     )
     .map(|s| s.invocation_id_notification_handle)
     .into()
@@ -728,6 +742,7 @@ fn vm_sys_promise_complete(
                 NonEmptyValue::Failure(f.into())
             }
         },
+        payload_options_from_proto(input.payload_options),
     )
     .into()
 }
@@ -816,7 +831,16 @@ fn vm_sys_write_output(
     rc_vm: &Rc<RefCell<WasmVM>>,
     input: pb::VmSysWriteOutputParameters,
 ) -> pb::GenericEmptyReturn {
-    VM::sys_write_output(&mut rc_vm.borrow_mut().vm, input.into()).into()
+    let value = match input.result.expect("Should be present") {
+        pb::vm_sys_write_output_parameters::Result::Success(s) => NonEmptyValue::Success(s),
+        pb::vm_sys_write_output_parameters::Result::Failure(f) => NonEmptyValue::Failure(f.into()),
+    };
+    VM::sys_write_output(
+        &mut rc_vm.borrow_mut().vm,
+        value,
+        payload_options_from_proto(input.payload_options),
+    )
+    .into()
 }
 
 #[export_name = "vm_sys_end"]
@@ -974,6 +998,7 @@ impl From<pb::Failure> for TerminalFailure {
         Self {
             code: value.code.try_into().expect("Should be u16"),
             message: value.message,
+            metadata: Vec::new(),
         }
     }
 }
@@ -1038,20 +1063,17 @@ impl From<Result<NotificationHandle, Error>> for pb::SimpleSysAsyncResultReturn 
     }
 }
 
-impl From<pb::VmSysWriteOutputParameters> for NonEmptyValue {
-    fn from(value: pb::VmSysWriteOutputParameters) -> Self {
-        match value.result.expect("Should be present") {
-            pb::vm_sys_write_output_parameters::Result::Success(s) => Self::Success(s),
-            pb::vm_sys_write_output_parameters::Result::Failure(f) => Self::Failure(f.into()),
-        }
-    }
-}
-
 impl From<ResponseHead> for pb::VmGetResponseHeadReturn {
     fn from(value: ResponseHead) -> Self {
         Self {
             status_code: value.status_code.into(),
             headers: value.headers.into_iter().map(Into::into).collect(),
         }
+    }
+}
+
+fn payload_options_from_proto(opts: Option<pb::PayloadOptions>) -> PayloadOptions {
+    PayloadOptions {
+        unstable_serialization: opts.map_or(false, |o| o.unstable_serialization),
     }
 }

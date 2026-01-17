@@ -122,6 +122,25 @@ type PayloadCodec interface {
 	Codec
 }
 
+// UnstableSerializer is an interface that codecs can implement to indicate
+// they may produce non-deterministic output for the same input.
+type UnstableSerializer interface {
+	IsUnstable() bool
+}
+
+// IsUnstableSerialization returns true if the codec may produce non-deterministic output.
+// This is true for ProtoJSONCodec (protojson does not guarantee deterministic output)
+// and any codec implementing UnstableSerializer that returns true from IsUnstable().
+func IsUnstableSerialization(codec Codec) bool {
+	if _, ok := codec.(protoJSONCodec); ok {
+		return true
+	}
+	if unstable, ok := codec.(UnstableSerializer); ok {
+		return unstable.IsUnstable()
+	}
+	return false
+}
+
 // InputPayload is provided to Restate upon handler discovery, to teach the ingress how to validate incoming
 // request bodies.
 type InputPayload struct {
@@ -264,7 +283,10 @@ func (j protoJSONCodec) Unmarshal(data []byte, input any) (err error) {
 func (j protoJSONCodec) Marshal(output any) ([]byte, error) {
 	switch output := output.(type) {
 	case proto.Message:
-		return protojson.Marshal(output)
+		return protojson.MarshalOptions{
+			Indent:    "",
+			Multiline: false,
+		}.Marshal(output)
 	default:
 		return nil, fmt.Errorf("ProtoJSONCodec.Marshal called with a type that is not a proto.Message")
 	}

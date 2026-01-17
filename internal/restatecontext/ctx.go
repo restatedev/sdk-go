@@ -7,6 +7,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/restatedev/sdk-go/encoding"
 	pbinternal "github.com/restatedev/sdk-go/internal/generated"
 	"github.com/restatedev/sdk-go/internal/log"
 	"github.com/restatedev/sdk-go/internal/options"
@@ -205,3 +206,15 @@ func (restateCtx *restateCtxWithWrappedContext) Value(key interface{}) interface
 }
 
 var _ Context = (*restateCtxWithWrappedContext)(nil)
+
+// payloadOptionsFromCodec returns PayloadOptions based on codec characteristics.
+// If the codec produces non-deterministic output (like ProtoJSONCodec), it returns
+// options with UnstableSerialization set to true.
+func payloadOptionsFromCodec(codec encoding.Codec) *pbinternal.PayloadOptions {
+	if encoding.IsUnstableSerialization(codec) {
+		opts := &pbinternal.PayloadOptions{}
+		opts.SetUnstableSerialization(true)
+		return opts
+	}
+	return nil
+}

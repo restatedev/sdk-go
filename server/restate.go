@@ -59,13 +59,13 @@ func init() {
 
 // Restate represents a Restate HTTP handler to which services or virtual objects may be attached.
 type Restate struct {
-	logHandler     slog.Handler
-	dropReplayLogs bool
-	systemLog      *slog.Logger
-	definitions    map[string]restate.ServiceDefinition
-	keyIDs         []string
-	keySet         identity.KeySetV1
-	protocolMode   internal.ProtocolMode
+	logHandler           slog.Handler
+	dropReplayLogs       bool
+	systemLog            *slog.Logger
+	definitions          map[string]restate.ServiceDefinition
+	keyIDs               []string
+	keySet       identity.KeySetV1
+	protocolMode internal.ProtocolMode
 }
 
 // NewRestate creates a new instance of Restate server
