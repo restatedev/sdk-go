@@ -4,12 +4,6 @@ import (
 	"context"
 	_ "embed"
 	"fmt"
-	"github.com/restatedev/sdk-go/internal/errors"
-	pbinternal "github.com/restatedev/sdk-go/internal/generated"
-	loginternal "github.com/restatedev/sdk-go/internal/log"
-	"github.com/tetratelabs/wazero"
-	"github.com/tetratelabs/wazero/api"
-	"google.golang.org/protobuf/proto"
 	"io"
 	"log"
 	"log/slog"
@@ -18,6 +12,13 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/restatedev/sdk-go/internal/errors"
+	pbinternal "github.com/restatedev/sdk-go/internal/generated"
+	loginternal "github.com/restatedev/sdk-go/internal/log"
+	"github.com/tetratelabs/wazero"
+	"github.com/tetratelabs/wazero/api"
+	"google.golang.org/protobuf/proto"
 )
 
 // -- WASM core initialization
@@ -627,15 +628,13 @@ func (sm *StateMachine) SysInput(ctx context.Context) (*pbinternal.VmSysInputRet
 	return output.GetOk(), nil
 }
 
-func (sm *StateMachine) SysStateGet(ctx context.Context, key string) (uint32, error) {
+func (sm *StateMachine) SysStateGet(ctx context.Context, input *pbinternal.VmSysStateGetParameters) (uint32, error) {
 	if !sm.core.coreMutex.TryLock() {
 		panic(concurrentContextUseError{})
 	}
 	defer sm.core.coreMutex.Unlock()
 
-	params := pbinternal.VmSysStateGetParameters{}
-	params.SetKey(key)
-	inputPtr, inputLen := sm.core.transferInputStructToWasmMemory(ctx, &params)
+	inputPtr, inputLen := sm.core.transferInputStructToWasmMemory(ctx, input)
 
 	sm.core.callStack[0] = sm.vmPointer
 	sm.core.callStack[1] = inputPtr
@@ -677,16 +676,13 @@ func (sm *StateMachine) SysStateGetKeys(ctx context.Context) (uint32, error) {
 	return output.GetHandle(), nil
 }
 
-func (sm *StateMachine) SysStateSet(ctx context.Context, key string, value []byte) error {
+func (sm *StateMachine) SysStateSet(ctx context.Context, input *pbinternal.VmSysStateSetParameters) error {
 	if !sm.core.coreMutex.TryLock() {
 		panic(concurrentContextUseError{})
 	}
 	defer sm.core.coreMutex.Unlock()
 
-	params := pbinternal.VmSysStateSetParameters{}
-	params.SetKey(key)
-	params.SetValue(value)
-	inputPtr, inputLen := sm.core.transferInputStructToWasmMemory(ctx, &params)
+	inputPtr, inputLen := sm.core.transferInputStructToWasmMemory(ctx, input)
 
 	sm.core.callStack[0] = sm.vmPointer
 	sm.core.callStack[1] = inputPtr
