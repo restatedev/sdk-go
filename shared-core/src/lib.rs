@@ -415,7 +415,7 @@ fn vm_sys_state_get(
         &mut rc_vm.borrow_mut().vm,
         input.key,
         PayloadOptions {
-            unstable_serialization: input.non_deterministic_serialization,
+            unstable_serialization: input.unstable_serialization,
         },
     )
     .into()
@@ -453,7 +453,7 @@ fn vm_sys_state_set(
         input.key,
         input.value,
         PayloadOptions {
-            unstable_serialization: input.non_deterministic_serialization,
+            unstable_serialization: input.unstable_serialization,
         },
     )
     .into()
@@ -563,7 +563,7 @@ fn vm_sys_complete_awakeable(
             }
         },
         PayloadOptions {
-            unstable_serialization: input.non_deterministic_serialization,
+            unstable_serialization: input.unstable_serialization,
         },
     )
     .into()
@@ -595,7 +595,7 @@ fn vm_sys_call(rc_vm: &Rc<RefCell<WasmVM>>, input: pb::VmSysCallParameters) -> p
                 },
                 input.input,
                 PayloadOptions {
-                    unstable_serialization: input.non_deterministic_serialization,
+                    unstable_serialization: input.unstable_serialization,
                 },
             ) {
                 Ok(call_handle) => {
@@ -640,7 +640,7 @@ fn vm_sys_send(
             .execution_time_since_unix_epoch_millis
             .map(Duration::from_millis),
         PayloadOptions {
-            unstable_serialization: input.non_deterministic_serialization,
+            unstable_serialization: input.unstable_serialization,
         },
     )
     .map(|s| s.invocation_id_notification_handle)
@@ -753,7 +753,7 @@ fn vm_sys_promise_complete(
             }
         },
         PayloadOptions {
-            unstable_serialization: input.non_deterministic_serialization,
+            unstable_serialization: input.unstable_serialization,
         },
     )
     .into()
@@ -851,7 +851,7 @@ fn vm_sys_write_output(
         &mut rc_vm.borrow_mut().vm,
         value,
         PayloadOptions {
-            unstable_serialization: input.non_deterministic_serialization,
+            unstable_serialization: input.unstable_serialization,
         },
     )
     .into()

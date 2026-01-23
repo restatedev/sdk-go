@@ -123,13 +123,13 @@ message VmSysInputReturn {
 
 message VmSysStateGetParameters {
   string key = 1;
-  bool non_deterministic_serialization = 2;
+  bool unstable_serialization = 2;
 }
 
 message VmSysStateSetParameters {
   string key = 1;
   bytes value = 2;
-  bool non_deterministic_serialization = 3;
+  bool unstable_serialization = 3;
 }
 
 message VmSysStateClearParameters {
@@ -162,7 +162,7 @@ message VmSysCompleteAwakeableParameters {
     Failure failure = 3;
   }
 
-  bool non_deterministic_serialization = 4;
+  bool unstable_serialization = 4;
 }
 
 message VmSysCallParameters {
@@ -174,7 +174,7 @@ message VmSysCallParameters {
 
   bytes input = 6;
 
-  bool non_deterministic_serialization = 7;
+  bool unstable_serialization = 7;
 }
 
 message VmSysCallReturn {
@@ -200,7 +200,7 @@ message VmSysSendParameters {
 
   optional uint64 execution_time_since_unix_epoch_millis = 7;
 
-  bool non_deterministic_serialization = 8;
+  bool unstable_serialization = 8;
 }
 
 message VmSysCancelInvocation {
@@ -227,7 +227,7 @@ message VmSysPromiseCompleteParameters {
     Failure failure = 3;
   }
 
-  bool non_deterministic_serialization = 4;
+  bool unstable_serialization = 4;
 }
 
 message VmSysRunParameters {
@@ -261,7 +261,7 @@ message VmSysWriteOutputParameters {
     Failure failure = 2;
   }
 
-  bool non_deterministic_serialization = 3;
+  bool unstable_serialization = 3;
 }
 
 message SimpleSysAsyncResultReturn {

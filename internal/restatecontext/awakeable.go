@@ -78,7 +78,7 @@ func (restateCtx *ctx) ResolveAwakeable(id string, value any, opts ...options.Re
 	input := pbinternal.VmSysCompleteAwakeableParameters{}
 	input.SetId(id)
 	input.SetSuccess(bytes)
-	input.SetNonDeterministicSerialization(isNonDeterministicCodec(o.Codec))
+	input.SetUnstableSerialization(isNonDeterministicCodec(o.Codec))
 	if err := restateCtx.stateMachine.SysCompleteAwakeable(restateCtx, &input); err != nil {
 		panic(err)
 	}

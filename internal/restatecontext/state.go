@@ -26,7 +26,7 @@ func (restateCtx *ctx) Set(key string, value any, opts ...options.SetOption) {
 	inputParams := pbinternal.VmSysStateSetParameters{}
 	inputParams.SetKey(key)
 	inputParams.SetValue(bytes)
-	inputParams.SetNonDeterministicSerialization(isNonDeterministicCodec(o.Codec))
+	inputParams.SetUnstableSerialization(isNonDeterministicCodec(o.Codec))
 
 	err = restateCtx.stateMachine.SysStateSet(restateCtx, &inputParams)
 	if err != nil {
@@ -63,7 +63,7 @@ func (restateCtx *ctx) Get(key string, output any, opts ...options.GetOption) (b
 
 	inputParams := pbinternal.VmSysStateGetParameters{}
 	inputParams.SetKey(key)
-	inputParams.SetNonDeterministicSerialization(isNonDeterministicCodec(o.Codec))
+	inputParams.SetUnstableSerialization(isNonDeterministicCodec(o.Codec))
 
 	handle, err := restateCtx.stateMachine.SysStateGet(restateCtx, &inputParams)
 	if err != nil {

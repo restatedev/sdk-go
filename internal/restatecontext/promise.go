@@ -97,7 +97,7 @@ func (d *durablePromise) Resolve(value any) error {
 	input := pbinternal.VmSysPromiseCompleteParameters{}
 	input.SetId(d.key)
 	input.SetSuccess(bytes)
-	input.SetNonDeterministicSerialization(isNonDeterministicCodec(d.codec))
+	input.SetUnstableSerialization(isNonDeterministicCodec(d.codec))
 	handle, err := d.ctx.stateMachine.SysPromiseComplete(d.ctx, &input)
 	if err != nil {
 		panic(err)
