@@ -31,14 +31,6 @@ message FailureWithStacktrace {
   string stacktrace = 3;
 }
 
-// Options for syscalls that involve payload serialization.
-// Use this to indicate when payload bytes may differ between executions.
-message PayloadOptions {
-  // If true, skip payload byte equality checks during replay.
-  // Use this when the serialization format is non-deterministic (e.g., protojson).
-  bool unstable_serialization = 1;
-}
-
 message VmNewParameters {
   repeated Header headers = 1;
 }
@@ -131,13 +123,13 @@ message VmSysInputReturn {
 
 message VmSysStateGetParameters {
   string key = 1;
-  PayloadOptions payload_options = 2;
+  bool non_deterministic_serialization = 2;
 }
 
 message VmSysStateSetParameters {
   string key = 1;
   bytes value = 2;
-  PayloadOptions payload_options = 3;
+  bool non_deterministic_serialization = 3;
 }
 
 message VmSysStateClearParameters {
@@ -170,7 +162,7 @@ message VmSysCompleteAwakeableParameters {
     Failure failure = 3;
   }
 
-  PayloadOptions payload_options = 4;
+  bool non_deterministic_serialization = 4;
 }
 
 message VmSysCallParameters {
@@ -182,7 +174,7 @@ message VmSysCallParameters {
 
   bytes input = 6;
 
-  PayloadOptions payload_options = 7;
+  bool non_deterministic_serialization = 7;
 }
 
 message VmSysCallReturn {
@@ -208,7 +200,7 @@ message VmSysSendParameters {
 
   optional uint64 execution_time_since_unix_epoch_millis = 7;
 
-  PayloadOptions payload_options = 8;
+  bool non_deterministic_serialization = 8;
 }
 
 message VmSysCancelInvocation {
@@ -235,7 +227,7 @@ message VmSysPromiseCompleteParameters {
     Failure failure = 3;
   }
 
-  PayloadOptions payload_options = 4;
+  bool non_deterministic_serialization = 4;
 }
 
 message VmSysRunParameters {
@@ -269,7 +261,7 @@ message VmSysWriteOutputParameters {
     Failure failure = 2;
   }
 
-  PayloadOptions payload_options = 3;
+  bool non_deterministic_serialization = 3;
 }
 
 message SimpleSysAsyncResultReturn {

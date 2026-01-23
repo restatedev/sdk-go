@@ -81,7 +81,7 @@ func invoke(restateCtx *ctx, handler Handler, logger *slog.Logger) {
 		failure.SetMessage(err.Error())
 		outputParameters := pbinternal.VmSysWriteOutputParameters{}
 		outputParameters.SetFailure(&failure)
-		outputParameters.SetPayloadOptions(payloadOptionsFromCodec(handler.GetOptions().Codec))
+		outputParameters.SetNonDeterministicSerialization(isNonDeterministicCodec(handler.GetOptions().Codec))
 		if err := restateCtx.stateMachine.SysWriteOutput(restateCtx, &outputParameters); err != nil {
 			// This is handled by the panic catcher above
 			panic(err)
@@ -96,7 +96,7 @@ func invoke(restateCtx *ctx, handler Handler, logger *slog.Logger) {
 
 		outputParameters := pbinternal.VmSysWriteOutputParameters{}
 		outputParameters.SetSuccess(bytes)
-		outputParameters.SetPayloadOptions(payloadOptionsFromCodec(handler.GetOptions().Codec))
+		outputParameters.SetNonDeterministicSerialization(isNonDeterministicCodec(handler.GetOptions().Codec))
 		if err := restateCtx.stateMachine.SysWriteOutput(restateCtx, &outputParameters); err != nil {
 			// This is handled by the panic catcher above
 			panic(err)

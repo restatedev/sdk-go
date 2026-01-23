@@ -122,22 +122,20 @@ type PayloadCodec interface {
 	Codec
 }
 
-// UnstableSerializer is an interface that codecs can implement to indicate
+// NonDeterministicSerializer is an interface that codecs can implement to indicate
 // they may produce non-deterministic output for the same input.
-type UnstableSerializer interface {
-	IsUnstable() bool
+type NonDeterministicSerializer interface {
+	IsNonDeterministic() bool
 }
 
-// IsUnstableSerialization returns true if the codec may produce non-deterministic output.
+// IsNonDeterministicSerialization returns true if the codec may produce non-deterministic output.
 // This is true for ProtoJSONCodec (protojson does not guarantee deterministic output)
-// and any codec implementing UnstableSerializer that returns true from IsUnstable().
-func IsUnstableSerialization(codec Codec) bool {
-	if _, ok := codec.(protoJSONCodec); ok {
-		return true
+// and any codec implementing NonDeterministicSerializer that returns true from IsNonDeterministic().
+func IsNonDeterministicSerialization(codec Codec) bool {
+	if nonDeterministic, ok := codec.(NonDeterministicSerializer); ok {
+		return nonDeterministic.IsNonDeterministic()
 	}
-	if unstable, ok := codec.(UnstableSerializer); ok {
-		return unstable.IsUnstable()
-	}
+
 	return false
 }
 
@@ -247,6 +245,12 @@ func (p protoCodec) Marshal(output any) (data []byte, err error) {
 
 type protoJSONCodec struct{}
 
+func (j protoJSONCodec) IsNonDeterministic() bool {
+	// protojson does not guarantee deterministic output:
+	// https://github.com/golang/protobuf/issues/1373
+	return true
+}
+
 func (j protoJSONCodec) generateProtoJsonSchema(v any) interface{} {
 	_, msgOk := v.(protoreflect.ProtoMessage)
 	if !msgOk {
@@ -283,10 +287,7 @@ func (j protoJSONCodec) Unmarshal(data []byte, input any) (err error) {
 func (j protoJSONCodec) Marshal(output any) ([]byte, error) {
 	switch output := output.(type) {
 	case proto.Message:
-		return protojson.MarshalOptions{
-			Indent:    "",
-			Multiline: false,
-		}.Marshal(output)
+		return protojson.Marshal(output)
 	default:
 		return nil, fmt.Errorf("ProtoJSONCodec.Marshal called with a type that is not a proto.Message")
 	}

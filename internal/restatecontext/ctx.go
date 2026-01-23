@@ -207,14 +207,8 @@ func (restateCtx *restateCtxWithWrappedContext) Value(key interface{}) interface
 
 var _ Context = (*restateCtxWithWrappedContext)(nil)
 
-// payloadOptionsFromCodec returns PayloadOptions based on codec characteristics.
-// If the codec produces non-deterministic output (like ProtoJSONCodec), it returns
-// options with UnstableSerialization set to true.
-func payloadOptionsFromCodec(codec encoding.Codec) *pbinternal.PayloadOptions {
-	if encoding.IsUnstableSerialization(codec) {
-		opts := &pbinternal.PayloadOptions{}
-		opts.SetUnstableSerialization(true)
-		return opts
-	}
-	return nil
+// isNonDeterministicCodec returns true if the codec may produce non-deterministic output.
+// This is used to set the non_deterministic_serialization flag on syscall parameters.
+func isNonDeterministicCodec(codec encoding.Codec) bool {
+	return encoding.IsNonDeterministicSerialization(codec)
 }

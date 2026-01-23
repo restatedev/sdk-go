@@ -414,7 +414,9 @@ fn vm_sys_state_get(
     VM::sys_state_get(
         &mut rc_vm.borrow_mut().vm,
         input.key,
-        payload_options_from_proto(input.payload_options),
+        PayloadOptions {
+            unstable_serialization: input.non_deterministic_serialization,
+        },
     )
     .into()
 }
@@ -450,7 +452,9 @@ fn vm_sys_state_set(
         &mut rc_vm.borrow_mut().vm,
         input.key,
         input.value,
-        payload_options_from_proto(input.payload_options),
+        PayloadOptions {
+            unstable_serialization: input.non_deterministic_serialization,
+        },
     )
     .into()
 }
@@ -558,7 +562,9 @@ fn vm_sys_complete_awakeable(
                 NonEmptyValue::Failure(f.into())
             }
         },
-        payload_options_from_proto(input.payload_options),
+        PayloadOptions {
+            unstable_serialization: input.non_deterministic_serialization,
+        },
     )
     .into()
 }
@@ -588,7 +594,9 @@ fn vm_sys_call(rc_vm: &Rc<RefCell<WasmVM>>, input: pb::VmSysCallParameters) -> p
                     headers: input.headers.into_iter().map(Into::into).collect(),
                 },
                 input.input,
-                payload_options_from_proto(input.payload_options),
+                PayloadOptions {
+                    unstable_serialization: input.non_deterministic_serialization,
+                },
             ) {
                 Ok(call_handle) => {
                     pb::vm_sys_call_return::Result::Ok(pb::vm_sys_call_return::CallHandles {
@@ -631,7 +639,9 @@ fn vm_sys_send(
         input
             .execution_time_since_unix_epoch_millis
             .map(Duration::from_millis),
-        payload_options_from_proto(input.payload_options),
+        PayloadOptions {
+            unstable_serialization: input.non_deterministic_serialization,
+        },
     )
     .map(|s| s.invocation_id_notification_handle)
     .into()
@@ -742,7 +752,9 @@ fn vm_sys_promise_complete(
                 NonEmptyValue::Failure(f.into())
             }
         },
-        payload_options_from_proto(input.payload_options),
+        PayloadOptions {
+            unstable_serialization: input.non_deterministic_serialization,
+        },
     )
     .into()
 }
@@ -838,7 +850,9 @@ fn vm_sys_write_output(
     VM::sys_write_output(
         &mut rc_vm.borrow_mut().vm,
         value,
-        payload_options_from_proto(input.payload_options),
+        PayloadOptions {
+            unstable_serialization: input.non_deterministic_serialization,
+        },
     )
     .into()
 }
@@ -1069,11 +1083,5 @@ impl From<ResponseHead> for pb::VmGetResponseHeadReturn {
             status_code: value.status_code.into(),
             headers: value.headers.into_iter().map(Into::into).collect(),
         }
-    }
-}
-
-fn payload_options_from_proto(opts: Option<pb::PayloadOptions>) -> PayloadOptions {
-    PayloadOptions {
-        unstable_serialization: opts.map_or(false, |o| o.unstable_serialization),
     }
 }

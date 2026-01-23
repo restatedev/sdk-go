@@ -2,10 +2,11 @@ package restatecontext
 
 import (
 	"fmt"
+	"time"
+
 	"github.com/restatedev/sdk-go/encoding"
 	pbinternal "github.com/restatedev/sdk-go/internal/generated"
 	"github.com/restatedev/sdk-go/internal/statemachine"
-	"time"
 
 	"github.com/restatedev/sdk-go/internal/options"
 )
@@ -66,7 +67,7 @@ func (c *client) RequestFuture(input any, opts ...options.RequestOption) Respons
 		inputParams.SetIdempotencyKey(o.IdempotencyKey)
 	}
 	inputParams.SetInput(inputBytes)
-	inputParams.SetPayloadOptions(payloadOptionsFromCodec(c.options.Codec))
+	inputParams.SetNonDeterministicSerialization(isNonDeterministicCodec(c.options.Codec))
 
 	invocationIdHandle, resultHandle, err := c.restateContext.stateMachine.SysCall(c.restateContext, &inputParams)
 	if err != nil {
@@ -162,7 +163,7 @@ func (c *client) Send(input any, opts ...options.SendOption) Invocation {
 	if o.Delay != 0 {
 		inputParams.SetExecutionTimeSinceUnixEpochMillis(uint64(time.Now().Add(o.Delay).UnixMilli()))
 	}
-	inputParams.SetPayloadOptions(payloadOptionsFromCodec(c.options.Codec))
+	inputParams.SetNonDeterministicSerialization(isNonDeterministicCodec(c.options.Codec))
 
 	invocationIdHandle, err := c.restateContext.stateMachine.SysSend(c.restateContext, &inputParams)
 	if err != nil {
