@@ -2,6 +2,7 @@ package restatecontext
 
 import (
 	"fmt"
+
 	"github.com/restatedev/sdk-go/encoding"
 	"github.com/restatedev/sdk-go/internal/errors"
 	pbinternal "github.com/restatedev/sdk-go/internal/generated"
@@ -78,7 +79,9 @@ func (restateCtx *ctx) ResolveAwakeable(id string, value any, opts ...options.Re
 	input := pbinternal.VmSysCompleteAwakeableParameters{}
 	input.SetId(id)
 	input.SetSuccess(bytes)
-	input.SetUnstableSerialization(isNonDeterministicCodec(o.Codec))
+	input.SetUnstableSerialization(
+		encoding.IsNonDeterministicSerialization(o.Codec),
+	)
 	if err := restateCtx.stateMachine.SysCompleteAwakeable(restateCtx, &input); err != nil {
 		panic(err)
 	}

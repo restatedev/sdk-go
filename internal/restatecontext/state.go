@@ -3,6 +3,7 @@ package restatecontext
 import (
 	_ "embed"
 	"fmt"
+
 	"github.com/restatedev/sdk-go/encoding"
 	pbinternal "github.com/restatedev/sdk-go/internal/generated"
 	"github.com/restatedev/sdk-go/internal/options"
@@ -26,7 +27,9 @@ func (restateCtx *ctx) Set(key string, value any, opts ...options.SetOption) {
 	inputParams := pbinternal.VmSysStateSetParameters{}
 	inputParams.SetKey(key)
 	inputParams.SetValue(bytes)
-	inputParams.SetUnstableSerialization(isNonDeterministicCodec(o.Codec))
+	inputParams.SetUnstableSerialization(
+		encoding.IsNonDeterministicSerialization(o.Codec),
+	)
 
 	err = restateCtx.stateMachine.SysStateSet(restateCtx, &inputParams)
 	if err != nil {
@@ -63,7 +66,9 @@ func (restateCtx *ctx) Get(key string, output any, opts ...options.GetOption) (b
 
 	inputParams := pbinternal.VmSysStateGetParameters{}
 	inputParams.SetKey(key)
-	inputParams.SetUnstableSerialization(isNonDeterministicCodec(o.Codec))
+	inputParams.SetUnstableSerialization(
+		encoding.IsNonDeterministicSerialization(o.Codec),
+	)
 
 	handle, err := restateCtx.stateMachine.SysStateGet(restateCtx, &inputParams)
 	if err != nil {

@@ -67,7 +67,9 @@ func (c *client) RequestFuture(input any, opts ...options.RequestOption) Respons
 		inputParams.SetIdempotencyKey(o.IdempotencyKey)
 	}
 	inputParams.SetInput(inputBytes)
-	inputParams.SetUnstableSerialization(isNonDeterministicCodec(c.options.Codec))
+	inputParams.SetUnstableSerialization(
+		encoding.IsNonDeterministicSerialization(c.options.Codec),
+	)
 
 	invocationIdHandle, resultHandle, err := c.restateContext.stateMachine.SysCall(c.restateContext, &inputParams)
 	if err != nil {
@@ -163,7 +165,9 @@ func (c *client) Send(input any, opts ...options.SendOption) Invocation {
 	if o.Delay != 0 {
 		inputParams.SetExecutionTimeSinceUnixEpochMillis(uint64(time.Now().Add(o.Delay).UnixMilli()))
 	}
-	inputParams.SetUnstableSerialization(isNonDeterministicCodec(c.options.Codec))
+	inputParams.SetUnstableSerialization(
+		encoding.IsNonDeterministicSerialization(c.options.Codec),
+	)
 
 	invocationIdHandle, err := c.restateContext.stateMachine.SysSend(c.restateContext, &inputParams)
 	if err != nil {

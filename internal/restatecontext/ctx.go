@@ -7,7 +7,6 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/restatedev/sdk-go/encoding"
 	pbinternal "github.com/restatedev/sdk-go/internal/generated"
 	"github.com/restatedev/sdk-go/internal/log"
 	"github.com/restatedev/sdk-go/internal/options"
@@ -206,9 +205,3 @@ func (restateCtx *restateCtxWithWrappedContext) Value(key interface{}) interface
 }
 
 var _ Context = (*restateCtxWithWrappedContext)(nil)
-
-// isNonDeterministicCodec returns true if the codec may produce non-deterministic output.
-// This is used to set the non_deterministic_serialization flag on syscall parameters.
-func isNonDeterministicCodec(codec encoding.Codec) bool {
-	return encoding.IsNonDeterministicSerialization(codec)
-}
