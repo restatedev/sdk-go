@@ -3,10 +3,12 @@ package main
 import (
 	"context"
 	"fmt"
+	"net/http"
 	"time"
 
 	restate "github.com/restatedev/sdk-go"
 	restateingress "github.com/restatedev/sdk-go/ingress"
+	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 )
 
 // This file serves as a tutorial for the Restate Ingress SDK
@@ -64,6 +66,10 @@ func main() {
 	// AttachWorkflow Example
 	// This demonstrates how to attach to a workflow
 	attachWorkflowExample()
+
+	// OtelExample
+	// This demostrates how to create a client otel aware
+	otelExample()
 
 	fmt.Println("Tutorial completed!")
 }
@@ -363,6 +369,29 @@ func attachWorkflowExample() {
 	}
 
 	fmt.Printf("AttachWorkflow non-blocking output: %v\n", outputNonBlocking)
+}
+
+func otelExample() {
+	client := restateingress.NewClient("http://localhost:8080",
+		// Provide an HTTP client wrapped using the otel transport.
+		// The otel transport makes sure spans get propagated correctly.
+		restate.WithHttpClient(&http.Client{Transport: otelhttp.NewTransport(http.DefaultTransport)}))
+
+	var input MyInput
+	input.Name = "World"
+
+	output, err := restateingress.Service[*MyInput, *MyOutput](
+		client, "ServiceName", "handlerName").
+		Request(context.Background(), &input,
+			restate.WithIdempotencyKey("idem-key-1"),
+			restate.WithHeaders(map[string]string{"header-name": "header-value"}))
+
+	if err != nil {
+		fmt.Println("Error:", err)
+		return
+	}
+
+	fmt.Printf("Service output: %v\n", output)
 }
 
 // --- Mock data structures
