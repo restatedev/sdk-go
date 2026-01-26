@@ -15,6 +15,15 @@ type Client = ingress.Client
 //	client := ingress.NewClient("http://localhost:8080",
 //	    restate.WithAuthKey("my-auth-key"),
 //	)
+//
+// To setup OpenTelemetry tracing, provide an HTTP client wrapped using the otel transport:
+//
+//	import "go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
+//
+//	client := ingress.NewClient("http://localhost:8080",
+//	    // HTTP client wrapped with the otel transport.
+//	    restate.WithHttpClient(&http.Client{Transport: otelhttp.NewTransport(http.DefaultTransport)}),
+//	)
 func NewClient(baseUri string, opts ...options.IngressClientOption) *Client {
 	clientOpts := options.IngressClientOptions{}
 	for _, opt := range opts {

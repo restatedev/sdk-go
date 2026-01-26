@@ -61,4 +61,6 @@ func main() {
 		Start(context.Background(), ":9080"); err != nil {
 		log.Fatal(err)
 	}
+
+	// Check client.otelExample for details on how to create an ingress client otel aware
 }
