@@ -3,7 +3,9 @@ package restatecontext
 import (
 	_ "embed"
 	"fmt"
+
 	"github.com/restatedev/sdk-go/encoding"
+	pbinternal "github.com/restatedev/sdk-go/internal/generated"
 	"github.com/restatedev/sdk-go/internal/options"
 	"github.com/restatedev/sdk-go/internal/statemachine"
 )
@@ -22,7 +24,14 @@ func (restateCtx *ctx) Set(key string, value any, opts ...options.SetOption) {
 		panic(fmt.Errorf("failed to marshal Set value: %w", err))
 	}
 
-	err = restateCtx.stateMachine.SysStateSet(restateCtx, key, bytes)
+	inputParams := pbinternal.VmSysStateSetParameters{}
+	inputParams.SetKey(key)
+	inputParams.SetValue(bytes)
+	inputParams.SetUnstableSerialization(
+		encoding.IsNonDeterministicSerialization(o.Codec),
+	)
+
+	err = restateCtx.stateMachine.SysStateSet(restateCtx, &inputParams)
 	if err != nil {
 		panic(err)
 	}
@@ -55,7 +64,13 @@ func (restateCtx *ctx) Get(key string, output any, opts ...options.GetOption) (b
 		o.Codec = encoding.JSONCodec
 	}
 
-	handle, err := restateCtx.stateMachine.SysStateGet(restateCtx, key)
+	inputParams := pbinternal.VmSysStateGetParameters{}
+	inputParams.SetKey(key)
+	inputParams.SetUnstableSerialization(
+		encoding.IsNonDeterministicSerialization(o.Codec),
+	)
+
+	handle, err := restateCtx.stateMachine.SysStateGet(restateCtx, &inputParams)
 	if err != nil {
 		panic(err)
 	}

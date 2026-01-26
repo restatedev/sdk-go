@@ -95,3 +95,23 @@ func TestGenerateJsonSchema(t *testing.T) {
 		})
 	}
 }
+
+func TestIsNonDeterministicSerialization(t *testing.T) {
+	tests := []struct {
+		name     string
+		codec    Codec
+		expected bool
+	}{
+		{"JSONCodec", JSONCodec, false},
+		{"ProtoCodec", ProtoCodec, false},
+		{"ProtoJSONCodec", ProtoJSONCodec, true},
+		{"BinaryCodec", BinaryCodec, false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := IsNonDeterministicSerialization(tt.codec)
+			require.Equal(t, tt.expected, result, "IsNonDeterministicSerialization(%s) = %v, want %v", tt.name, result, tt.expected)
+		})
+	}
+}

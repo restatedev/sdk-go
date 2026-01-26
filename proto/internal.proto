@@ -123,11 +123,13 @@ message VmSysInputReturn {
 
 message VmSysStateGetParameters {
   string key = 1;
+  bool unstable_serialization = 2;
 }
 
 message VmSysStateSetParameters {
   string key = 1;
   bytes value = 2;
+  bool unstable_serialization = 3;
 }
 
 message VmSysStateClearParameters {
@@ -159,6 +161,8 @@ message VmSysCompleteAwakeableParameters {
     bytes success = 2;
     Failure failure = 3;
   }
+
+  bool unstable_serialization = 4;
 }
 
 message VmSysCallParameters {
@@ -169,6 +173,8 @@ message VmSysCallParameters {
   repeated Header headers = 5;
 
   bytes input = 6;
+
+  bool unstable_serialization = 7;
 }
 
 message VmSysCallReturn {
@@ -193,6 +199,8 @@ message VmSysSendParameters {
   bytes input = 6;
 
   optional uint64 execution_time_since_unix_epoch_millis = 7;
+
+  bool unstable_serialization = 8;
 }
 
 message VmSysCancelInvocation {
@@ -218,6 +226,8 @@ message VmSysPromiseCompleteParameters {
     bytes success = 2;
     Failure failure = 3;
   }
+
+  bool unstable_serialization = 4;
 }
 
 message VmSysRunParameters {
@@ -250,6 +260,8 @@ message VmSysWriteOutputParameters {
     bytes success = 1;
     Failure failure = 2;
   }
+
+  bool unstable_serialization = 3;
 }
 
 message SimpleSysAsyncResultReturn {

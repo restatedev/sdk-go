@@ -122,6 +122,23 @@ type PayloadCodec interface {
 	Codec
 }
 
+// NonDeterministicSerializer is an interface that codecs can implement to indicate
+// they may produce non-deterministic output for the same input.
+type NonDeterministicSerializer interface {
+	IsNonDeterministic() bool
+}
+
+// IsNonDeterministicSerialization returns true if the codec may produce non-deterministic output.
+// This is true for ProtoJSONCodec (protojson does not guarantee deterministic output)
+// and any codec implementing NonDeterministicSerializer that returns true from IsNonDeterministic().
+func IsNonDeterministicSerialization(codec Codec) bool {
+	if nonDeterministic, ok := codec.(NonDeterministicSerializer); ok {
+		return nonDeterministic.IsNonDeterministic()
+	}
+
+	return false
+}
+
 // InputPayload is provided to Restate upon handler discovery, to teach the ingress how to validate incoming
 // request bodies.
 type InputPayload struct {
@@ -227,6 +244,12 @@ func (p protoCodec) Marshal(output any) (data []byte, err error) {
 }
 
 type protoJSONCodec struct{}
+
+func (j protoJSONCodec) IsNonDeterministic() bool {
+	// protojson does not guarantee deterministic output:
+	// https://github.com/golang/protobuf/issues/1373
+	return true
+}
 
 func (j protoJSONCodec) generateProtoJsonSchema(v any) interface{} {
 	_, msgOk := v.(protoreflect.ProtoMessage)

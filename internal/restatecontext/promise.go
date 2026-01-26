@@ -2,6 +2,7 @@ package restatecontext
 
 import (
 	"fmt"
+
 	"github.com/restatedev/sdk-go/encoding"
 	"github.com/restatedev/sdk-go/internal/errors"
 	pbinternal "github.com/restatedev/sdk-go/internal/generated"
@@ -96,6 +97,9 @@ func (d *durablePromise) Resolve(value any) error {
 	input := pbinternal.VmSysPromiseCompleteParameters{}
 	input.SetId(d.key)
 	input.SetSuccess(bytes)
+	input.SetUnstableSerialization(
+		encoding.IsNonDeterministicSerialization(d.codec),
+	)
 	handle, err := d.ctx.stateMachine.SysPromiseComplete(d.ctx, &input)
 	if err != nil {
 		panic(err)
