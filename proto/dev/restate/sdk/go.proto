@@ -18,7 +18,8 @@ import "google/protobuf/descriptor.proto";
 option go_package = "github.com/restatedev/sdk-go/generated/dev/restate/sdk";
 
 enum ServiceType {
-    // SERVICE is the default and need not be provided
+    // SERVICE is the default and need not be provided unless
+    // require_service_type=true (default is false)
     SERVICE = 0;
     VIRTUAL_OBJECT = 1;
     WORKFLOW = 2;

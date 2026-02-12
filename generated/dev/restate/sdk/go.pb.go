@@ -35,7 +35,8 @@ const (
 type ServiceType int32
 
 const (
-	// SERVICE is the default and need not be provided
+	// SERVICE is the default and need not be provided unless
+	// require_service_type=true (default is false)
 	ServiceType_SERVICE        ServiceType = 0
 	ServiceType_VIRTUAL_OBJECT ServiceType = 1
 	ServiceType_WORKFLOW       ServiceType = 2

@@ -128,6 +128,12 @@ func generateFileContent(gen *protogen.Plugin, file *protogen.File, g *protogen.
 	}
 
 	for _, service := range file.Services {
+		if *requireServiceType {
+			serviceOpts := service.Desc.Options().(*descriptorpb.ServiceOptions)
+			if !proto.HasExtension(serviceOpts, sdk.E_ServiceType) {
+				continue
+			}
+		}
 		genService(gen, g, service)
 	}
 }
