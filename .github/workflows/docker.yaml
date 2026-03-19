@@ -15,7 +15,7 @@ env:
 jobs:
   sdk-test-docker:
     if: github.repository_owner == 'restatedev'
-    runs-on: ubuntu-latest
+    runs-on: warp-ubuntu-latest-x64-4x
     name: "Create test-services Docker Image"
     
     steps:
