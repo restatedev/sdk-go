@@ -71,10 +71,10 @@ message VmDoProgressParameters {
 }
 
 message VmDoProgressReturn {
+  reserved 3;
   oneof result {
     Empty any_completed = 1;
-    Empty read_from_input = 2;
-    Empty waiting_pending_run = 3;
+    Empty waiting_external_progress = 2;
     uint32 execute_run = 4;
     Empty cancel_signal_received = 5;
     Empty suspended = 6;

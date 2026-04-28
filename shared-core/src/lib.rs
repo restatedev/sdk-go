@@ -7,9 +7,9 @@ use alloc::borrow::Cow;
 use alloc::rc::Rc;
 use alloc::vec::Vec;
 use restate_sdk_shared_core::{
-    AttachInvocationTarget, CoreVM, DoProgressResponse, Error, Header, HeaderMap, NonEmptyValue,
+    AttachInvocationTarget, AwaitResponse, CoreVM, Error, Header, HeaderMap, NonEmptyValue,
     NotificationHandle, PayloadOptions, ResponseHead, RetryPolicy, RunExitResult, TakeOutputResult,
-    Target, TerminalFailure, VMOptions, Value, Version, VM,
+    Target, TerminalFailure, UnresolvedFuture, VMOptions, Value, Version, VM,
 };
 use std::cell::RefCell;
 use std::convert::Infallible;
@@ -300,27 +300,27 @@ fn vm_do_progress(
 ) -> pb::VmDoProgressReturn {
     pb::VmDoProgressReturn {
         result: Some(
-            match VM::do_progress(
+            match VM::do_await(
                 &mut rc_vm.borrow_mut().vm,
-                input
-                    .handles
-                    .into_iter()
-                    .map(NotificationHandle::from)
-                    .collect(),
+                UnresolvedFuture::FirstCompleted(
+                    input
+                        .handles
+                        .into_iter()
+                        .map(NotificationHandle::from)
+                        .map(UnresolvedFuture::Single)
+                        .collect(),
+                ),
             ) {
-                Ok(DoProgressResponse::AnyCompleted) => {
+                Ok(AwaitResponse::AnyCompleted) => {
                     pb::vm_do_progress_return::Result::AnyCompleted(Default::default())
                 }
-                Ok(DoProgressResponse::ReadFromInput) => {
-                    pb::vm_do_progress_return::Result::ReadFromInput(Default::default())
+                Ok(AwaitResponse::WaitingExternalProgress { .. }) => {
+                    pb::vm_do_progress_return::Result::WaitingExternalProgress(Default::default())
                 }
-                Ok(DoProgressResponse::CancelSignalReceived) => {
+                Ok(AwaitResponse::CancelSignalReceived) => {
                     pb::vm_do_progress_return::Result::CancelSignalReceived(Default::default())
                 }
-                Ok(DoProgressResponse::WaitingPendingRun) => {
-                    pb::vm_do_progress_return::Result::WaitingPendingRun(Default::default())
-                }
-                Ok(DoProgressResponse::ExecuteRun(handle)) => {
+                Ok(AwaitResponse::ExecuteRun(handle)) => {
                     pb::vm_do_progress_return::Result::ExecuteRun(handle.into())
                 }
                 Err(e) if e.is_suspended_error() => {
@@ -594,6 +594,7 @@ fn vm_sys_call(rc_vm: &Rc<RefCell<WasmVM>>, input: pb::VmSysCallParameters) -> p
                     headers: input.headers.into_iter().map(Into::into).collect(),
                 },
                 input.input,
+                None,
                 PayloadOptions {
                     unstable_serialization: input.unstable_serialization,
                 },
@@ -639,6 +640,7 @@ fn vm_sys_send(
         input
             .execution_time_since_unix_epoch_millis
             .map(Duration::from_millis),
+        None,
         PayloadOptions {
             unstable_serialization: input.unstable_serialization,
         },

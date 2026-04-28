@@ -1105,19 +1105,10 @@ func (x *VmDoProgressReturn) GetAnyCompleted() *Empty {
 	return nil
 }
 
-func (x *VmDoProgressReturn) GetReadFromInput() *Empty {
+func (x *VmDoProgressReturn) GetWaitingExternalProgress() *Empty {
 	if x != nil {
-		if x, ok := x.xxx_hidden_Result.(*vmDoProgressReturn_ReadFromInput); ok {
-			return x.ReadFromInput
-		}
-	}
-	return nil
-}
-
-func (x *VmDoProgressReturn) GetWaitingPendingRun() *Empty {
-	if x != nil {
-		if x, ok := x.xxx_hidden_Result.(*vmDoProgressReturn_WaitingPendingRun); ok {
-			return x.WaitingPendingRun
+		if x, ok := x.xxx_hidden_Result.(*vmDoProgressReturn_WaitingExternalProgress); ok {
+			return x.WaitingExternalProgress
 		}
 	}
 	return nil
@@ -1167,20 +1158,12 @@ func (x *VmDoProgressReturn) SetAnyCompleted(v *Empty) {
 	x.xxx_hidden_Result = &vmDoProgressReturn_AnyCompleted{v}
 }
 
-func (x *VmDoProgressReturn) SetReadFromInput(v *Empty) {
+func (x *VmDoProgressReturn) SetWaitingExternalProgress(v *Empty) {
 	if v == nil {
 		x.xxx_hidden_Result = nil
 		return
 	}
-	x.xxx_hidden_Result = &vmDoProgressReturn_ReadFromInput{v}
-}
-
-func (x *VmDoProgressReturn) SetWaitingPendingRun(v *Empty) {
-	if v == nil {
-		x.xxx_hidden_Result = nil
-		return
-	}
-	x.xxx_hidden_Result = &vmDoProgressReturn_WaitingPendingRun{v}
+	x.xxx_hidden_Result = &vmDoProgressReturn_WaitingExternalProgress{v}
 }
 
 func (x *VmDoProgressReturn) SetExecuteRun(v uint32) {
@@ -1226,19 +1209,11 @@ func (x *VmDoProgressReturn) HasAnyCompleted() bool {
 	return ok
 }
 
-func (x *VmDoProgressReturn) HasReadFromInput() bool {
+func (x *VmDoProgressReturn) HasWaitingExternalProgress() bool {
 	if x == nil {
 		return false
 	}
-	_, ok := x.xxx_hidden_Result.(*vmDoProgressReturn_ReadFromInput)
-	return ok
-}
-
-func (x *VmDoProgressReturn) HasWaitingPendingRun() bool {
-	if x == nil {
-		return false
-	}
-	_, ok := x.xxx_hidden_Result.(*vmDoProgressReturn_WaitingPendingRun)
+	_, ok := x.xxx_hidden_Result.(*vmDoProgressReturn_WaitingExternalProgress)
 	return ok
 }
 
@@ -1284,14 +1259,8 @@ func (x *VmDoProgressReturn) ClearAnyCompleted() {
 	}
 }
 
-func (x *VmDoProgressReturn) ClearReadFromInput() {
-	if _, ok := x.xxx_hidden_Result.(*vmDoProgressReturn_ReadFromInput); ok {
-		x.xxx_hidden_Result = nil
-	}
-}
-
-func (x *VmDoProgressReturn) ClearWaitingPendingRun() {
-	if _, ok := x.xxx_hidden_Result.(*vmDoProgressReturn_WaitingPendingRun); ok {
+func (x *VmDoProgressReturn) ClearWaitingExternalProgress() {
+	if _, ok := x.xxx_hidden_Result.(*vmDoProgressReturn_WaitingExternalProgress); ok {
 		x.xxx_hidden_Result = nil
 	}
 }
@@ -1322,8 +1291,7 @@ func (x *VmDoProgressReturn) ClearFailure() {
 
 const VmDoProgressReturn_Result_not_set_case case_VmDoProgressReturn_Result = 0
 const VmDoProgressReturn_AnyCompleted_case case_VmDoProgressReturn_Result = 1
-const VmDoProgressReturn_ReadFromInput_case case_VmDoProgressReturn_Result = 2
-const VmDoProgressReturn_WaitingPendingRun_case case_VmDoProgressReturn_Result = 3
+const VmDoProgressReturn_WaitingExternalProgress_case case_VmDoProgressReturn_Result = 2
 const VmDoProgressReturn_ExecuteRun_case case_VmDoProgressReturn_Result = 4
 const VmDoProgressReturn_CancelSignalReceived_case case_VmDoProgressReturn_Result = 5
 const VmDoProgressReturn_Suspended_case case_VmDoProgressReturn_Result = 6
@@ -1336,10 +1304,8 @@ func (x *VmDoProgressReturn) WhichResult() case_VmDoProgressReturn_Result {
 	switch x.xxx_hidden_Result.(type) {
 	case *vmDoProgressReturn_AnyCompleted:
 		return VmDoProgressReturn_AnyCompleted_case
-	case *vmDoProgressReturn_ReadFromInput:
-		return VmDoProgressReturn_ReadFromInput_case
-	case *vmDoProgressReturn_WaitingPendingRun:
-		return VmDoProgressReturn_WaitingPendingRun_case
+	case *vmDoProgressReturn_WaitingExternalProgress:
+		return VmDoProgressReturn_WaitingExternalProgress_case
 	case *vmDoProgressReturn_ExecuteRun:
 		return VmDoProgressReturn_ExecuteRun_case
 	case *vmDoProgressReturn_CancelSignalReceived:
@@ -1357,13 +1323,12 @@ type VmDoProgressReturn_builder struct {
 	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
 
 	// Fields of oneof xxx_hidden_Result:
-	AnyCompleted         *Empty
-	ReadFromInput        *Empty
-	WaitingPendingRun    *Empty
-	ExecuteRun           *uint32
-	CancelSignalReceived *Empty
-	Suspended            *Empty
-	Failure              *Failure
+	AnyCompleted            *Empty
+	WaitingExternalProgress *Empty
+	ExecuteRun              *uint32
+	CancelSignalReceived    *Empty
+	Suspended               *Empty
+	Failure                 *Failure
 	// -- end of xxx_hidden_Result
 }
 
@@ -1374,11 +1339,8 @@ func (b0 VmDoProgressReturn_builder) Build() *VmDoProgressReturn {
 	if b.AnyCompleted != nil {
 		x.xxx_hidden_Result = &vmDoProgressReturn_AnyCompleted{b.AnyCompleted}
 	}
-	if b.ReadFromInput != nil {
-		x.xxx_hidden_Result = &vmDoProgressReturn_ReadFromInput{b.ReadFromInput}
-	}
-	if b.WaitingPendingRun != nil {
-		x.xxx_hidden_Result = &vmDoProgressReturn_WaitingPendingRun{b.WaitingPendingRun}
+	if b.WaitingExternalProgress != nil {
+		x.xxx_hidden_Result = &vmDoProgressReturn_WaitingExternalProgress{b.WaitingExternalProgress}
 	}
 	if b.ExecuteRun != nil {
 		x.xxx_hidden_Result = &vmDoProgressReturn_ExecuteRun{*b.ExecuteRun}
@@ -1413,12 +1375,8 @@ type vmDoProgressReturn_AnyCompleted struct {
 	AnyCompleted *Empty `protobuf:"bytes,1,opt,name=any_completed,json=anyCompleted,proto3,oneof"`
 }
 
-type vmDoProgressReturn_ReadFromInput struct {
-	ReadFromInput *Empty `protobuf:"bytes,2,opt,name=read_from_input,json=readFromInput,proto3,oneof"`
-}
-
-type vmDoProgressReturn_WaitingPendingRun struct {
-	WaitingPendingRun *Empty `protobuf:"bytes,3,opt,name=waiting_pending_run,json=waitingPendingRun,proto3,oneof"`
+type vmDoProgressReturn_WaitingExternalProgress struct {
+	WaitingExternalProgress *Empty `protobuf:"bytes,2,opt,name=waiting_external_progress,json=waitingExternalProgress,proto3,oneof"`
 }
 
 type vmDoProgressReturn_ExecuteRun struct {
@@ -1439,9 +1397,7 @@ type vmDoProgressReturn_Failure struct {
 
 func (*vmDoProgressReturn_AnyCompleted) isVmDoProgressReturn_Result() {}
 
-func (*vmDoProgressReturn_ReadFromInput) isVmDoProgressReturn_Result() {}
-
-func (*vmDoProgressReturn_WaitingPendingRun) isVmDoProgressReturn_Result() {}
+func (*vmDoProgressReturn_WaitingExternalProgress) isVmDoProgressReturn_Result() {}
 
 func (*vmDoProgressReturn_ExecuteRun) isVmDoProgressReturn_Result() {}
 
@@ -5242,29 +5198,27 @@ var file_internal_proto_rawDesc = string([]byte{
 	0x0a, 0x16, 0x56, 0x6d, 0x44, 0x6f, 0x50, 0x72, 0x6f, 0x67, 0x72, 0x65, 0x73, 0x73, 0x50, 0x61,
 	0x72, 0x61, 0x6d, 0x65, 0x74, 0x65, 0x72, 0x73, 0x12, 0x18, 0x0a, 0x07, 0x68, 0x61, 0x6e, 0x64,
 	0x6c, 0x65, 0x73, 0x18, 0x01, 0x20, 0x03, 0x28, 0x0d, 0x52, 0x07, 0x68, 0x61, 0x6e, 0x64, 0x6c,
-	0x65, 0x73, 0x22, 0xea, 0x02, 0x0a, 0x12, 0x56, 0x6d, 0x44, 0x6f, 0x50, 0x72, 0x6f, 0x67, 0x72,
+	0x65, 0x73, 0x22, 0xca, 0x02, 0x0a, 0x12, 0x56, 0x6d, 0x44, 0x6f, 0x50, 0x72, 0x6f, 0x67, 0x72,
 	0x65, 0x73, 0x73, 0x52, 0x65, 0x74, 0x75, 0x72, 0x6e, 0x12, 0x2d, 0x0a, 0x0d, 0x61, 0x6e, 0x79,
 	0x5f, 0x63, 0x6f, 0x6d, 0x70, 0x6c, 0x65, 0x74, 0x65, 0x64, 0x18, 0x01, 0x20, 0x01, 0x28, 0x0b,
 	0x32, 0x06, 0x2e, 0x45, 0x6d, 0x70, 0x74, 0x79, 0x48, 0x00, 0x52, 0x0c, 0x61, 0x6e, 0x79, 0x43,
-	0x6f, 0x6d, 0x70, 0x6c, 0x65, 0x74, 0x65, 0x64, 0x12, 0x30, 0x0a, 0x0f, 0x72, 0x65, 0x61, 0x64,
-	0x5f, 0x66, 0x72, 0x6f, 0x6d, 0x5f, 0x69, 0x6e, 0x70, 0x75, 0x74, 0x18, 0x02, 0x20, 0x01, 0x28,
-	0x0b, 0x32, 0x06, 0x2e, 0x45, 0x6d, 0x70, 0x74, 0x79, 0x48, 0x00, 0x52, 0x0d, 0x72, 0x65, 0x61,
-	0x64, 0x46, 0x72, 0x6f, 0x6d, 0x49, 0x6e, 0x70, 0x75, 0x74, 0x12, 0x38, 0x0a, 0x13, 0x77, 0x61,
-	0x69, 0x74, 0x69, 0x6e, 0x67, 0x5f, 0x70, 0x65, 0x6e, 0x64, 0x69, 0x6e, 0x67, 0x5f, 0x72, 0x75,
-	0x6e, 0x18, 0x03, 0x20, 0x01, 0x28, 0x0b, 0x32, 0x06, 0x2e, 0x45, 0x6d, 0x70, 0x74, 0x79, 0x48,
-	0x00, 0x52, 0x11, 0x77, 0x61, 0x69, 0x74, 0x69, 0x6e, 0x67, 0x50, 0x65, 0x6e, 0x64, 0x69, 0x6e,
-	0x67, 0x52, 0x75, 0x6e, 0x12, 0x21, 0x0a, 0x0b, 0x65, 0x78, 0x65, 0x63, 0x75, 0x74, 0x65, 0x5f,
-	0x72, 0x75, 0x6e, 0x18, 0x04, 0x20, 0x01, 0x28, 0x0d, 0x48, 0x00, 0x52, 0x0a, 0x65, 0x78, 0x65,
-	0x63, 0x75, 0x74, 0x65, 0x52, 0x75, 0x6e, 0x12, 0x3e, 0x0a, 0x16, 0x63, 0x61, 0x6e, 0x63, 0x65,
-	0x6c, 0x5f, 0x73, 0x69, 0x67, 0x6e, 0x61, 0x6c, 0x5f, 0x72, 0x65, 0x63, 0x65, 0x69, 0x76, 0x65,
-	0x64, 0x18, 0x05, 0x20, 0x01, 0x28, 0x0b, 0x32, 0x06, 0x2e, 0x45, 0x6d, 0x70, 0x74, 0x79, 0x48,
-	0x00, 0x52, 0x14, 0x63, 0x61, 0x6e, 0x63, 0x65, 0x6c, 0x53, 0x69, 0x67, 0x6e, 0x61, 0x6c, 0x52,
-	0x65, 0x63, 0x65, 0x69, 0x76, 0x65, 0x64, 0x12, 0x26, 0x0a, 0x09, 0x73, 0x75, 0x73, 0x70, 0x65,
-	0x6e, 0x64, 0x65, 0x64, 0x18, 0x06, 0x20, 0x01, 0x28, 0x0b, 0x32, 0x06, 0x2e, 0x45, 0x6d, 0x70,
-	0x74, 0x79, 0x48, 0x00, 0x52, 0x09, 0x73, 0x75, 0x73, 0x70, 0x65, 0x6e, 0x64, 0x65, 0x64, 0x12,
-	0x24, 0x0a, 0x07, 0x66, 0x61, 0x69, 0x6c, 0x75, 0x72, 0x65, 0x18, 0x07, 0x20, 0x01, 0x28, 0x0b,
-	0x32, 0x08, 0x2e, 0x46, 0x61, 0x69, 0x6c, 0x75, 0x72, 0x65, 0x48, 0x00, 0x52, 0x07, 0x66, 0x61,
-	0x69, 0x6c, 0x75, 0x72, 0x65, 0x42, 0x08, 0x0a, 0x06, 0x72, 0x65, 0x73, 0x75, 0x6c, 0x74, 0x22,
+	0x6f, 0x6d, 0x70, 0x6c, 0x65, 0x74, 0x65, 0x64, 0x12, 0x44, 0x0a, 0x19, 0x77, 0x61, 0x69, 0x74,
+	0x69, 0x6e, 0x67, 0x5f, 0x65, 0x78, 0x74, 0x65, 0x72, 0x6e, 0x61, 0x6c, 0x5f, 0x70, 0x72, 0x6f,
+	0x67, 0x72, 0x65, 0x73, 0x73, 0x18, 0x02, 0x20, 0x01, 0x28, 0x0b, 0x32, 0x06, 0x2e, 0x45, 0x6d,
+	0x70, 0x74, 0x79, 0x48, 0x00, 0x52, 0x17, 0x77, 0x61, 0x69, 0x74, 0x69, 0x6e, 0x67, 0x45, 0x78,
+	0x74, 0x65, 0x72, 0x6e, 0x61, 0x6c, 0x50, 0x72, 0x6f, 0x67, 0x72, 0x65, 0x73, 0x73, 0x12, 0x21,
+	0x0a, 0x0b, 0x65, 0x78, 0x65, 0x63, 0x75, 0x74, 0x65, 0x5f, 0x72, 0x75, 0x6e, 0x18, 0x04, 0x20,
+	0x01, 0x28, 0x0d, 0x48, 0x00, 0x52, 0x0a, 0x65, 0x78, 0x65, 0x63, 0x75, 0x74, 0x65, 0x52, 0x75,
+	0x6e, 0x12, 0x3e, 0x0a, 0x16, 0x63, 0x61, 0x6e, 0x63, 0x65, 0x6c, 0x5f, 0x73, 0x69, 0x67, 0x6e,
+	0x61, 0x6c, 0x5f, 0x72, 0x65, 0x63, 0x65, 0x69, 0x76, 0x65, 0x64, 0x18, 0x05, 0x20, 0x01, 0x28,
+	0x0b, 0x32, 0x06, 0x2e, 0x45, 0x6d, 0x70, 0x74, 0x79, 0x48, 0x00, 0x52, 0x14, 0x63, 0x61, 0x6e,
+	0x63, 0x65, 0x6c, 0x53, 0x69, 0x67, 0x6e, 0x61, 0x6c, 0x52, 0x65, 0x63, 0x65, 0x69, 0x76, 0x65,
+	0x64, 0x12, 0x26, 0x0a, 0x09, 0x73, 0x75, 0x73, 0x70, 0x65, 0x6e, 0x64, 0x65, 0x64, 0x18, 0x06,
+	0x20, 0x01, 0x28, 0x0b, 0x32, 0x06, 0x2e, 0x45, 0x6d, 0x70, 0x74, 0x79, 0x48, 0x00, 0x52, 0x09,
+	0x73, 0x75, 0x73, 0x70, 0x65, 0x6e, 0x64, 0x65, 0x64, 0x12, 0x24, 0x0a, 0x07, 0x66, 0x61, 0x69,
+	0x6c, 0x75, 0x72, 0x65, 0x18, 0x07, 0x20, 0x01, 0x28, 0x0b, 0x32, 0x08, 0x2e, 0x46, 0x61, 0x69,
+	0x6c, 0x75, 0x72, 0x65, 0x48, 0x00, 0x52, 0x07, 0x66, 0x61, 0x69, 0x6c, 0x75, 0x72, 0x65, 0x42,
+	0x08, 0x0a, 0x06, 0x72, 0x65, 0x73, 0x75, 0x6c, 0x74, 0x4a, 0x04, 0x08, 0x03, 0x10, 0x04, 0x22,
 	0xeb, 0x01, 0x0a, 0x05, 0x56, 0x61, 0x6c, 0x75, 0x65, 0x12, 0x1c, 0x0a, 0x04, 0x76, 0x6f, 0x69,
 	0x64, 0x18, 0x01, 0x20, 0x01, 0x28, 0x0b, 0x32, 0x06, 0x2e, 0x45, 0x6d, 0x70, 0x74, 0x79, 0x48,
 	0x00, 0x52, 0x04, 0x76, 0x6f, 0x69, 0x64, 0x12, 0x1a, 0x0a, 0x07, 0x73, 0x75, 0x63, 0x63, 0x65,
@@ -5568,41 +5522,40 @@ var file_internal_proto_depIdxs = []int32{
 	0,  // 3: VmTakeOutputReturn.EOF:type_name -> Empty
 	2,  // 4: VmIsReadyToExecuteReturn.failure:type_name -> Failure
 	0,  // 5: VmDoProgressReturn.any_completed:type_name -> Empty
-	0,  // 6: VmDoProgressReturn.read_from_input:type_name -> Empty
-	0,  // 7: VmDoProgressReturn.waiting_pending_run:type_name -> Empty
-	0,  // 8: VmDoProgressReturn.cancel_signal_received:type_name -> Empty
-	0,  // 9: VmDoProgressReturn.suspended:type_name -> Empty
-	2,  // 10: VmDoProgressReturn.failure:type_name -> Failure
-	0,  // 11: Value.void:type_name -> Empty
-	2,  // 12: Value.failure:type_name -> Failure
-	34, // 13: Value.state_keys:type_name -> Value.StateKeys
-	0,  // 14: VmTakeNotificationReturn.not_ready:type_name -> Empty
-	12, // 15: VmTakeNotificationReturn.value:type_name -> Value
-	0,  // 16: VmTakeNotificationReturn.suspended:type_name -> Empty
-	2,  // 17: VmTakeNotificationReturn.failure:type_name -> Failure
-	35, // 18: VmSysInputReturn.ok:type_name -> VmSysInputReturn.Input
-	2,  // 19: VmSysInputReturn.failure:type_name -> Failure
-	36, // 20: VmSysAwakeableReturn.ok:type_name -> VmSysAwakeableReturn.Awakeable
-	2,  // 21: VmSysAwakeableReturn.failure:type_name -> Failure
-	2,  // 22: VmSysCompleteAwakeableParameters.failure:type_name -> Failure
-	1,  // 23: VmSysCallParameters.headers:type_name -> Header
-	37, // 24: VmSysCallReturn.ok:type_name -> VmSysCallReturn.CallHandles
-	2,  // 25: VmSysCallReturn.failure:type_name -> Failure
-	1,  // 26: VmSysSendParameters.headers:type_name -> Header
-	2,  // 27: VmSysPromiseCompleteParameters.failure:type_name -> Failure
-	2,  // 28: VmProposeRunCompletionParameters.terminal_failure:type_name -> Failure
-	3,  // 29: VmProposeRunCompletionParameters.retryable_failure:type_name -> FailureWithStacktrace
-	38, // 30: VmProposeRunCompletionParameters.retry_policy:type_name -> VmProposeRunCompletionParameters.RetryPolicy
-	2,  // 31: VmSysWriteOutputParameters.failure:type_name -> Failure
-	2,  // 32: SimpleSysAsyncResultReturn.failure:type_name -> Failure
-	0,  // 33: GenericEmptyReturn.ok:type_name -> Empty
-	2,  // 34: GenericEmptyReturn.failure:type_name -> Failure
-	1,  // 35: VmSysInputReturn.Input.headers:type_name -> Header
-	36, // [36:36] is the sub-list for method output_type
-	36, // [36:36] is the sub-list for method input_type
-	36, // [36:36] is the sub-list for extension type_name
-	36, // [36:36] is the sub-list for extension extendee
-	0,  // [0:36] is the sub-list for field type_name
+	0,  // 6: VmDoProgressReturn.waiting_external_progress:type_name -> Empty
+	0,  // 7: VmDoProgressReturn.cancel_signal_received:type_name -> Empty
+	0,  // 8: VmDoProgressReturn.suspended:type_name -> Empty
+	2,  // 9: VmDoProgressReturn.failure:type_name -> Failure
+	0,  // 10: Value.void:type_name -> Empty
+	2,  // 11: Value.failure:type_name -> Failure
+	34, // 12: Value.state_keys:type_name -> Value.StateKeys
+	0,  // 13: VmTakeNotificationReturn.not_ready:type_name -> Empty
+	12, // 14: VmTakeNotificationReturn.value:type_name -> Value
+	0,  // 15: VmTakeNotificationReturn.suspended:type_name -> Empty
+	2,  // 16: VmTakeNotificationReturn.failure:type_name -> Failure
+	35, // 17: VmSysInputReturn.ok:type_name -> VmSysInputReturn.Input
+	2,  // 18: VmSysInputReturn.failure:type_name -> Failure
+	36, // 19: VmSysAwakeableReturn.ok:type_name -> VmSysAwakeableReturn.Awakeable
+	2,  // 20: VmSysAwakeableReturn.failure:type_name -> Failure
+	2,  // 21: VmSysCompleteAwakeableParameters.failure:type_name -> Failure
+	1,  // 22: VmSysCallParameters.headers:type_name -> Header
+	37, // 23: VmSysCallReturn.ok:type_name -> VmSysCallReturn.CallHandles
+	2,  // 24: VmSysCallReturn.failure:type_name -> Failure
+	1,  // 25: VmSysSendParameters.headers:type_name -> Header
+	2,  // 26: VmSysPromiseCompleteParameters.failure:type_name -> Failure
+	2,  // 27: VmProposeRunCompletionParameters.terminal_failure:type_name -> Failure
+	3,  // 28: VmProposeRunCompletionParameters.retryable_failure:type_name -> FailureWithStacktrace
+	38, // 29: VmProposeRunCompletionParameters.retry_policy:type_name -> VmProposeRunCompletionParameters.RetryPolicy
+	2,  // 30: VmSysWriteOutputParameters.failure:type_name -> Failure
+	2,  // 31: SimpleSysAsyncResultReturn.failure:type_name -> Failure
+	0,  // 32: GenericEmptyReturn.ok:type_name -> Empty
+	2,  // 33: GenericEmptyReturn.failure:type_name -> Failure
+	1,  // 34: VmSysInputReturn.Input.headers:type_name -> Header
+	35, // [35:35] is the sub-list for method output_type
+	35, // [35:35] is the sub-list for method input_type
+	35, // [35:35] is the sub-list for extension type_name
+	35, // [35:35] is the sub-list for extension extendee
+	0,  // [0:35] is the sub-list for field type_name
 }
 
 func init() { file_internal_proto_init() }
@@ -5624,8 +5577,7 @@ func file_internal_proto_init() {
 	}
 	file_internal_proto_msgTypes[11].OneofWrappers = []any{
 		(*vmDoProgressReturn_AnyCompleted)(nil),
-		(*vmDoProgressReturn_ReadFromInput)(nil),
-		(*vmDoProgressReturn_WaitingPendingRun)(nil),
+		(*vmDoProgressReturn_WaitingExternalProgress)(nil),
 		(*vmDoProgressReturn_ExecuteRun)(nil),
 		(*vmDoProgressReturn_CancelSignalReceived)(nil),
 		(*vmDoProgressReturn_Suspended)(nil),
