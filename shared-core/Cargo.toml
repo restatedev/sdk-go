@@ -7,14 +7,14 @@ edition = "2021"
 crate-type = ["cdylib"]
 
 [dependencies]
-restate-sdk-shared-core = { version = "=0.7.0" }
+restate-sdk-shared-core = { git = "https://github.com/restatedev/sdk-shared-core.git", branch = "awaiting_on" }
 bytes = "1.10"
 tracing = "0.1.40"
 tracing-subscriber = { version = "0.3.18", default-features = false, features = ["fmt", "std"] }
-prost = "0.13.5"
+prost = "0.14.3"
 
 [build-dependencies]
-prost-build = "0.13.5"
+prost-build = "0.14.3"
 
 # Below settings dramatically reduce wasm output size
 # See https://rustwasm.github.io/book/reference/code-size.html#optimizing-builds-for-code-sizewasm-opt -Oz -o

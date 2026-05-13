@@ -91,9 +91,7 @@ func (restateCtx *ctx) pollProgress(handles []uint32) bool {
 		if _, ok := progressResult.(statemachine.DoProgressAnyCompleted); ok {
 			return false
 		}
-		_, isPendingRun := progressResult.(statemachine.DoProgressWaitingPendingRun)
-		_, isReadFromInput := progressResult.(statemachine.DoProgressReadFromInput)
-		if isPendingRun || isReadFromInput {
+		if _, ok := progressResult.(statemachine.DoProgressWaitingExternalProgress); ok {
 			// Either wait for at least one read or for run proposals
 			select {
 			case readRes, ok := <-restateCtx.readChan:

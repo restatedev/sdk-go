@@ -426,17 +426,13 @@ type DoProgressAnyCompleted struct{}
 
 func (DoProgressAnyCompleted) isDoProgressResult() {}
 
-type DoProgressReadFromInput struct{}
-
-func (DoProgressReadFromInput) isDoProgressResult() {}
-
 type DoProgressCancelSignalReceived struct{}
 
 func (DoProgressCancelSignalReceived) isDoProgressResult() {}
 
-type DoProgressWaitingPendingRun struct{}
+type DoProgressWaitingExternalProgress struct{}
 
-func (DoProgressWaitingPendingRun) isDoProgressResult() {}
+func (DoProgressWaitingExternalProgress) isDoProgressResult() {}
 
 type DoProgressExecuteRun struct {
 	Handle uint32
@@ -475,14 +471,11 @@ func (sm *StateMachine) DoProgress(ctx context.Context, handles []uint32) (DoPro
 	if output.HasAnyCompleted() {
 		return DoProgressAnyCompleted{}, nil
 	}
-	if output.HasReadFromInput() {
-		return DoProgressReadFromInput{}, nil
+	if output.HasWaitingExternalProgress() {
+		return DoProgressWaitingExternalProgress{}, nil
 	}
 	if output.HasCancelSignalReceived() {
 		return DoProgressCancelSignalReceived{}, nil
-	}
-	if output.HasWaitingPendingRun() {
-		return DoProgressWaitingPendingRun{}, nil
 	}
 	if output.HasExecuteRun() {
 		return DoProgressExecuteRun{
