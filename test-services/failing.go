@@ -8,6 +8,11 @@ import (
 	restate "github.com/restatedev/sdk-go"
 )
 
+type FailureToPropagate struct {
+	ErrorMessage string      `json:"errorMessage"`
+	Metadata     interface{} `json:"metadata,omitempty"`
+}
+
 func init() {
 	var eventualSuccessCalls atomic.Int32
 	var eventualSuccessSideEffectCalls atomic.Int32
@@ -16,12 +21,12 @@ func init() {
 	REGISTRY.AddDefinition(
 		restate.NewObject("Failing").
 			Handler("terminallyFailingCall", restate.NewObjectHandler(
-				func(ctx restate.ObjectContext, errorMessage string) (restate.Void, error) {
-					return restate.Void{}, restate.TerminalErrorf("%s", errorMessage)
+				func(ctx restate.ObjectContext, failure FailureToPropagate) (restate.Void, error) {
+					return restate.Void{}, restate.TerminalErrorf("%s", failure.ErrorMessage)
 				})).
 			Handler("callTerminallyFailingCall", restate.NewObjectHandler(
-				func(ctx restate.ObjectContext, errorMessage string) (string, error) {
-					if _, err := restate.Object[restate.Void](ctx, "Failing", restate.UUID(ctx).String(), "terminallyFailingCall").Request(errorMessage); err != nil {
+				func(ctx restate.ObjectContext, failure FailureToPropagate) (string, error) {
+					if _, err := restate.Object[restate.Void](ctx, "Failing", restate.UUID(ctx).String(), "terminallyFailingCall").Request(failure); err != nil {
 						return "", err
 					}
 
@@ -38,9 +43,9 @@ func init() {
 					}
 				})).
 			Handler("terminallyFailingSideEffect", restate.NewObjectHandler(
-				func(ctx restate.ObjectContext, errorMessage string) (restate.Void, error) {
+				func(ctx restate.ObjectContext, failure FailureToPropagate) (restate.Void, error) {
 					err := restate.RunVoid(ctx, func(ctx restate.RunContext) error {
-						return restate.TerminalErrorf("%s", errorMessage)
+						return restate.TerminalErrorf("%s", failure.ErrorMessage)
 					})
 					return restate.Void{}, err
 				})).
