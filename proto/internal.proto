@@ -234,6 +234,18 @@ message VmSysRunParameters {
   string name = 1;
 }
 
+message VmSysRunReturn {
+  message Run {
+    bool replayed = 1;
+    uint32 handle = 2;
+  }
+
+  oneof result {
+    Run ok = 1;
+    Failure failure = 2;
+  }
+}
+
 message VmProposeRunCompletionParameters {
   message RetryPolicy {
     uint64 initial_internal_millis = 1;

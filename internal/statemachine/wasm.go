@@ -1015,7 +1015,7 @@ func (sm *StateMachine) SysPromiseComplete(ctx context.Context, input *pbinterna
 	return output.GetHandle(), nil
 }
 
-func (sm *StateMachine) SysRun(ctx context.Context, name string) (uint32, error) {
+func (sm *StateMachine) SysRun(ctx context.Context, name string) (handle uint32, replayed bool, err error) {
 	if !sm.core.coreMutex.TryLock() {
 		panic(concurrentContextUseError{})
 	}
@@ -1028,19 +1028,20 @@ func (sm *StateMachine) SysRun(ctx context.Context, name string) (uint32, error)
 	sm.core.callStack[0] = sm.vmPointer
 	sm.core.callStack[1] = inputPtr
 	sm.core.callStack[2] = inputLen
-	err := sm.core.vmSysRun.CallWithStack(ctx, sm.core.callStack)
+	err = sm.core.vmSysRun.CallWithStack(ctx, sm.core.callStack)
 	if err != nil {
-		return 0, fmt.Errorf("error when calling vm_sys_run: %e", err)
+		return 0, false, fmt.Errorf("error when calling vm_sys_run: %e", err)
 	}
 	out := sm.core.callStack[0]
 
-	output := pbinternal.SimpleSysAsyncResultReturn{}
+	output := pbinternal.VmSysRunReturn{}
 	sm.core.transferOutputStructFromWasmMemory(ctx, out, &output)
 
 	if output.HasFailure() {
-		return 0, wasmFailureToGoError(output.GetFailure())
+		return 0, false, wasmFailureToGoError(output.GetFailure())
 	}
-	return output.GetHandle(), nil
+	run := output.GetOk()
+	return run.GetHandle(), run.GetReplayed(), nil
 }
 
 func (sm *StateMachine) ProposeRunCompletion(ctx context.Context, input *pbinternal.VmProposeRunCompletionParameters) error {
