@@ -7,9 +7,10 @@ use alloc::borrow::Cow;
 use alloc::rc::Rc;
 use alloc::vec::Vec;
 use restate_sdk_shared_core::{
-    AttachInvocationTarget, AwaitResponse, CoreVM, Error, Header, HeaderMap, NonEmptyValue,
-    NotificationHandle, PayloadOptions, ResponseHead, RetryPolicy, RunExitResult, TakeOutputResult,
-    Target, TerminalFailure, UnresolvedFuture, VMOptions, Value, Version, VM,
+    AttachInvocationTarget, AwaitResponse, AwakeableHandle, CoreVM, Error, Header, HeaderMap,
+    NonEmptyValue, NotificationHandle, OnMaxAttempts, PayloadOptions, ResponseHead, RetryPolicy,
+    RunExitResult, RunHandle, TakeOutputResult, Target, TerminalFailure, UnresolvedFuture,
+    VMOptions, Value, Version, VM,
 };
 use std::cell::RefCell;
 use std::convert::Infallible;
@@ -278,7 +279,7 @@ pub unsafe extern "C" fn _vm_is_completed(vm_pointer: *const RefCell<WasmVM>, ha
 #[export_name = "vm_is_processing"]
 pub unsafe extern "C" fn _vm_is_processing(vm_pointer: *const RefCell<WasmVM>) -> u64 {
     let rc_vm = vm_ptr_to_rc(vm_pointer);
-    let result = VM::is_processing(&rc_vm.borrow().vm);
+    let result = VM::state(&rc_vm.borrow().vm).is_processing();
     result as u64
 }
 
@@ -524,9 +525,9 @@ pub unsafe extern "C" fn _vm_sys_awakeable(vm_pointer: *const RefCell<WasmVM>) -
 fn vm_sys_awakeable(rc_vm: &Rc<RefCell<WasmVM>>) -> pb::VmSysAwakeableReturn {
     pb::VmSysAwakeableReturn {
         result: Some(match VM::sys_awakeable(&mut rc_vm.borrow_mut().vm) {
-            Ok((awakeable_id, handle)) => {
+            Ok(AwakeableHandle { id, handle }) => {
                 pb::vm_sys_awakeable_return::Result::Ok(pb::vm_sys_awakeable_return::Awakeable {
-                    id: awakeable_id,
+                    id,
                     handle: handle.into(),
                 })
             }
@@ -591,6 +592,8 @@ fn vm_sys_call(rc_vm: &Rc<RefCell<WasmVM>>, input: pb::VmSysCallParameters) -> p
                     handler: input.handler,
                     key: input.key,
                     idempotency_key: input.idempotency_key,
+                    scope: None,
+                    limit_key: None,
                     headers: input.headers.into_iter().map(Into::into).collect(),
                 },
                 input.input,
@@ -634,6 +637,8 @@ fn vm_sys_send(
             handler: input.handler,
             key: input.key,
             idempotency_key: input.idempotency_key,
+            scope: None,
+            limit_key: None,
             headers: input.headers.into_iter().map(Into::into).collect(),
         },
         input.input,
@@ -776,8 +781,18 @@ pub unsafe extern "C" fn _vm_sys_run(
 fn vm_sys_run(
     rc_vm: &Rc<RefCell<WasmVM>>,
     input: pb::VmSysRunParameters,
-) -> pb::SimpleSysAsyncResultReturn {
-    VM::sys_run(&mut rc_vm.borrow_mut().vm, input.name).into()
+) -> pb::VmSysRunReturn {
+    pb::VmSysRunReturn {
+        result: Some(match VM::sys_run(&mut rc_vm.borrow_mut().vm, input.name) {
+            Ok(RunHandle { replayed, handle }) => {
+                pb::vm_sys_run_return::Result::Ok(pb::vm_sys_run_return::Run {
+                    replayed,
+                    handle: handle.into(),
+                })
+            }
+            Err(e) => pb::vm_sys_run_return::Result::Failure(e.into()),
+        }),
+    }
 }
 
 #[export_name = "vm_propose_run_completion"]
@@ -817,6 +832,7 @@ fn vm_propose_run_completion(
             max_interval: rp.max_interval_millis.map(Duration::from_millis),
             max_attempts: rp.max_attempts,
             max_duration: rp.max_duration_millis.map(Duration::from_millis),
+            on_max_attempts: OnMaxAttempts::FailAsTerminal,
         },
     };
 

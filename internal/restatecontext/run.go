@@ -32,74 +32,75 @@ func (restateCtx *ctx) runAsync(goCtx context.Context, fn func(ctx RunContext) (
 		o.Codec = encoding.JSONCodec
 	}
 
-	params := pbinternal.VmSysRunParameters{}
-	params.SetName(o.Name)
-
-	handle, err := restateCtx.stateMachine.SysRun(restateCtx, o.Name)
+	handle, replayed, err := restateCtx.stateMachine.SysRun(restateCtx, o.Name)
 	if err != nil {
 		panic(err)
 	}
 	restateCtx.checkStateTransition()
 
-	restateCtx.runClosures[handle] = func() *pbinternal.VmProposeRunCompletionParameters {
-		now := time.Now()
+	// Register the run closure for execution only if the run wasn't replayed.
+	// When replayed, the result is already in the journal and the closure will never be scheduled.
+	if !replayed {
+		restateCtx.runClosures[handle] = func() *pbinternal.VmProposeRunCompletionParameters {
+			now := time.Now()
 
-		// Run the user closure
-		output, err := runWrapPanic(fn)(runContext{Context: goCtx, log: restateCtx.userLogger, request: &restateCtx.request})
+			// Run the user closure
+			output, err := runWrapPanic(fn)(runContext{Context: goCtx, log: restateCtx.userLogger, request: &restateCtx.request})
 
-		// Let's prepare the proposal of the run completion
-		proposal := pbinternal.VmProposeRunCompletionParameters{}
-		proposal.SetHandle(handle)
-		proposal.SetAttemptDurationMillis(uint64(time.Now().Sub(now).Milliseconds()))
+			// Let's prepare the proposal of the run completion
+			proposal := pbinternal.VmProposeRunCompletionParameters{}
+			proposal.SetHandle(handle)
+			proposal.SetAttemptDurationMillis(uint64(time.Now().Sub(now).Milliseconds()))
 
-		// Set retry policy if any of the retry policy config options are set
-		if o.MaxRetryAttempts != nil || o.MaxRetryInterval != nil || o.MaxRetryDuration != nil || o.RetryIntervalFactor != nil || o.InitialRetryInterval != nil {
-			retryPolicy := pbinternal.VmProposeRunCompletionParameters_RetryPolicy{}
-			retryPolicy.SetInitialInternalMillis(50)
-			retryPolicy.SetFactor(2)
-			retryPolicy.SetMaxIntervalMillis(2000)
+			// Set retry policy if any of the retry policy config options are set
+			if o.MaxRetryAttempts != nil || o.MaxRetryInterval != nil || o.MaxRetryDuration != nil || o.RetryIntervalFactor != nil || o.InitialRetryInterval != nil {
+				retryPolicy := pbinternal.VmProposeRunCompletionParameters_RetryPolicy{}
+				retryPolicy.SetInitialInternalMillis(50)
+				retryPolicy.SetFactor(2)
+				retryPolicy.SetMaxIntervalMillis(2000)
 
-			if o.MaxRetryDuration != nil {
-				retryPolicy.SetMaxDurationMillis(uint64((*o.MaxRetryDuration).Milliseconds()))
+				if o.MaxRetryDuration != nil {
+					retryPolicy.SetMaxDurationMillis(uint64((*o.MaxRetryDuration).Milliseconds()))
+				}
+				if o.MaxRetryInterval != nil {
+					retryPolicy.SetMaxIntervalMillis(uint64((*o.MaxRetryInterval).Milliseconds()))
+				}
+				if o.RetryIntervalFactor != nil {
+					retryPolicy.SetFactor(*o.RetryIntervalFactor)
+				}
+				if o.MaxRetryAttempts != nil {
+					retryPolicy.SetMaxAttempts(uint32(*o.MaxRetryAttempts))
+				}
+				if o.InitialRetryInterval != nil {
+					retryPolicy.SetInitialInternalMillis(uint64((*o.InitialRetryInterval).Milliseconds()))
+				}
+				proposal.SetRetryPolicy(&retryPolicy)
 			}
-			if o.MaxRetryInterval != nil {
-				retryPolicy.SetMaxIntervalMillis(uint64((*o.MaxRetryInterval).Milliseconds()))
+
+			if errors.IsTerminalError(err) {
+				// Terminal error
+				failure := pbinternal.Failure{}
+				failure.SetCode(uint32(errors.ErrorCode(err)))
+				failure.SetMessage(err.Error())
+				proposal.SetTerminalFailure(&failure)
+			} else if err != nil {
+				// Retryable error
+				failure := pbinternal.FailureWithStacktrace{}
+				failure.SetCode(uint32(errors.ErrorCode(err)))
+				failure.SetMessage(err.Error())
+				proposal.SetRetryableFailure(&failure)
+			} else {
+				// Success
+				bytes, err := encoding.Marshal(o.Codec, output)
+				if err != nil {
+					panic(fmt.Errorf("failed to marshal Run output: %w", err))
+				}
+
+				proposal.SetSuccess(bytes)
 			}
-			if o.RetryIntervalFactor != nil {
-				retryPolicy.SetFactor(*o.RetryIntervalFactor)
-			}
-			if o.MaxRetryAttempts != nil {
-				retryPolicy.SetMaxAttempts(uint32(*o.MaxRetryAttempts))
-			}
-			if o.InitialRetryInterval != nil {
-				retryPolicy.SetInitialInternalMillis(uint64((*o.InitialRetryInterval).Milliseconds()))
-			}
-			proposal.SetRetryPolicy(&retryPolicy)
+
+			return &proposal
 		}
-
-		if errors.IsTerminalError(err) {
-			// Terminal error
-			failure := pbinternal.Failure{}
-			failure.SetCode(uint32(errors.ErrorCode(err)))
-			failure.SetMessage(err.Error())
-			proposal.SetTerminalFailure(&failure)
-		} else if err != nil {
-			// Retryable error
-			failure := pbinternal.FailureWithStacktrace{}
-			failure.SetCode(uint32(errors.ErrorCode(err)))
-			failure.SetMessage(err.Error())
-			proposal.SetRetryableFailure(&failure)
-		} else {
-			// Success
-			bytes, err := encoding.Marshal(o.Codec, output)
-			if err != nil {
-				panic(fmt.Errorf("failed to marshal Run output: %w", err))
-			}
-
-			proposal.SetSuccess(bytes)
-		}
-
-		return &proposal
 	}
 
 	return &runAsyncFuture{

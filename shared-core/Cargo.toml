@@ -7,7 +7,7 @@ edition = "2021"
 crate-type = ["cdylib"]
 
 [dependencies]
-restate-sdk-shared-core = { git = "https://github.com/restatedev/sdk-shared-core.git", branch = "awaiting_on" }
+restate-sdk-shared-core = { git = "https://github.com/restatedev/sdk-shared-core.git", rev = "5127f0291bff456a515f2b8d572c4090e8ff450e" }
 bytes = "1.10"
 tracing = "0.1.40"
 tracing-subscriber = { version = "0.3.18", default-features = false, features = ["fmt", "std"] }
