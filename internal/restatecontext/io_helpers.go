@@ -2,11 +2,12 @@ package restatecontext
 
 import (
 	"context"
-	"github.com/restatedev/sdk-go/internal/log"
-	"github.com/restatedev/sdk-go/internal/statemachine"
 	"io"
 	"log/slog"
 	"sync"
+
+	"github.com/restatedev/sdk-go/internal/log"
+	"github.com/restatedev/sdk-go/internal/statemachine"
 )
 
 var BufPool sync.Pool

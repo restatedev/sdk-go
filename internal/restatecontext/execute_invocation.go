@@ -2,6 +2,7 @@ package restatecontext
 
 import (
 	"context"
+	std_errors "errors"
 	"fmt"
 	"io"
 	"log/slog"
@@ -56,12 +57,11 @@ func invoke(restateCtx *ctx, handler Handler, logger *slog.Logger) {
 			// nothing to do, just exit
 			break
 		case *statemachine.SuspensionError:
+			restateCtx.internalLogger.LogAttrs(restateCtx, slog.LevelInfo, "Suspending invocation")
 		case statemachine.SuspensionError:
 			restateCtx.internalLogger.LogAttrs(restateCtx, slog.LevelInfo, "Suspending invocation")
-			break
-		case error:
-			if typ == io.EOF {
-				// State machine finished writing output (signalled by takeOutputAndWriteOut)
+		default:
+			if err, ok := typ.(error); ok && std_errors.Is(err, io.EOF) {
 				break
 			}
 			restateCtx.internalLogger.LogAttrs(restateCtx, slog.LevelError, "Invocation panicked, returning error to Restate", slog.Any("err", typ))
@@ -69,8 +69,6 @@ func invoke(restateCtx *ctx, handler Handler, logger *slog.Logger) {
 			if err := restateCtx.stateMachine.NotifyError(restateCtx, fmt.Sprint(typ), string(debug.Stack())); err != nil {
 				restateCtx.internalLogger.WarnContext(restateCtx, "Error when notifying error to state restateContext", log.Error(err))
 			}
-
-			break
 		}
 
 		// Consume remaining state machine output
@@ -85,6 +83,7 @@ func invoke(restateCtx *ctx, handler Handler, logger *slog.Logger) {
 		//
 		// readInputLoop closes readChan on EOF; draining it here unblocks the goroutine
 		// so it can read to natural EOF. A timeout guards against a misbehaving runtime.
+		timeout := time.After(inputDrainTimeout)
 	drainLoop:
 		for {
 			select {
@@ -92,7 +91,7 @@ func invoke(restateCtx *ctx, handler Handler, logger *slog.Logger) {
 				if !ok {
 					break drainLoop
 				}
-			case <-time.After(inputDrainTimeout):
+			case <-timeout:
 				break drainLoop
 			}
 		}
