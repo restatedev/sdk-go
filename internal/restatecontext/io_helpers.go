@@ -50,8 +50,8 @@ type readResult struct {
 }
 
 func (restateCtx *ctx) readInputLoop(logger *slog.Logger) {
+	defer close(restateCtx.readChan)
 	for {
-		// Acquire buf
 		tempBuf := BufPool.Get().([]byte)
 		read, err := restateCtx.conn.Read(tempBuf)
 		if err != nil {
@@ -59,13 +59,14 @@ func (restateCtx *ctx) readInputLoop(logger *slog.Logger) {
 			if err != io.EOF {
 				logger.WarnContext(restateCtx, "Unexpected when reading input", log.Error(err))
 			}
-			close(restateCtx.readChan)
 			return
 		}
 		if read != 0 {
-			restateCtx.readChan <- readResult{
-				nRead: read,
-				buf:   tempBuf,
+			select {
+			case restateCtx.readChan <- readResult{nRead: read, buf: tempBuf}:
+			case <-restateCtx.Done():
+				BufPool.Put(tempBuf)
+				return
 			}
 		}
 	}
