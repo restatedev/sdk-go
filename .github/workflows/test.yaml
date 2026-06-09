@@ -23,3 +23,7 @@ jobs:
         run: go build -v ./...
       - name: Test with the Go CLI
         run: go test -v ./...
+      - name: Check dependency licenses
+        run: |
+          go install github.com/google/go-licenses@latest
+          go-licenses check ./... --allowed_licenses=Apache-2.0,MIT,BSD-2-Clause,BSD-3-Clause,ISC,0BSD,MPL-2.0
