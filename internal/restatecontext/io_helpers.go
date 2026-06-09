@@ -17,10 +17,10 @@ func init() {
 	}}
 }
 
-func takeOutputAndWriteOut(ctx context.Context, machine *statemachine.StateMachine, conn io.WriteCloser) error {
+func takeOutputAndWriteOut(ctx context.Context, machine *statemachine.StateMachine, conn io.Writer) error {
 	buffer, err := machine.TakeOutput(ctx)
 	if err == io.EOF {
-		return conn.Close()
+		return io.EOF
 	} else if err != nil {
 		return err
 	}
@@ -28,11 +28,11 @@ func takeOutputAndWriteOut(ctx context.Context, machine *statemachine.StateMachi
 	return err
 }
 
-func consumeOutput(ctx context.Context, machine *statemachine.StateMachine, conn io.WriteCloser) error {
+func consumeOutput(ctx context.Context, machine *statemachine.StateMachine, conn io.Writer) error {
 	for {
 		buffer, err := machine.TakeOutput(ctx)
 		if err == io.EOF {
-			return conn.Close()
+			return nil
 		} else if err != nil {
 			return err
 		}

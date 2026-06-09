@@ -6,6 +6,7 @@ import (
 	"io"
 	"log/slog"
 	"runtime/debug"
+	"time"
 
 	"github.com/restatedev/sdk-go/encoding"
 	"github.com/restatedev/sdk-go/internal/errors"
@@ -21,8 +22,8 @@ func ExecuteInvocation(ctx context.Context, logger *slog.Logger, stateMachine *s
 		logger.WarnContext(ctx, "Error when reading invocation input", log.Error(err))
 		if err = consumeOutput(ctx, stateMachine, conn); err != nil {
 			logger.WarnContext(ctx, "Error when consuming output", log.Error(err))
-			return err
 		}
+		conn.Close()
 		return err
 	}
 
@@ -53,6 +54,10 @@ func invoke(restateCtx *ctx, handler Handler, logger *slog.Logger) {
 			restateCtx.internalLogger.LogAttrs(restateCtx, slog.LevelInfo, "Suspending invocation")
 			break
 		default:
+			if err, ok := typ.(error); ok && err == io.EOF {
+				// State machine finished writing output (signalled by takeOutputAndWriteOut)
+				break
+			}
 			restateCtx.internalLogger.LogAttrs(restateCtx, slog.LevelError, "Invocation panicked, returning error to Restate", slog.Any("err", typ))
 
 			if err := restateCtx.stateMachine.NotifyError(restateCtx, fmt.Sprint(typ), string(debug.Stack())); err != nil {
@@ -62,9 +67,40 @@ func invoke(restateCtx *ctx, handler Handler, logger *slog.Logger) {
 			break
 		}
 
-		// Consume all the state restateContext output as last step
+		// Consume remaining state machine output
 		if err := consumeOutput(restateCtx, restateCtx.stateMachine, restateCtx.conn); err != nil {
 			restateCtx.internalLogger.WarnContext(restateCtx, "Error when consuming output", log.Error(err))
+		}
+
+		// Drain the input stream to EOF before closing the connection.
+		// Without this, Go's HTTP/2 server sends RST_STREAM when the handler returns
+		// before the request body is fully consumed, which the Restate runtime
+		// interprets as an abort.
+		//
+		// readInputLoop closes readChan on EOF; draining it here unblocks the goroutine
+		// so it can read to natural EOF. A timeout guards against a misbehaving runtime.
+		drainCtx, drainCancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer drainCancel()
+	drainLoop:
+		for {
+			select {
+			case _, ok := <-restateCtx.readChan:
+				if !ok {
+					break drainLoop
+				}
+			case <-drainCtx.Done():
+				break drainLoop
+			}
+		}
+
+		// Close the connection after draining (or after timeout).
+		if err := restateCtx.conn.Close(); err != nil {
+			restateCtx.internalLogger.WarnContext(restateCtx, "Error when closing connection", log.Error(err))
+		}
+
+		// If we timed out, readInputLoop may still be blocked trying to send on readChan.
+		// Drain any remaining items so the goroutine can exit.
+		for range restateCtx.readChan {
 		}
 	}()
 
