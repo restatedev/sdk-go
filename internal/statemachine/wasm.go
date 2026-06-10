@@ -4,7 +4,6 @@ import (
 	"context"
 	_ "embed"
 	"fmt"
-	"io"
 	"log"
 	"log/slog"
 	"os"
@@ -575,6 +574,7 @@ func (sm *StateMachine) TakeNotification(ctx context.Context, handle uint32) (Va
 	panic("Missing result")
 }
 
+// TakeOutput returns an error only in case of a state machine error. Never returns EOF.
 func (sm *StateMachine) TakeOutput(ctx context.Context) ([]byte, error) {
 	if !sm.core.coreMutex.TryLock() {
 		panic(concurrentContextUseError{})
@@ -588,14 +588,7 @@ func (sm *StateMachine) TakeOutput(ctx context.Context) ([]byte, error) {
 	}
 	out := sm.core.callStack[0]
 
-	output := pbinternal.VmTakeOutputReturn{}
-	sm.core.transferOutputStructFromWasmMemory(ctx, out, &output)
-
-	if output.HasEOF() {
-		return nil, io.EOF
-	}
-
-	return output.GetBytes(), nil
+	return sm.core.transferBytesFromWasmMemory(ctx, out), nil
 }
 
 func (sm *StateMachine) SysInput(ctx context.Context) (*pbinternal.VmSysInputReturn_Input, error) {

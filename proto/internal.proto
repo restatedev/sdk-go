@@ -52,13 +52,6 @@ message VmNotifyError {
   string stacktrace = 2;
 }
 
-message VmTakeOutputReturn {
-  oneof result {
-    bytes bytes = 1;
-    Empty EOF = 2;
-  }
-}
-
 message VmIsReadyToExecuteReturn {
   oneof result {
     bool ready = 1;

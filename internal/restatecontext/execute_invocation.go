@@ -2,7 +2,6 @@ package restatecontext
 
 import (
 	"context"
-	std_errors "errors"
 	"fmt"
 	"io"
 	"log/slog"
@@ -61,9 +60,6 @@ func invoke(restateCtx *ctx, handler Handler, logger *slog.Logger) {
 		case statemachine.SuspensionError:
 			restateCtx.internalLogger.LogAttrs(restateCtx, slog.LevelInfo, "Suspending invocation")
 		default:
-			if err, ok := typ.(error); ok && std_errors.Is(err, io.EOF) {
-				break
-			}
 			restateCtx.internalLogger.LogAttrs(restateCtx, slog.LevelError, "Invocation panicked, returning error to Restate", slog.Any("err", typ))
 
 			if err := restateCtx.stateMachine.NotifyError(restateCtx, fmt.Sprint(typ), string(debug.Stack())); err != nil {

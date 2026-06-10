@@ -27,6 +27,9 @@ func (c *connection) Write(data []byte) (int, error) {
 	c.wLock.Lock()
 	defer c.wLock.Unlock()
 
+	if (data == nil) || (len(data) == 0) {
+		return 0, nil
+	}
 	n, err := c.w.Write(data)
 	if c.flusher != nil {
 		c.flusher.Flush()
