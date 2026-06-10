@@ -472,10 +472,18 @@ func (r *Restate) handleInvokeRequest(service, method string, writer http.Respon
 	request = request.WithContext(ctx)
 
 	// Create new connection. cancel will be invoked when the connection is closed.
-	conn := newConnection(writer, request, cancel)
+	conn := newStream(writer, request)
 
 	serviceMethod := fmt.Sprintf("%s/%s", service, method)
 	logger := r.systemLog.With("method", slog.StringValue(serviceMethod))
+
+	defer func() {
+		cancel()
+
+		if err := conn.Drain(); err != nil {
+			logger.WarnContext(ctx, "Failed to drain connection", log.Error(err))
+		}
+	}()
 
 	definition, ok := r.definitions[service]
 	if !ok {

@@ -70,7 +70,7 @@ type Context interface {
 type ctx struct {
 	context.Context
 
-	conn     io.ReadWriteCloser
+	conn     io.ReadWriter
 	readChan chan readResult
 
 	stateMachine *statemachine.StateMachine
@@ -95,7 +95,7 @@ type ctx struct {
 
 var _ Context = (*ctx)(nil)
 
-func newContext(inner context.Context, machine *statemachine.StateMachine, invocationInput *pbinternal.VmSysInputReturn_Input, conn io.ReadWriteCloser, attemptHeaders map[string][]string, dropReplayLogs bool, logHandler slog.Handler) *ctx {
+func newContext(inner context.Context, machine *statemachine.StateMachine, invocationInput *pbinternal.VmSysInputReturn_Input, conn io.ReadWriter, attemptHeaders map[string][]string, dropReplayLogs bool, logHandler slog.Handler) *ctx {
 	request := Request{
 		ID:             invocationInput.GetInvocationId(),
 		Headers:        make(map[string]string),
