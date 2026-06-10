@@ -472,10 +472,18 @@ func (r *Restate) handleInvokeRequest(service, method string, writer http.Respon
 	request = request.WithContext(ctx)
 
 	// Create new connection. cancel will be invoked when the connection is closed.
-	conn := newConnection(writer, request, cancel)
+	stream := newStream(writer, request)
 
 	serviceMethod := fmt.Sprintf("%s/%s", service, method)
 	logger := r.systemLog.With("method", slog.StringValue(serviceMethod))
+
+	defer func() {
+		cancel()
+
+		if err := stream.Drain(); err != nil {
+			logger.WarnContext(ctx, "Failed to drain request stream", log.Error(err))
+		}
+	}()
 
 	definition, ok := r.definitions[service]
 	if !ok {
@@ -541,7 +549,7 @@ func (r *Restate) handleInvokeRequest(service, method string, writer http.Respon
 		if isReadyToExecute {
 			break
 		}
-		read, err := conn.Read(buf)
+		read, err := stream.Read(buf)
 		// from the io.Reader docs:
 		// Callers should always process the n > 0 bytes returned before considering the error err.
 		// Doing so correctly handles I/O errors that happen after reading some bytes and also both of the allowed EOF behaviors.
@@ -576,7 +584,7 @@ func (r *Restate) handleInvokeRequest(service, method string, writer http.Respon
 	restatecontext.BufPool.Put(buf)
 
 	// Run the handler
-	if err := restatecontext.ExecuteInvocation(ctx, logger, stateMachine, conn, handler, r.dropReplayLogs, logHandler, request.Header); err != nil {
+	if err := restatecontext.ExecuteInvocation(ctx, logger, stateMachine, stream, handler, r.dropReplayLogs, logHandler, request.Header); err != nil {
 		r.systemLog.LogAttrs(ctx, slog.LevelError, "Failed to handle invocation", log.Error(err))
 	}
 }
