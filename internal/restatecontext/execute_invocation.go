@@ -24,7 +24,7 @@ func ExecuteInvocation(ctx context.Context, logger *slog.Logger, stateMachine *s
 	invocationInput, err := stateMachine.SysInput(ctx)
 	if err != nil {
 		logger.WarnContext(ctx, "Error when reading invocation input", log.Error(err))
-		if err = consumeOutput(ctx, stateMachine, conn); err != nil {
+		if err = takeOutputAndWriteOut(ctx, stateMachine, conn); err != nil {
 			logger.WarnContext(ctx, "Error when consuming output", log.Error(err))
 		}
 		if err := conn.Close(); err != nil {
@@ -68,7 +68,7 @@ func invoke(restateCtx *ctx, handler Handler, logger *slog.Logger) {
 		}
 
 		// Consume remaining state machine output
-		if err := consumeOutput(restateCtx, restateCtx.stateMachine, restateCtx.conn); err != nil {
+		if err := takeOutputAndWriteOut(restateCtx, restateCtx.stateMachine, restateCtx.conn); err != nil {
 			restateCtx.internalLogger.WarnContext(restateCtx, "Error when consuming output", log.Error(err))
 		}
 

@@ -27,20 +27,6 @@ func takeOutputAndWriteOut(ctx context.Context, machine *statemachine.StateMachi
 	return err
 }
 
-func consumeOutput(ctx context.Context, machine *statemachine.StateMachine, conn io.Writer) error {
-	for {
-		buffer, err := machine.TakeOutput(ctx)
-		if err != nil {
-			return err
-		}
-
-		_, err = conn.Write(buffer)
-		if err != nil {
-			return err
-		}
-	}
-}
-
 type readResult struct {
 	nRead int
 	buf   []byte
