@@ -34,9 +34,10 @@ type readResult struct {
 
 func (restateCtx *ctx) readInputLoop(logger *slog.Logger) {
 	defer close(restateCtx.readChan)
+
 	for {
 		tempBuf := BufPool.Get().([]byte)
-		read, err := restateCtx.conn.Read(tempBuf)
+		read, err := restateCtx.stream.Read(tempBuf)
 		if err != nil {
 			BufPool.Put(tempBuf)
 			if err != io.EOF {

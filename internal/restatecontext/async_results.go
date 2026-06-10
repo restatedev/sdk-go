@@ -79,7 +79,7 @@ func (a *asyncResult) pollProgressAndLoadValue() statemachine.Value {
 
 func (restateCtx *ctx) pollProgress(handles []uint32) bool {
 	// Pump output once
-	if err := takeOutputAndWriteOut(restateCtx, restateCtx.stateMachine, restateCtx.conn); err != nil {
+	if err := takeOutputAndWriteOut(restateCtx, restateCtx.stateMachine, restateCtx.stream); err != nil {
 		panic(err)
 	}
 
@@ -114,7 +114,7 @@ func (restateCtx *ctx) pollProgress(handles []uint32) bool {
 				}
 
 				// Pump output once. This is needed for the run completion to be effectively written
-				if err := takeOutputAndWriteOut(restateCtx, restateCtx.stateMachine, restateCtx.conn); err != nil {
+				if err := takeOutputAndWriteOut(restateCtx, restateCtx.stateMachine, restateCtx.stream); err != nil {
 					panic(err)
 				}
 				break
@@ -124,7 +124,7 @@ func (restateCtx *ctx) pollProgress(handles []uint32) bool {
 		}
 		if _, ok := progressResult.(statemachine.DoProgressCancelSignalReceived); ok {
 			// Pump output once. This is needed for cancel commands to be effectively written
-			if err := takeOutputAndWriteOut(restateCtx, restateCtx.stateMachine, restateCtx.conn); err != nil {
+			if err := takeOutputAndWriteOut(restateCtx, restateCtx.stateMachine, restateCtx.stream); err != nil {
 				panic(err)
 			}
 
