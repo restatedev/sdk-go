@@ -2,11 +2,12 @@ package restatecontext
 
 import (
 	"context"
-	"github.com/restatedev/sdk-go/internal/log"
-	"github.com/restatedev/sdk-go/internal/statemachine"
 	"io"
 	"log/slog"
 	"sync"
+
+	"github.com/restatedev/sdk-go/internal/log"
+	"github.com/restatedev/sdk-go/internal/statemachine"
 )
 
 var BufPool sync.Pool
@@ -17,10 +18,10 @@ func init() {
 	}}
 }
 
-func takeOutputAndWriteOut(ctx context.Context, machine *statemachine.StateMachine, conn io.WriteCloser) error {
+func takeOutputAndWriteOut(ctx context.Context, machine *statemachine.StateMachine, conn io.Writer) error {
 	buffer, err := machine.TakeOutput(ctx)
 	if err == io.EOF {
-		return conn.Close()
+		return io.EOF
 	} else if err != nil {
 		return err
 	}
@@ -28,11 +29,11 @@ func takeOutputAndWriteOut(ctx context.Context, machine *statemachine.StateMachi
 	return err
 }
 
-func consumeOutput(ctx context.Context, machine *statemachine.StateMachine, conn io.WriteCloser) error {
+func consumeOutput(ctx context.Context, machine *statemachine.StateMachine, conn io.Writer) error {
 	for {
 		buffer, err := machine.TakeOutput(ctx)
 		if err == io.EOF {
-			return conn.Close()
+			return nil
 		} else if err != nil {
 			return err
 		}
@@ -50,8 +51,8 @@ type readResult struct {
 }
 
 func (restateCtx *ctx) readInputLoop(logger *slog.Logger) {
+	defer close(restateCtx.readChan)
 	for {
-		// Acquire buf
 		tempBuf := BufPool.Get().([]byte)
 		read, err := restateCtx.conn.Read(tempBuf)
 		if err != nil {
@@ -59,13 +60,14 @@ func (restateCtx *ctx) readInputLoop(logger *slog.Logger) {
 			if err != io.EOF {
 				logger.WarnContext(restateCtx, "Unexpected when reading input", log.Error(err))
 			}
-			close(restateCtx.readChan)
 			return
 		}
 		if read != 0 {
-			restateCtx.readChan <- readResult{
-				nRead: read,
-				buf:   tempBuf,
+			select {
+			case restateCtx.readChan <- readResult{nRead: read, buf: tempBuf}:
+			case <-restateCtx.Done():
+				BufPool.Put(tempBuf)
+				return
 			}
 		}
 	}
