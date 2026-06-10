@@ -2,24 +2,29 @@ package server
 
 import (
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
 	"sync"
+	"time"
 )
+
+// inputDrainTimeout is the maximum time to wait for the request stream to reach EOF
+// after the handler finishes, before forcefully closing the connection.
+const inputDrainTimeout = 5 * time.Second
 
 type connection struct {
 	r       io.ReadCloser
 	flusher http.Flusher
 	w       http.ResponseWriter
-	cancel  func()
 
 	wLock sync.Mutex
 	rLock sync.Mutex
 }
 
-func newConnection(w http.ResponseWriter, r *http.Request, cancel func()) *connection {
+func newConnection(w http.ResponseWriter, r *http.Request) *connection {
 	flusher, _ := w.(http.Flusher)
-	c := &connection{r: r.Body, flusher: flusher, w: w, cancel: cancel}
+	c := &connection{r: r.Body, flusher: flusher, w: w}
 	return c
 }
 
@@ -53,9 +58,24 @@ func (c *connection) Read(data []byte) (int, error) {
 	return n, err
 }
 
-func (c *connection) Close() error {
-	c.cancel()
-	// Unblock Read()
-	c.r.Close()
+// Drains and close connection
+func (c *connection) Drain() error {
+	defer c.r.Close()
+
+	ch := make(chan error)
+	go func(errCh chan<- error) {
+		_, err := io.Copy(io.Discard, c.r)
+		errCh <- err
+	}(ch)
+
+	select {
+	case err := <-ch:
+		if err != nil && err != io.EOF {
+			return err
+		}
+	case <-time.After(inputDrainTimeout):
+		return fmt.Errorf("Timeout waiting on request draining")
+	}
+
 	return nil
 }
