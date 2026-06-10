@@ -9,7 +9,7 @@ use alloc::vec::Vec;
 use restate_sdk_shared_core::{
     AttachInvocationTarget, AwaitResponse, AwakeableHandle, CoreVM, Error, Header, HeaderMap,
     NonEmptyValue, NotificationHandle, OnMaxAttempts, PayloadOptions, ResponseHead, RetryPolicy,
-    RunExitResult, RunHandle, TakeOutputResult, Target, TerminalFailure, UnresolvedFuture,
+    RunExitResult, RunHandle, Target, TerminalFailure, UnresolvedFuture,
     VMOptions, Value, Version, VM,
 };
 use std::cell::RefCell;
@@ -249,8 +249,8 @@ fn vm_notify_error(rc_vm: &Rc<RefCell<WasmVM>>, input: pb::VmNotifyError) {
 #[export_name = "vm_take_output"]
 pub unsafe extern "C" fn _vm_take_output(vm_pointer: *const RefCell<WasmVM>) -> u64 {
     let rc_vm = vm_ptr_to_rc(vm_pointer);
-    let res: pb::VmTakeOutputReturn = VM::take_output(&mut rc_vm.borrow_mut().vm).into();
-    output_to_ptr(res)
+    let res = VM::take_output(&mut rc_vm.borrow_mut().vm).into();
+    vec_to_ptr(res)
 }
 
 #[export_name = "vm_is_ready_to_execute"]
@@ -1058,17 +1058,6 @@ impl From<pb::Header> for Header {
         Self {
             key: value.key.into(),
             value: value.value.into(),
-        }
-    }
-}
-
-impl From<TakeOutputResult> for pb::VmTakeOutputReturn {
-    fn from(value: TakeOutputResult) -> Self {
-        pb::VmTakeOutputReturn {
-            result: Some(match value {
-                TakeOutputResult::Buffer(b) => pb::vm_take_output_return::Result::Bytes(b),
-                TakeOutputResult::EOF => pb::vm_take_output_return::Result::Eof(Default::default()),
-            }),
         }
     }
 }
