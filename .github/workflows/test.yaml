@@ -14,7 +14,7 @@ jobs:
       - name: Setup Go
         uses: actions/setup-go@v4
         with:
-          go-version: "1.21.x"
+          go-version-file: 'go.mod'
       - name: Install dependencies
         run: go get .
       - name: Vet
@@ -25,5 +25,5 @@ jobs:
         run: go test -v ./...
       - name: Check dependency licenses
         run: |
-          go install github.com/google/go-licenses@latest
+          go install github.com/google/go-licenses@v1.6.0
           go-licenses check ./... --allowed_licenses=Apache-2.0,MIT,BSD-2-Clause,BSD-3-Clause,ISC,0BSD,MPL-2.0
