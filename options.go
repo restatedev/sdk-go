@@ -11,8 +11,10 @@ import (
 // re-export options types so users can create arrays of them and functions that accept/return them
 type SleepOption = options.SleepOption
 type AwakeableOption = options.AwakeableOption
+type SignalOption = options.SignalOption
 type PromiseOption = options.PromiseOption
 type ResolveAwakeableOption = options.ResolveAwakeableOption
+type ResolveSignalOption = options.ResolveSignalOption
 type GetOption = options.GetOption
 type SetOption = options.SetOption
 type ClientOption = options.ClientOption
@@ -41,8 +43,10 @@ var _ options.GetOption = withCodec{}
 var _ options.SetOption = withCodec{}
 var _ options.RunOption = withCodec{}
 var _ options.AwakeableOption = withCodec{}
+var _ options.SignalOption = withCodec{}
 var _ options.PromiseOption = withCodec{}
 var _ options.ResolveAwakeableOption = withCodec{}
+var _ options.ResolveSignalOption = withCodec{}
 var _ options.ClientOption = withCodec{}
 var _ options.AttachOption = withCodec{}
 
@@ -50,8 +54,12 @@ func (w withCodec) BeforeGet(opts *options.GetOptions)             { opts.Codec 
 func (w withCodec) BeforeSet(opts *options.SetOptions)             { opts.Codec = w.codec }
 func (w withCodec) BeforeRun(opts *options.RunOptions)             { opts.Codec = w.codec }
 func (w withCodec) BeforeAwakeable(opts *options.AwakeableOptions) { opts.Codec = w.codec }
+func (w withCodec) BeforeSignal(opts *options.SignalOptions)       { opts.Codec = w.codec }
 func (w withCodec) BeforePromise(opts *options.PromiseOptions)     { opts.Codec = w.codec }
 func (w withCodec) BeforeResolveAwakeable(opts *options.ResolveAwakeableOptions) {
+	opts.Codec = w.codec
+}
+func (w withCodec) BeforeResolveSignal(opts *options.ResolveSignalOptions) {
 	opts.Codec = w.codec
 }
 func (w withCodec) BeforeClient(opts *options.ClientOptions) { opts.Codec = w.codec }
@@ -175,6 +183,61 @@ func (w withIdempotencyKey) BeforeIngressSend(opts *options.IngressSendOptions) 
 // WithIdempotencyKey is an option to specify the idempotency key to set when making a call
 func WithIdempotencyKey(idempotencyKey string) withIdempotencyKey {
 	return withIdempotencyKey{idempotencyKey}
+}
+
+type withScope struct {
+	scope string
+}
+
+var _ options.RequestOption = withScope{}
+var _ options.SendOption = withScope{}
+var _ options.IngressRequestOption = withScope{}
+var _ options.IngressSendOption = withScope{}
+
+func (w withScope) BeforeRequest(opts *options.RequestOptions) {
+	opts.Scope = w.scope
+}
+
+func (w withScope) BeforeSend(opts *options.SendOptions) {
+	opts.Scope = w.scope
+}
+
+func (w withScope) BeforeIngressRequest(opts *options.IngressRequestOptions) {
+	opts.Scope = w.scope
+}
+
+func (w withScope) BeforeIngressSend(opts *options.IngressSendOptions) {
+	opts.Scope = w.scope
+}
+
+type withLimitKey struct {
+	limitKey string
+}
+
+var _ options.RequestOption = withLimitKey{}
+var _ options.SendOption = withLimitKey{}
+var _ options.IngressRequestOption = withLimitKey{}
+var _ options.IngressSendOption = withLimitKey{}
+
+func (w withLimitKey) BeforeRequest(opts *options.RequestOptions) {
+	opts.LimitKey = w.limitKey
+}
+
+func (w withLimitKey) BeforeSend(opts *options.SendOptions) {
+	opts.LimitKey = w.limitKey
+}
+
+func (w withLimitKey) BeforeIngressRequest(opts *options.IngressRequestOptions) {
+	opts.LimitKey = w.limitKey
+}
+
+func (w withLimitKey) BeforeIngressSend(opts *options.IngressSendOptions) {
+	opts.LimitKey = w.limitKey
+}
+
+// WithLimitKey sets the concurrency limit key when making a call.
+func WithLimitKey(limitKey string) withLimitKey {
+	return withLimitKey{limitKey}
 }
 
 type withDelay struct {

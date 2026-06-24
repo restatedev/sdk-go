@@ -59,3 +59,16 @@ func (t AwakeableFuture[T]) Result() (output T, err error) {
 func (t AwakeableFuture[T]) InnerFuture() restatecontext.Selectable {
 	return t.AwakeableFuture
 }
+
+type SignalFuture[T any] struct {
+	restatecontext.SignalFuture
+}
+
+func (t SignalFuture[T]) Result() (output T, err error) {
+	err = t.SignalFuture.Result(&output)
+	return
+}
+
+func (t SignalFuture[T]) InnerFuture() restatecontext.Selectable {
+	return t.SignalFuture
+}

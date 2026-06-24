@@ -892,6 +892,41 @@ func (_c *MockContext_RejectAwakeable_Call) RunAndReturn(run func(string, error)
 	return _c
 }
 
+// RejectSignal provides a mock function with given fields: invocationID, name, reason
+func (_m *MockContext) RejectSignal(invocationID string, name string, reason error) {
+	_m.Called(invocationID, name, reason)
+}
+
+// MockContext_RejectSignal_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'RejectSignal'
+type MockContext_RejectSignal_Call struct {
+	*mock.Call
+}
+
+// RejectSignal is a helper method to define mock.On call
+//   - invocationID string
+//   - name string
+//   - reason error
+func (_e *MockContext_Expecter) RejectSignal(invocationID interface{}, name interface{}, reason interface{}) *MockContext_RejectSignal_Call {
+	return &MockContext_RejectSignal_Call{Call: _e.mock.On("RejectSignal", invocationID, name, reason)}
+}
+
+func (_c *MockContext_RejectSignal_Call) Run(run func(invocationID string, name string, reason error)) *MockContext_RejectSignal_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(string), args[1].(string), args[2].(error))
+	})
+	return _c
+}
+
+func (_c *MockContext_RejectSignal_Call) Return() *MockContext_RejectSignal_Call {
+	_c.Call.Return()
+	return _c
+}
+
+func (_c *MockContext_RejectSignal_Call) RunAndReturn(run func(string, string, error)) *MockContext_RejectSignal_Call {
+	_c.Run(run)
+	return _c
+}
+
 // Request provides a mock function with no fields
 func (_m *MockContext) Request() *restatecontext.Request {
 	ret := _m.Called()
@@ -984,6 +1019,56 @@ func (_c *MockContext_ResolveAwakeable_Call) Return() *MockContext_ResolveAwakea
 }
 
 func (_c *MockContext_ResolveAwakeable_Call) RunAndReturn(run func(string, any, ...options.ResolveAwakeableOption)) *MockContext_ResolveAwakeable_Call {
+	_c.Run(run)
+	return _c
+}
+
+// ResolveSignal provides a mock function with given fields: invocationID, name, value, _a3
+func (_m *MockContext) ResolveSignal(invocationID string, name string, value any, _a3 ...options.ResolveSignalOption) {
+	_va := make([]interface{}, len(_a3))
+	for _i := range _a3 {
+		_va[_i] = _a3[_i]
+	}
+	var _ca []interface{}
+	_ca = append(_ca, invocationID, name, value)
+	_ca = append(_ca, _va...)
+	_m.Called(_ca...)
+}
+
+// MockContext_ResolveSignal_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'ResolveSignal'
+type MockContext_ResolveSignal_Call struct {
+	*mock.Call
+}
+
+// ResolveSignal is a helper method to define mock.On call
+//   - invocationID string
+//   - name string
+//   - value any
+//   - _a3 ...options.ResolveSignalOption
+func (_e *MockContext_Expecter) ResolveSignal(invocationID interface{}, name interface{}, value interface{}, _a3 ...interface{}) *MockContext_ResolveSignal_Call {
+	return &MockContext_ResolveSignal_Call{Call: _e.mock.On("ResolveSignal",
+		append([]interface{}{invocationID, name, value}, _a3...)...)}
+}
+
+func (_c *MockContext_ResolveSignal_Call) Run(run func(invocationID string, name string, value any, _a3 ...options.ResolveSignalOption)) *MockContext_ResolveSignal_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		variadicArgs := make([]options.ResolveSignalOption, len(args)-3)
+		for i, a := range args[3:] {
+			if a != nil {
+				variadicArgs[i] = a.(options.ResolveSignalOption)
+			}
+		}
+		run(args[0].(string), args[1].(string), args[2].(any), variadicArgs...)
+	})
+	return _c
+}
+
+func (_c *MockContext_ResolveSignal_Call) Return() *MockContext_ResolveSignal_Call {
+	_c.Call.Return()
+	return _c
+}
+
+func (_c *MockContext_ResolveSignal_Call) RunAndReturn(run func(string, string, any, ...options.ResolveSignalOption)) *MockContext_ResolveSignal_Call {
 	_c.Run(run)
 	return _c
 }
@@ -1287,6 +1372,69 @@ func (_c *MockContext_Set_Call) RunAndReturn(run func(string, any, ...options.Se
 	return _c
 }
 
+// Signal provides a mock function with given fields: name, _a1
+func (_m *MockContext) Signal(name string, _a1 ...options.SignalOption) restatecontext.SignalFuture {
+	_va := make([]interface{}, len(_a1))
+	for _i := range _a1 {
+		_va[_i] = _a1[_i]
+	}
+	var _ca []interface{}
+	_ca = append(_ca, name)
+	_ca = append(_ca, _va...)
+	ret := _m.Called(_ca...)
+
+	if len(ret) == 0 {
+		panic("no return value specified for Signal")
+	}
+
+	var r0 restatecontext.SignalFuture
+	if rf, ok := ret.Get(0).(func(string, ...options.SignalOption) restatecontext.SignalFuture); ok {
+		r0 = rf(name, _a1...)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(restatecontext.SignalFuture)
+		}
+	}
+
+	return r0
+}
+
+// MockContext_Signal_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'Signal'
+type MockContext_Signal_Call struct {
+	*mock.Call
+}
+
+// Signal is a helper method to define mock.On call
+//   - name string
+//   - _a1 ...options.SignalOption
+func (_e *MockContext_Expecter) Signal(name interface{}, _a1 ...interface{}) *MockContext_Signal_Call {
+	return &MockContext_Signal_Call{Call: _e.mock.On("Signal",
+		append([]interface{}{name}, _a1...)...)}
+}
+
+func (_c *MockContext_Signal_Call) Run(run func(name string, _a1 ...options.SignalOption)) *MockContext_Signal_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		variadicArgs := make([]options.SignalOption, len(args)-1)
+		for i, a := range args[1:] {
+			if a != nil {
+				variadicArgs[i] = a.(options.SignalOption)
+			}
+		}
+		run(args[0].(string), variadicArgs...)
+	})
+	return _c
+}
+
+func (_c *MockContext_Signal_Call) Return(_a0 restatecontext.SignalFuture) *MockContext_Signal_Call {
+	_c.Call.Return(_a0)
+	return _c
+}
+
+func (_c *MockContext_Signal_Call) RunAndReturn(run func(string, ...options.SignalOption) restatecontext.SignalFuture) *MockContext_Signal_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // Sleep provides a mock function with given fields: d, opts
 func (_m *MockContext) Sleep(d time.Duration, opts ...options.SleepOption) error {
 	_va := make([]interface{}, len(opts))
@@ -1569,19 +1717,3 @@ func (_c *MockContext_Wrap_Call) RunAndReturn(run func(context.Context) restatec
 	_c.Call.Return(run)
 	return _c
 }
-
-/* moved to helpers.go
-// NewMockContext creates a new instance of MockContext. It also registers a testing interface on the mock and a cleanup function to assert the mocks expectations.
-// The first argument is typically a *testing.T value.
-func NewMockContext(t interface {
-	mock.TestingT
-	Cleanup(func())
-}) *MockContext {
-	mock := &MockContext{}
-	mock.Mock.Test(t)
-
-	t.Cleanup(func() { mock.AssertExpectations(t) })
-
-	return mock
-}
-*/

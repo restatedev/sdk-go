@@ -75,11 +75,8 @@ func invoke(restateCtx *ctx, handler Handler, logger *slog.Logger) {
 	if err != nil && errors.IsTerminalError(err) {
 		restateCtx.internalLogger.LogAttrs(restateCtx, slog.LevelWarn, "Invocation returned a terminal failure", log.Error(err))
 
-		failure := pbinternal.Failure{}
-		failure.SetCode(uint32(errors.ErrorCode(err)))
-		failure.SetMessage(err.Error())
 		outputParameters := pbinternal.VmSysWriteOutputParameters{}
-		outputParameters.SetFailure(&failure)
+		outputParameters.SetFailure(newFailureFromError(err))
 		outputParameters.SetUnstableSerialization(
 			encoding.IsNonDeterministicSerialization(handler.GetOptions().Codec),
 		)

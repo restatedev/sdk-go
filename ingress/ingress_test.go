@@ -26,6 +26,8 @@ const (
 	invocationId     = "inv_1"
 	invocationStatus = "Accepted"
 	run              = "run"
+	scope            = "myScope"
+	limitKey         = "tenant/user"
 )
 
 var (
@@ -60,6 +62,31 @@ func TestServiceRequest(t *testing.T) {
 	m.AssertBody(t, payload)
 	m.AssertHeaders(t, headers)
 	m.AssertContentType(t, "application/json")
+	m.AssertQuery(t, nil)
+}
+
+func TestScopedServiceRequest(t *testing.T) {
+	m := newMockIngressServer()
+	defer m.Close()
+
+	var input map[string]any
+	payload := []byte(`{"name":"Mary","age":25}`)
+	require.NoError(t, json.Unmarshal(payload, &input))
+
+	c := newIngressClient(m.URL)
+	_, err := ingress.ScopedService[map[string]any, any](c, scope, myService, myHandler).
+		Request(context.Background(), input,
+			restate.WithIdempotencyKey(idempotencyKey),
+			restate.WithLimitKey(limitKey),
+		)
+	require.NoError(t, err)
+	m.AssertMethod(t, http.MethodPost)
+	m.AssertPath(t, fmt.Sprintf("/restate/scope/%s/call/%s/%s", scope, myService, myHandler))
+	m.AssertBody(t, payload)
+	m.AssertHeaders(t, map[string]string{
+		"Authorization":       "Bearer " + authKey,
+		"x-restate-limit-key": limitKey,
+	})
 	m.AssertQuery(t, nil)
 }
 
@@ -106,6 +133,34 @@ func TestServiceSend(t *testing.T) {
 	m.AssertPath(t, fmt.Sprintf("/%s/%s/send", myService, myHandler))
 	m.AssertBody(t, payload)
 	m.AssertHeaders(t, headers)
+	m.AssertQuery(t, query)
+}
+
+func TestScopedServiceSend(t *testing.T) {
+	m := newMockIngressServer()
+	defer m.Close()
+
+	var input map[string]any
+	payload := []byte(`{"name":"Mary","age":25}`)
+	require.NoError(t, json.Unmarshal(payload, &input))
+
+	c := newIngressClient(m.URL)
+	inv, err := ingress.ScopedServiceSend[map[string]any](c, scope, myService, myHandler).
+		Send(context.Background(), input,
+			restate.WithIdempotencyKey(idempotencyKey),
+			restate.WithLimitKey(limitKey),
+			restate.WithDelay(time.Millisecond),
+		)
+	require.NoError(t, err)
+	require.Equal(t, invocationId, inv.Id())
+	require.Equal(t, invocationStatus, inv.Status())
+	m.AssertMethod(t, http.MethodPost)
+	m.AssertPath(t, fmt.Sprintf("/restate/scope/%s/send/%s/%s", scope, myService, myHandler))
+	m.AssertBody(t, payload)
+	m.AssertHeaders(t, map[string]string{
+		"Authorization":       "Bearer " + authKey,
+		"x-restate-limit-key": limitKey,
+	})
 	m.AssertQuery(t, query)
 }
 
@@ -181,6 +236,31 @@ func TestWorkflowRun(t *testing.T) {
 	m.AssertQuery(t, nil)
 }
 
+func TestScopedWorkflowRun(t *testing.T) {
+	m := newMockIngressServer()
+	defer m.Close()
+
+	var input map[string]any
+	payload := []byte(`{"name":"Mary","age":25}`)
+	require.NoError(t, json.Unmarshal(payload, &input))
+
+	c := newIngressClient(m.URL)
+	_, err := ingress.ScopedWorkflow[map[string]any, any](c, scope, myService, myWorkflowId, run).
+		Request(context.Background(), input,
+			restate.WithIdempotencyKey(idempotencyKey),
+			restate.WithLimitKey(limitKey),
+		)
+	require.NoError(t, err)
+	m.AssertMethod(t, http.MethodPost)
+	m.AssertPath(t, fmt.Sprintf("/restate/scope/%s/call/%s/%s/%s", scope, myService, myWorkflowId, run))
+	m.AssertBody(t, payload)
+	m.AssertHeaders(t, map[string]string{
+		"Authorization":       "Bearer " + authKey,
+		"x-restate-limit-key": limitKey,
+	})
+	m.AssertQuery(t, nil)
+}
+
 func TestWorkflowSend(t *testing.T) {
 	// curl localhost:8080/MyService/myWorkflowId/myHandler/send --json '{"name": "Mary", "age": 25}'
 	m := newMockIngressServer()
@@ -204,6 +284,34 @@ func TestWorkflowSend(t *testing.T) {
 	m.AssertPath(t, fmt.Sprintf("/%s/%s/%s/send", myService, myWorkflowId, myHandler))
 	m.AssertBody(t, payload)
 	m.AssertHeaders(t, headers)
+	m.AssertQuery(t, query)
+}
+
+func TestScopedWorkflowSend(t *testing.T) {
+	m := newMockIngressServer()
+	defer m.Close()
+
+	var input map[string]any
+	payload := []byte(`{"name":"Mary","age":25}`)
+	require.NoError(t, json.Unmarshal(payload, &input))
+
+	c := newIngressClient(m.URL)
+	inv, err := ingress.ScopedWorkflowSend[map[string]any](c, scope, myService, myWorkflowId, myHandler).
+		Send(context.Background(), input,
+			restate.WithIdempotencyKey(idempotencyKey),
+			restate.WithLimitKey(limitKey),
+			restate.WithDelay(time.Millisecond),
+		)
+	require.NoError(t, err)
+	require.Equal(t, invocationId, inv.Id())
+	require.Equal(t, invocationStatus, inv.Status())
+	m.AssertMethod(t, http.MethodPost)
+	m.AssertPath(t, fmt.Sprintf("/restate/scope/%s/send/%s/%s/%s", scope, myService, myWorkflowId, myHandler))
+	m.AssertBody(t, payload)
+	m.AssertHeaders(t, map[string]string{
+		"Authorization":       "Bearer " + authKey,
+		"x-restate-limit-key": limitKey,
+	})
 	m.AssertQuery(t, query)
 }
 

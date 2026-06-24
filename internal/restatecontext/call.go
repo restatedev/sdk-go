@@ -66,6 +66,12 @@ func (c *client) RequestFuture(input any, opts ...options.RequestOption) Respons
 	if o.IdempotencyKey != "" {
 		inputParams.SetIdempotencyKey(o.IdempotencyKey)
 	}
+	if o.Scope != "" {
+		inputParams.SetScope(o.Scope)
+	}
+	if o.LimitKey != "" {
+		inputParams.SetLimitKey(o.LimitKey)
+	}
 	inputParams.SetInput(inputBytes)
 	inputParams.SetUnstableSerialization(
 		encoding.IsNonDeterministicSerialization(c.options.Codec),
@@ -160,6 +166,12 @@ func (c *client) Send(input any, opts ...options.SendOption) Invocation {
 	}
 	if o.IdempotencyKey != "" {
 		inputParams.SetIdempotencyKey(o.IdempotencyKey)
+	}
+	if o.Scope != "" {
+		inputParams.SetScope(o.Scope)
+	}
+	if o.LimitKey != "" {
+		inputParams.SetLimitKey(o.LimitKey)
 	}
 	inputParams.SetInput(inputBytes)
 	if o.Delay != 0 {

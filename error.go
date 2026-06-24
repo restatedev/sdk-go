@@ -21,6 +21,11 @@ func WithErrorCode(err error, code Code) error {
 	}
 }
 
+// WithErrorMetadata returns an error with metadata attached.
+func WithErrorMetadata(err error, metadata map[string]string) error {
+	return errors.NewMetadataError(err, metadata)
+}
+
 // TerminalError returns a terminal error with optional code. Code is optional but only one code is allowed.
 // By default, restate will retry the invocation or Run function forever unless a terminal error is returned
 func TerminalError(err error, code ...errors.Code) error {

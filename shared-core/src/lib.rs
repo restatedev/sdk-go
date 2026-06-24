@@ -9,8 +9,8 @@ use alloc::vec::Vec;
 use restate_sdk_shared_core::{
     AttachInvocationTarget, AwaitResponse, AwakeableHandle, CoreVM, Error, Header, HeaderMap,
     NonEmptyValue, NotificationHandle, OnMaxAttempts, PayloadOptions, ResponseHead, RetryPolicy,
-    RunExitResult, RunHandle, Target, TerminalFailure, UnresolvedFuture,
-    VMOptions, Value, Version, VM,
+    RunExitResult, RunHandle, Target, TerminalFailure, UnresolvedFuture, VMOptions, Value, Version,
+    VM,
 };
 use std::cell::RefCell;
 use std::convert::Infallible;
@@ -163,6 +163,14 @@ fn log_subscriber(level: AbiLogLevel) -> impl Subscriber + Send + Sync + 'static
 
 pub struct WasmVM {
     vm: CoreVM,
+}
+
+fn payload_options(unstable_serialization: bool) -> PayloadOptions {
+    if unstable_serialization {
+        PayloadOptions::unstable_serialization()
+    } else {
+        PayloadOptions::stable_serialization()
+    }
 }
 
 pub struct WasmHeaders(Vec<pb::Header>);
@@ -390,6 +398,9 @@ fn vm_sys_input(rc_vm: &Rc<RefCell<WasmVM>>) -> pb::VmSysInputReturn {
                 input: input.input,
                 random_seed: input.random_seed,
                 should_use_random_seed: protocol_version >= Version::V6,
+                scope: input.scope,
+                limit_key: input.limit_key,
+                idempotency_key: input.idempotency_key,
             }),
             Err(e) => pb::vm_sys_input_return::Result::Failure(e.into()),
         }),
@@ -415,9 +426,7 @@ fn vm_sys_state_get(
     VM::sys_state_get(
         &mut rc_vm.borrow_mut().vm,
         input.key,
-        PayloadOptions {
-            unstable_serialization: input.unstable_serialization,
-        },
+        payload_options(input.unstable_serialization),
     )
     .into()
 }
@@ -453,9 +462,7 @@ fn vm_sys_state_set(
         &mut rc_vm.borrow_mut().vm,
         input.key,
         input.value,
-        PayloadOptions {
-            unstable_serialization: input.unstable_serialization,
-        },
+        payload_options(input.unstable_serialization),
     )
     .into()
 }
@@ -563,8 +570,55 @@ fn vm_sys_complete_awakeable(
                 NonEmptyValue::Failure(f.into())
             }
         },
-        PayloadOptions {
-            unstable_serialization: input.unstable_serialization,
+        payload_options(input.unstable_serialization),
+    )
+    .into()
+}
+
+#[export_name = "vm_sys_signal"]
+pub unsafe extern "C" fn _vm_sys_signal(
+    vm_pointer: *const RefCell<WasmVM>,
+    ptr: *mut u8,
+    len: usize,
+) -> u64 {
+    let rc_vm = vm_ptr_to_rc(vm_pointer);
+    let input = ptr_to_input(ptr, len);
+    let res = vm_sys_signal(&rc_vm, input);
+    output_to_ptr(res)
+}
+
+fn vm_sys_signal(
+    rc_vm: &Rc<RefCell<WasmVM>>,
+    input: pb::VmSysSignalParameters,
+) -> pb::SimpleSysAsyncResultReturn {
+    VM::create_signal_handle(&mut rc_vm.borrow_mut().vm, input.name).into()
+}
+
+#[export_name = "vm_sys_complete_signal"]
+pub unsafe extern "C" fn _vm_sys_complete_signal(
+    vm_pointer: *const RefCell<WasmVM>,
+    ptr: *mut u8,
+    len: usize,
+) -> u64 {
+    let rc_vm = vm_ptr_to_rc(vm_pointer);
+    let input = ptr_to_input(ptr, len);
+    let res = vm_sys_complete_signal(&rc_vm, input);
+    output_to_ptr(res)
+}
+
+fn vm_sys_complete_signal(
+    rc_vm: &Rc<RefCell<WasmVM>>,
+    input: pb::VmSysCompleteSignalParameters,
+) -> pb::GenericEmptyReturn {
+    VM::sys_complete_signal(
+        &mut rc_vm.borrow_mut().vm,
+        input.invocation_id,
+        input.name,
+        match input.result.expect("result should be present") {
+            pb::vm_sys_complete_signal_parameters::Result::Success(s) => NonEmptyValue::Success(s),
+            pb::vm_sys_complete_signal_parameters::Result::Failure(f) => {
+                NonEmptyValue::Failure(f.into())
+            }
         },
     )
     .into()
@@ -592,15 +646,13 @@ fn vm_sys_call(rc_vm: &Rc<RefCell<WasmVM>>, input: pb::VmSysCallParameters) -> p
                     handler: input.handler,
                     key: input.key,
                     idempotency_key: input.idempotency_key,
-                    scope: None,
-                    limit_key: None,
+                    scope: input.scope,
+                    limit_key: input.limit_key,
                     headers: input.headers.into_iter().map(Into::into).collect(),
                 },
                 input.input,
                 None,
-                PayloadOptions {
-                    unstable_serialization: input.unstable_serialization,
-                },
+                payload_options(input.unstable_serialization),
             ) {
                 Ok(call_handle) => {
                     pb::vm_sys_call_return::Result::Ok(pb::vm_sys_call_return::CallHandles {
@@ -637,8 +689,8 @@ fn vm_sys_send(
             handler: input.handler,
             key: input.key,
             idempotency_key: input.idempotency_key,
-            scope: None,
-            limit_key: None,
+            scope: input.scope,
+            limit_key: input.limit_key,
             headers: input.headers.into_iter().map(Into::into).collect(),
         },
         input.input,
@@ -646,9 +698,7 @@ fn vm_sys_send(
             .execution_time_since_unix_epoch_millis
             .map(Duration::from_millis),
         None,
-        PayloadOptions {
-            unstable_serialization: input.unstable_serialization,
-        },
+        payload_options(input.unstable_serialization),
     )
     .map(|s| s.invocation_id_notification_handle)
     .into()
@@ -759,9 +809,7 @@ fn vm_sys_promise_complete(
                 NonEmptyValue::Failure(f.into())
             }
         },
-        PayloadOptions {
-            unstable_serialization: input.unstable_serialization,
-        },
+        payload_options(input.unstable_serialization),
     )
     .into()
 }
@@ -778,10 +826,7 @@ pub unsafe extern "C" fn _vm_sys_run(
     output_to_ptr(res)
 }
 
-fn vm_sys_run(
-    rc_vm: &Rc<RefCell<WasmVM>>,
-    input: pb::VmSysRunParameters,
-) -> pb::VmSysRunReturn {
+fn vm_sys_run(rc_vm: &Rc<RefCell<WasmVM>>, input: pb::VmSysRunParameters) -> pb::VmSysRunReturn {
     pb::VmSysRunReturn {
         result: Some(match VM::sys_run(&mut rc_vm.borrow_mut().vm, input.name) {
             Ok(RunHandle { replayed, handle }) => {
@@ -868,9 +913,7 @@ fn vm_sys_write_output(
     VM::sys_write_output(
         &mut rc_vm.borrow_mut().vm,
         value,
-        PayloadOptions {
-            unstable_serialization: input.unstable_serialization,
-        },
+        payload_options(input.unstable_serialization),
     )
     .into()
 }
@@ -1009,6 +1052,7 @@ impl From<Error> for pb::Failure {
         Self {
             code: value.code().into(),
             message: value.to_string(),
+            metadata: Vec::new(),
         }
     }
 }
@@ -1030,7 +1074,11 @@ impl From<pb::Failure> for TerminalFailure {
         Self {
             code: value.code.try_into().expect("Should be u16"),
             message: value.message,
-            metadata: Vec::new(),
+            metadata: value
+                .metadata
+                .into_iter()
+                .map(|h| (h.key, h.value))
+                .collect(),
         }
     }
 }
@@ -1040,6 +1088,11 @@ impl From<TerminalFailure> for pb::Failure {
         Self {
             code: value.code.into(),
             message: value.message,
+            metadata: value
+                .metadata
+                .into_iter()
+                .map(|(key, value)| pb::Header { key, value })
+                .collect(),
         }
     }
 }

@@ -23,6 +23,7 @@ message Header {
 message Failure {
   uint32 code = 1;
   string message = 2;
+  repeated Header metadata = 3;
 }
 
 message FailureWithStacktrace {
@@ -106,6 +107,9 @@ message VmSysInputReturn {
     bytes input = 4;
     uint64 random_seed = 5;
     bool should_use_random_seed = 6;
+    optional string scope = 7;
+    optional string limit_key = 8;
+    optional string idempotency_key = 9;
   }
 
   oneof result {
@@ -158,6 +162,22 @@ message VmSysCompleteAwakeableParameters {
   bool unstable_serialization = 4;
 }
 
+message VmSysSignalParameters {
+  string name = 1;
+}
+
+message VmSysCompleteSignalParameters {
+  string invocation_id = 1;
+  string name = 2;
+
+  oneof result {
+    bytes success = 3;
+    Failure failure = 4;
+  }
+
+  bool unstable_serialization = 5;
+}
+
 message VmSysCallParameters {
   string service = 1;
   string handler = 2;
@@ -168,6 +188,9 @@ message VmSysCallParameters {
   bytes input = 6;
 
   bool unstable_serialization = 7;
+
+  optional string scope = 8;
+  optional string limit_key = 9;
 }
 
 message VmSysCallReturn {
@@ -194,6 +217,9 @@ message VmSysSendParameters {
   optional uint64 execution_time_since_unix_epoch_millis = 7;
 
   bool unstable_serialization = 8;
+
+  optional string scope = 9;
+  optional string limit_key = 10;
 }
 
 message VmSysCancelInvocation {

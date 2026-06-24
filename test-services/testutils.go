@@ -4,10 +4,21 @@ import (
 	"os"
 	"strings"
 	"sync/atomic"
-	"time"
 
 	restate "github.com/restatedev/sdk-go"
 )
+
+type ResolveSignalRequest struct {
+	InvocationID string `json:"invocationId"`
+	SignalName   string `json:"signalName"`
+	Value        string `json:"value"`
+}
+
+type RejectSignalRequest struct {
+	InvocationID string `json:"invocationId"`
+	SignalName   string `json:"signalName"`
+	Reason       string `json:"reason"`
+}
 
 func init() {
 	REGISTRY.AddDefinition(
@@ -28,24 +39,6 @@ func init() {
 				func(ctx restate.Context, input []byte) ([]byte, error) {
 					return input, nil
 				}, restate.WithBinary)).
-			Handler("sleepConcurrently", restate.NewServiceHandler(
-				func(ctx restate.Context, millisDuration []int64) (restate.Void, error) {
-					timers := make([]restate.Future, 0, len(millisDuration))
-					for _, d := range millisDuration {
-						timers = append(timers, restate.After(ctx, time.Duration(d)*time.Millisecond))
-					}
-					i := 0
-					for _, err := range restate.Wait(ctx, timers...) {
-						if err != nil {
-							return restate.Void{}, err
-						}
-						i++
-					}
-					if i != len(timers) {
-						return restate.Void{}, restate.TerminalErrorf("unexpected number of timers fired: %d", i)
-					}
-					return restate.Void{}, nil
-				})).
 			Handler("countExecutedSideEffects", restate.NewServiceHandler(
 				func(ctx restate.Context, increments int32) (int32, error) {
 					invokedSideEffects := atomic.Int32{}
@@ -60,6 +53,16 @@ func init() {
 			Handler("cancelInvocation", restate.NewServiceHandler(
 				func(ctx restate.Context, invocationId string) (restate.Void, error) {
 					restate.CancelInvocation(ctx, invocationId)
+					return restate.Void{}, nil
+				})).
+			Handler("resolveSignal", restate.NewServiceHandler(
+				func(ctx restate.Context, req ResolveSignalRequest) (restate.Void, error) {
+					restate.ResolveSignal(ctx, req.InvocationID, req.SignalName, req.Value)
+					return restate.Void{}, nil
+				})).
+			Handler("rejectSignal", restate.NewServiceHandler(
+				func(ctx restate.Context, req RejectSignalRequest) (restate.Void, error) {
+					restate.RejectSignal(ctx, req.InvocationID, req.SignalName, restate.TerminalErrorf("%s", req.Reason))
 					return restate.Void{}, nil
 				})),
 	)

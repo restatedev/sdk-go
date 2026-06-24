@@ -79,10 +79,7 @@ func (restateCtx *ctx) runAsync(goCtx context.Context, fn func(ctx RunContext) (
 
 			if errors.IsTerminalError(err) {
 				// Terminal error
-				failure := pbinternal.Failure{}
-				failure.SetCode(uint32(errors.ErrorCode(err)))
-				failure.SetMessage(err.Error())
-				proposal.SetTerminalFailure(&failure)
+				proposal.SetTerminalFailure(newFailureFromError(err))
 			} else if err != nil {
 				// Retryable error
 				failure := pbinternal.FailureWithStacktrace{}

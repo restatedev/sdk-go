@@ -4,7 +4,6 @@ import (
 	"fmt"
 
 	"github.com/restatedev/sdk-go/encoding"
-	"github.com/restatedev/sdk-go/internal/errors"
 	pbinternal "github.com/restatedev/sdk-go/internal/generated"
 	"github.com/restatedev/sdk-go/internal/options"
 	"github.com/restatedev/sdk-go/internal/statemachine"
@@ -118,13 +117,9 @@ func (d *durablePromise) Resolve(value any) error {
 }
 
 func (d *durablePromise) Reject(reason error) error {
-	failure := pbinternal.Failure{}
-	failure.SetCode(uint32(errors.ErrorCode(reason)))
-	failure.SetMessage(reason.Error())
-
 	input := pbinternal.VmSysPromiseCompleteParameters{}
 	input.SetId(d.key)
-	input.SetFailure(&failure)
+	input.SetFailure(newFailureFromError(reason))
 	handle, err := d.ctx.stateMachine.SysPromiseComplete(d.ctx, &input)
 	if err != nil {
 		panic(err)

@@ -1,7 +1,9 @@
 package main
 
 import (
+	stderrors "errors"
 	"fmt"
+	"strings"
 	"time"
 
 	restate "github.com/restatedev/sdk-go"
@@ -27,6 +29,8 @@ type Command struct {
 type AwaitableCommand struct {
 	Type          string `json:"type"`
 	AwakeableKey  string `json:"awakeableKey,omitempty"`
+	SignalName    string `json:"signalName,omitempty"`
+	Value         string `json:"value,omitempty"`
 	TimeoutMillis uint64 `json:"timeoutMillis,omitempty"`
 	Reason        string `json:"reason,omitempty"`
 }
@@ -65,14 +69,26 @@ func init() {
 
 					for _, command := range req.Commands {
 						switch command.Type {
-						case "awaitAny":
+						case "awaitAny", "awaitFirstCompleted":
 							lastResult, err = awaitAnyCommand(ctx, command.Commands)
 							if err != nil {
 								return "", err
 							}
 							break
-						case "awaitAnySuccessful":
+						case "awaitAnySuccessful", "awaitFirstSucceededOrAllFailed":
 							lastResult, err = awaitAnySuccessfulCommand(ctx, command.Commands)
+							if err != nil {
+								return "", err
+							}
+							break
+						case "awaitAllSucceededOrFirstFailed":
+							lastResult, err = awaitAllSucceededOrFirstFailedCommand(ctx, command.Commands)
+							if err != nil {
+								return "", err
+							}
+							break
+						case "awaitAllCompleted":
+							lastResult, err = awaitAllCompletedCommand(ctx, command.Commands)
 							if err != nil {
 								return "", err
 							}
@@ -185,49 +201,103 @@ func awaitAnySuccessfulCommand(ctx restate.ObjectContext, commands []AwaitableCo
 	for _, cmd := range commands {
 		selectables = append(selectables, cmd.toFuture(ctx))
 	}
+	var lastErr error
 	for fut, err := range restate.Wait(ctx, selectables...) {
 		if err != nil {
 			return "", err
 		}
-		switch fut.(type) {
-		case restate.AwakeableFuture[string]:
-			res, err := fut.(restate.AwakeableFuture[string]).Result()
-			if err != nil {
-				continue
-			}
-			return res, err
-		case restate.AfterFuture:
-			err := fut.(restate.AfterFuture).Done()
-			if err != nil {
-				continue
-			}
-			return "sleep", err
-		case restate.RunAsyncFuture[string]:
-			res, err := fut.(restate.RunAsyncFuture[string]).Result()
-			if err != nil {
-				continue
-			}
-			return res, err
-		default:
-			panic("Unsupported future type")
+		res, err := awaitableCommandResult(fut)
+		if err != nil {
+			lastErr = err
+			continue
 		}
+		return res, nil
+	}
+	if lastErr != nil {
+		return "", lastErr
 	}
 	return "", restate.TerminalErrorf("No future selected")
 }
 
+func awaitAllSucceededOrFirstFailedCommand(ctx restate.ObjectContext, commands []AwaitableCommand) (string, error) {
+	futures := make([]restate.Future, 0, len(commands))
+	for _, cmd := range commands {
+		futures = append(futures, cmd.toFuture(ctx))
+	}
+
+	for fut, err := range restate.Wait(ctx, futures...) {
+		if err != nil {
+			return "", err
+		}
+		if _, err := awaitableCommandResult(fut); err != nil {
+			return "", err
+		}
+	}
+
+	results := make([]string, 0, len(futures))
+	for _, fut := range futures {
+		res, err := awaitableCommandResult(fut)
+		if err != nil {
+			return "", err
+		}
+		results = append(results, res)
+	}
+	return strings.Join(results, "|"), nil
+}
+
+func awaitAllCompletedCommand(ctx restate.ObjectContext, commands []AwaitableCommand) (string, error) {
+	futures := make([]restate.Future, 0, len(commands))
+	for _, cmd := range commands {
+		futures = append(futures, cmd.toFuture(ctx))
+	}
+
+	for _, err := range restate.Wait(ctx, futures...) {
+		if err != nil {
+			return "", err
+		}
+	}
+
+	results := make([]string, 0, len(futures))
+	for _, fut := range futures {
+		results = append(results, awaitableCommandCompletedResult(fut))
+	}
+	return strings.Join(results, "|"), nil
+}
+
 func awaitableCommandResult(selected restate.Selectable) (string, error) {
-	switch selected.(type) {
+	switch selected := selected.(type) {
 	case restate.AwakeableFuture[string]:
-		res, err := selected.(restate.AwakeableFuture[string]).Result()
+		res, err := selected.Result()
 		return res, err
 	case restate.AfterFuture:
-		err := selected.(restate.AfterFuture).Done()
+		err := selected.Done()
 		return "sleep", err
 	case restate.RunAsyncFuture[string]:
-		res, err := selected.(restate.RunAsyncFuture[string]).Result()
+		res, err := selected.Result()
+		return res, err
+	case restate.SignalFuture[string]:
+		res, err := selected.Result()
 		return res, err
 	default:
 		panic("Unsupported future type")
+	}
+}
+
+func awaitableCommandCompletedResult(selected restate.Selectable) string {
+	res, err := awaitableCommandResult(selected)
+	if err != nil {
+		return fmt.Sprintf("err:%s", errMessage(err))
+	}
+	return fmt.Sprintf("ok:%s", res)
+}
+
+func errMessage(err error) string {
+	for {
+		unwrapped := stderrors.Unwrap(err)
+		if unwrapped == nil {
+			return err.Error()
+		}
+		err = unwrapped
 	}
 }
 
@@ -241,6 +311,12 @@ func (cmd AwaitableCommand) toFuture(ctx restate.ObjectContext) restate.Selectab
 		awk := restate.Awakeable[string](ctx)
 		restate.Set(ctx, awakeableStateKey(cmd.AwakeableKey), awk.Id())
 		return awk
+	case "createSignal":
+		return restate.Signal[string](ctx, cmd.SignalName)
+	case "runReturns":
+		return restate.RunAsync[string](ctx, func(ctx restate.RunContext) (string, error) {
+			return cmd.Value, nil
+		})
 	case "runThrowTerminalException":
 		return restate.RunAsync[string](ctx, func(ctx restate.RunContext) (string, error) {
 			return "", restate.TerminalErrorf("%s", cmd.Reason)

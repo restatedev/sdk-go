@@ -18,6 +18,7 @@ import (
 
 const (
 	idempotencyKeyHeader = "idempotency-key"
+	limitKeyHeader       = "x-restate-limit-key"
 	delayQuery           = "delay"
 )
 
@@ -42,13 +43,6 @@ type IngressAttachParams struct {
 	WorkflowID     string
 }
 
-type ingressOpts struct {
-	IdempotencyKey string
-	Headers        map[string]string
-	Delay          time.Duration
-	Codec          encoding.PayloadCodec
-}
-
 func NewClient(baseUri string, opts options.IngressClientOptions) *Client {
 	return &Client{
 		baseUri:    baseUri,
@@ -57,18 +51,19 @@ func NewClient(baseUri string, opts options.IngressClientOptions) *Client {
 }
 
 func (c *Client) Request(ctx context.Context, params IngressParams, input, output any, reqOpts options.IngressRequestOptions) error {
-	return c.do(ctx, http.MethodPost, makeIngressUrl(params), input, output,
+	return c.do(ctx, http.MethodPost, makeIngressUrl(params, reqOpts.Scope, false), input, output,
 		reqOpts.IdempotencyKey,
 		reqOpts.Headers,
 		0,
+		reqOpts.LimitKey,
 		reqOpts.Codec,
 		reqOpts.Codec)
 }
 
 func (c *Client) Send(ctx context.Context, params IngressParams, input any, sendOpts options.IngressSendOptions) (Invocation, error) {
-	url := fmt.Sprintf("%s/%s", makeIngressUrl(params), "send")
+	url := makeIngressUrl(params, sendOpts.Scope, true)
 	var output Invocation
-	err := c.do(ctx, http.MethodPost, url, input, &output, sendOpts.IdempotencyKey, sendOpts.Headers, sendOpts.Delay, sendOpts.Codec, encoding.JSONCodec)
+	err := c.do(ctx, http.MethodPost, url, input, &output, sendOpts.IdempotencyKey, sendOpts.Headers, sendOpts.Delay, sendOpts.LimitKey, sendOpts.Codec, encoding.JSONCodec)
 	return output, err
 }
 
@@ -77,7 +72,7 @@ func (c *Client) Attach(ctx context.Context, params IngressAttachParams, output 
 	if err != nil {
 		return err
 	}
-	return c.do(ctx, http.MethodGet, fmt.Sprintf("%s/attach", path), restate.Void{}, output, "", nil, 0, nil, attachOpts.Codec)
+	return c.do(ctx, http.MethodGet, fmt.Sprintf("%s/attach", path), restate.Void{}, output, "", nil, 0, "", nil, attachOpts.Codec)
 }
 
 func (c *Client) Output(ctx context.Context, params IngressAttachParams, output any, outputOpts options.IngressInvocationHandleOptions) error {
@@ -85,11 +80,11 @@ func (c *Client) Output(ctx context.Context, params IngressAttachParams, output 
 	if err != nil {
 		return err
 	}
-	return c.do(ctx, http.MethodGet, fmt.Sprintf("%s/output", path), restate.Void{}, output, "", nil, 0, nil, outputOpts.Codec)
+	return c.do(ctx, http.MethodGet, fmt.Sprintf("%s/output", path), restate.Void{}, output, "", nil, 0, "", nil, outputOpts.Codec)
 }
 
 func (c *Client) do(ctx context.Context, httpMethod, path string, requestData any, responseData any, idempotencyKey string, headers map[string]string,
-	delay time.Duration,
+	delay time.Duration, limitKey string,
 	inputCodec encoding.PayloadCodec, outputCodec encoding.PayloadCodec) error {
 	// Set input/output codec
 	if inputCodec == nil {
@@ -135,6 +130,9 @@ func (c *Client) do(ctx context.Context, httpMethod, path string, requestData an
 	}
 	if idempotencyKey != "" {
 		req.Header.Set(idempotencyKeyHeader, idempotencyKey)
+	}
+	if limitKey != "" {
+		req.Header.Set(limitKeyHeader, limitKey)
 	}
 	if headers != nil {
 		for name, value := range headers {
@@ -196,28 +194,30 @@ func (c *Client) do(ctx context.Context, httpMethod, path string, requestData an
 	return nil
 }
 
-func requestOptionsToIngressOpts(reqOpts options.IngressRequestOptions) ingressOpts {
-	return ingressOpts{
-		IdempotencyKey: reqOpts.IdempotencyKey,
-		Headers:        reqOpts.Headers,
-		Codec:          reqOpts.Codec,
+func makeIngressUrl(params IngressParams, scope string, send bool) string {
+	if scope != "" {
+		verb := "call"
+		if send {
+			verb = "send"
+		}
+		switch {
+		case params.Key != "":
+			return fmt.Sprintf("/restate/scope/%s/%s/%s/%s/%s", scope, verb, params.Service, params.Key, params.Handler)
+		default:
+			return fmt.Sprintf("/restate/scope/%s/%s/%s/%s", scope, verb, params.Service, params.Handler)
+		}
 	}
-}
 
-func sendOptionsToIngressOpts(sendOpts options.IngressSendOptions) ingressOpts {
-	return ingressOpts{
-		IdempotencyKey: sendOpts.IdempotencyKey,
-		Headers:        sendOpts.Headers,
-		Delay:          sendOpts.Delay,
-		Codec:          sendOpts.Codec,
-	}
-}
-
-func makeIngressUrl(params IngressParams) string {
 	switch {
 	case params.Key != "":
+		if send {
+			return fmt.Sprintf("/%s/%s/%s/send", params.Service, params.Key, params.Handler)
+		}
 		return fmt.Sprintf("/%s/%s/%s", params.Service, params.Key, params.Handler)
 	default:
+		if send {
+			return fmt.Sprintf("/%s/%s/send", params.Service, params.Handler)
+		}
 		return fmt.Sprintf("/%s/%s", params.Service, params.Handler)
 	}
 }

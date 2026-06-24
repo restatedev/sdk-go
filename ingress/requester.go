@@ -52,6 +52,18 @@ func Service[I any, O any](c *Client, serviceName, handlerName string) Requester
 	}
 }
 
+// ScopedService gets an ingress client for a Restate service handler within the given scope.
+func ScopedService[I any, O any](c *Client, scope, serviceName, handlerName string) Requester[I, O] {
+	return requester[I, O]{
+		client: c,
+		scope:  scope,
+		params: ingress.IngressParams{
+			Service: serviceName,
+			Handler: handlerName,
+		},
+	}
+}
+
 // Object gets an ingress client for a Restate virtual object handler.
 // This returns a Requester that supports both Request and Send operations.
 //
@@ -94,10 +106,24 @@ func Workflow[I any, O any](c *Client, serviceName, workflowID, handlerName stri
 	}
 }
 
+// ScopedWorkflow gets an ingress client for a Restate workflow handler within the given scope.
+func ScopedWorkflow[I any, O any](c *Client, scope, serviceName, workflowID, handlerName string) Requester[I, O] {
+	return requester[I, O]{
+		client: c,
+		scope:  scope,
+		params: ingress.IngressParams{
+			Service: serviceName,
+			Handler: handlerName,
+			Key:     workflowID,
+		},
+	}
+}
+
 type requester[I any, O any] struct {
 	client *Client
 	params ingress.IngressParams
 	codec  encoding.PayloadCodec
+	scope  string
 }
 
 func NewRequester[I any, O any](c *Client, serviceName, handlerName string, key *string, codec *encoding.PayloadCodec) Requester[I, O] {
@@ -121,6 +147,7 @@ func NewRequester[I any, O any](c *Client, serviceName, handlerName string, key 
 func (c requester[I, O]) Request(ctx context.Context, input I, opts ...options.IngressRequestOption) (O, error) {
 	reqOpts := options.IngressRequestOptions{}
 	reqOpts.Codec = c.codec
+	reqOpts.Scope = c.scope
 	for _, opt := range opts {
 		opt.BeforeIngressRequest(&reqOpts)
 	}
@@ -150,6 +177,7 @@ func (s *sendResponse[O]) Status() string {
 func (c requester[I, O]) Send(ctx context.Context, input I, opts ...options.IngressSendOption) (SendResponse[O], error) {
 	sendOpts := options.IngressSendOptions{}
 	sendOpts.Codec = c.codec
+	sendOpts.Scope = c.scope
 	for _, opt := range opts {
 		opt.BeforeIngressSend(&sendOpts)
 	}

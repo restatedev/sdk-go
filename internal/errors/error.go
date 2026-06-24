@@ -8,8 +8,9 @@ import (
 type Code uint16
 
 type CodeError struct {
-	Code  Code
-	Inner error
+	Code     Code
+	Inner    error
+	Metadata map[string]string
 }
 
 func (e *CodeError) Error() string {
@@ -27,6 +28,46 @@ func ErrorCode(err error) Code {
 	}
 
 	return 500
+}
+
+type MetadataError struct {
+	Inner    error
+	Metadata map[string]string
+}
+
+func (e *MetadataError) Error() string {
+	return e.Inner.Error()
+}
+
+func (e *MetadataError) Unwrap() error {
+	return e.Inner
+}
+
+func NewMetadataError(err error, metadata map[string]string) error {
+	if err == nil {
+		return nil
+	}
+	if len(metadata) == 0 {
+		return err
+	}
+	return &MetadataError{
+		Inner:    err,
+		Metadata: metadata,
+	}
+}
+
+func ErrorMetadata(err error) map[string]string {
+	var codeErr *CodeError
+	if errors.As(err, &codeErr) && len(codeErr.Metadata) > 0 {
+		return codeErr.Metadata
+	}
+
+	var metadataErr *MetadataError
+	if errors.As(err, &metadataErr) && len(metadataErr.Metadata) > 0 {
+		return metadataErr.Metadata
+	}
+
+	return nil
 }
 
 type TerminalError struct {
