@@ -101,10 +101,12 @@ jobs:
           version: v0.16.0
 
       - name: Install dependencies
+        working-directory: test-services
         run: go get .
 
       - name: Build Docker image
-        run: KO_DOCKER_REPO=restatedev ko build -B -L github.com/restatedev/sdk-go/test-services
+        working-directory: test-services
+        run: KO_DOCKER_REPO=restatedev ko build -B -L .
 
       - name: Run test tool
         uses: restatedev/e2e/sdk-tests@v2.2

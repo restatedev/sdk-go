@@ -269,7 +269,7 @@ func (h *reflectHandler) Call(ctx restatecontext.Context, bytes []byte) ([]byte,
 		input := reflect.New(h.input)
 
 		if err := encoding.Unmarshal(h.options.Codec, bytes, input.Interface()); err != nil {
-			return nil, TerminalError(fmt.Errorf("request could not be decoded into handler input type: %w", err), http.StatusBadRequest)
+			return nil, ToTerminalError(fmt.Errorf("request could not be decoded into handler input type: %v", err), WithErrorCode(http.StatusBadRequest))
 		}
 
 		args = []reflect.Value{h.receiver, reflect.ValueOf(ctxWrapper{ctx}), input.Elem()}

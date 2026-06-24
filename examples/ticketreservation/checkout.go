@@ -26,7 +26,7 @@ func (c *checkout) ServiceName() string {
 const CheckoutServiceName = "Checkout"
 
 func (c *checkout) Payment(ctx restate.Context, request PaymentRequest) (response PaymentResponse, err error) {
-	uuid := restate.Rand(ctx).UUID().String()
+	uuid := restate.UUID(ctx).String()
 
 	response.ID = uuid
 

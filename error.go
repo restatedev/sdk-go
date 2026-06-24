@@ -6,44 +6,61 @@ import (
 	"github.com/restatedev/sdk-go/internal/errors"
 )
 
-// Code is a numeric status code for an error, typically a HTTP status code.
+// Code is a numeric status code for an error, matching HTTP status code semantics.
 type Code = errors.Code
 
-// WithErrorCode returns an error with specific [Code] attached.
-func WithErrorCode(err error, code Code) error {
-	if err == nil {
-		return nil
-	}
+// TerminalError finishes an invocation (or a Run function) with a failure result
+// instead of being retried. By default, Restate retries the invocation or Run
+// function forever unless a terminal error is returned.
+//
+// It carries a status code, a message and optional metadata, accessible via the
+// Code, Message and Metadata methods, and implements the error interface. Use
+// [TerminalErrorf] or [ToTerminalError] to construct one.
+type TerminalError = errors.TerminalError
 
-	return &errors.CodeError{
-		Inner: err,
-		Code:  code,
-	}
+// TerminalErrorOption customizes a [TerminalError]. Pass it to [ToTerminalError].
+type TerminalErrorOption = errors.TerminalErrorOption
+
+// WithErrorCode sets the [Code] of a [TerminalError]. Pass it to [ToTerminalError].
+func WithErrorCode(code Code) TerminalErrorOption {
+	return errors.WithCode(code)
 }
 
-// WithErrorMetadata returns an error with metadata attached.
-func WithErrorMetadata(err error, metadata map[string]string) error {
-	return errors.NewMetadataError(err, metadata)
+// WithErrorMetadata sets the metadata of a [TerminalError]. Pass it to [ToTerminalError].
+func WithErrorMetadata(metadata map[string]string) TerminalErrorOption {
+	return errors.WithMetadata(metadata)
 }
 
-// TerminalError returns a terminal error with optional code. Code is optional but only one code is allowed.
-// By default, restate will retry the invocation or Run function forever unless a terminal error is returned
-func TerminalError(err error, code ...errors.Code) error {
-	return errors.NewTerminalError(err, code...)
+// ToTerminalError converts err into a [TerminalError], so that returning it from a
+// handler or Run finishes the invocation with a failure result instead of being
+// retried.
+//
+// IMPORTANT: this does NOT wrap err. A [TerminalError] carries no nested error and is
+// not part of err's chain: errors.Unwrap, errors.Is and errors.As will not reach err
+// through the result. Only the message err.Error() is copied.
+//
+// It returns nil if err is nil; if err already is, or wraps, a [TerminalError] and no
+// options are given, that [TerminalError] is returned unchanged. The code defaults to
+// 500 unless set with [WithErrorCode]; metadata can be attached with [WithErrorMetadata].
+func ToTerminalError(err error, opts ...TerminalErrorOption) TerminalError {
+	return errors.ToTerminalError(err, opts...)
 }
 
-// TerminalErrorf is a shorthand for combining fmt.Errorf with TerminalError
-func TerminalErrorf(format string, a ...any) error {
-	return TerminalError(fmt.Errorf(format, a...))
+// TerminalErrorf builds a [TerminalError] whose message is fmt.Sprintf(format, a...).
+// To attach a code or metadata, build the message with fmt.Errorf and pass it to
+// [ToTerminalError] with the relevant options.
+func TerminalErrorf(format string, a ...any) TerminalError {
+	return errors.NewTerminalError(fmt.Sprintf(format, a...))
 }
 
-// IsTerminalError checks if err is terminal - ie, that returning it in a handler or Run function will finish
-// the invocation with the error as a result.
+// IsTerminalError reports whether err is, or wraps, a [TerminalError] - ie, that
+// returning it in a handler or Run function will finish the invocation with the
+// error as a result.
 func IsTerminalError(err error) bool {
 	return errors.IsTerminalError(err)
 }
 
-// ErrorCode returns [Code] associated with error, defaulting to 500
-func ErrorCode(err error) errors.Code {
-	return errors.ErrorCode(err)
+// AsTerminalError casts the current error to [TerminalError] if any.
+func AsTerminalError(err error) TerminalError {
+	return errors.AsTerminalError(err)
 }

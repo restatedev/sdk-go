@@ -25,7 +25,7 @@ func (c *fanOutWorker) Run(ctx restate.Context, commaSeparatedTasks string) (agg
 	tasks := strings.Split(commaSeparatedTasks, ",")
 
 	// Run tasks in parallel
-	var futs []restate.Selectable
+	var futs []restate.Future
 	for _, task := range tasks {
 		futs = append(futs, restate.RunAsync[string](ctx, func(ctx restate.RunContext) (string, error) {
 			log.Printf("Heavy task %s running", task)

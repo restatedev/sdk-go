@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/restatedev/sdk-go/encoding"
+	"github.com/restatedev/sdk-go/internal/errors"
 	pbinternal "github.com/restatedev/sdk-go/internal/generated"
 	"github.com/restatedev/sdk-go/internal/statemachine"
 
@@ -12,9 +13,9 @@ import (
 )
 
 type ResponseFuture interface {
-	Selectable
+	Future
 	Invocation
-	Response(output any) error
+	Response(output any) errors.TerminalError
 }
 
 type Invocation interface {
@@ -23,7 +24,7 @@ type Invocation interface {
 
 type Client interface {
 	RequestFuture(input any, opts ...options.RequestOption) ResponseFuture
-	Request(input any, output any, opts ...options.RequestOption) error
+	Request(input any, output any, opts ...options.RequestOption) errors.TerminalError
 	Send(input any, opts ...options.SendOption) Invocation
 }
 
@@ -37,7 +38,7 @@ type client struct {
 
 // RequestFuture makes a call and returns a coreHandle on the response
 func (c *client) RequestFuture(input any, opts ...options.RequestOption) ResponseFuture {
-	o := options.RequestOptions{}
+	o := options.RequestOptions{Scope: c.options.Scope}
 	for _, opt := range opts {
 		opt.BeforeRequest(&o)
 	}
@@ -115,7 +116,7 @@ type responseFuture struct {
 	options options.ClientOptions
 }
 
-func (d *responseFuture) Response(output any) (err error) {
+func (d *responseFuture) Response(output any) errors.TerminalError {
 	switch result := d.pollProgressAndLoadValue().(type) {
 	case statemachine.ValueSuccess:
 		{
@@ -132,13 +133,13 @@ func (d *responseFuture) Response(output any) (err error) {
 }
 
 // Request makes a call and blocks on the response
-func (c *client) Request(input any, output any, opts ...options.RequestOption) error {
+func (c *client) Request(input any, output any, opts ...options.RequestOption) errors.TerminalError {
 	return c.RequestFuture(input, opts...).Response(output)
 }
 
 // Send runs a call in the background afterFuture delay duration
 func (c *client) Send(input any, opts ...options.SendOption) Invocation {
-	o := options.SendOptions{}
+	o := options.SendOptions{Scope: c.options.Scope}
 	for _, opt := range opts {
 		opt.BeforeSend(&o)
 	}
@@ -254,8 +255,8 @@ func (restateCtx *ctx) CancelInvocation(invocationId string) {
 }
 
 type AttachFuture interface {
-	Selectable
-	Response(output any) error
+	Future
+	Response(output any) errors.TerminalError
 }
 
 func (restateCtx *ctx) AttachInvocation(invocationId string, opts ...options.AttachOption) AttachFuture {
@@ -284,7 +285,7 @@ type attachFuture struct {
 	codec encoding.Codec
 }
 
-func (d *attachFuture) Response(output any) (err error) {
+func (d *attachFuture) Response(output any) errors.TerminalError {
 	switch result := d.pollProgressAndLoadValue().(type) {
 	case statemachine.ValueSuccess:
 		{

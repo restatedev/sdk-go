@@ -1,14 +1,9 @@
 version: v2
 modules:
-  - path: proto
-    name: buf.build/restatedev/sdk-go
-    excludes:
-      - proto/dev/restate/sdk/go
-deps:
-  - buf.build/protocolbuffers/wellknowntypes:v29.3
-breaking:
-  use:
-    - FILE
+  - path: internal/proto
 lint:
   use:
     - DEFAULT
+breaking:
+  use:
+    - FILE

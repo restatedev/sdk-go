@@ -275,7 +275,7 @@ func attachServiceExample() {
 	handlerName := "handlerName"
 	idempotencyKey := "idem-key-1"
 
-	output, err := restateingress.AttachService[*MyOutput](
+	output, err := restateingress.ServiceInvocationByIdempotencyKey[*MyOutput](
 		client, serviceName, handlerName, idempotencyKey).
 		Attach(context.Background())
 

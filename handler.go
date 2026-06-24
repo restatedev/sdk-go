@@ -2,8 +2,9 @@ package restate
 
 import (
 	"fmt"
-	"github.com/restatedev/sdk-go/internal/restatecontext"
 	"net/http"
+
+	"github.com/restatedev/sdk-go/internal/restatecontext"
 
 	"github.com/restatedev/sdk-go/encoding"
 	"github.com/restatedev/sdk-go/internal"
@@ -56,7 +57,7 @@ func NewServiceHandler[I any, O any](fn ServiceHandlerFn[I, O], opts ...options.
 func (h *serviceHandler[I, O]) Call(ctx restatecontext.Context, bytes []byte) ([]byte, error) {
 	var input I
 	if err := encoding.Unmarshal(h.options.Codec, bytes, &input); err != nil {
-		return nil, TerminalError(fmt.Errorf("request could not be decoded into handler input type: %w", err), http.StatusBadRequest)
+		return nil, ToTerminalError(fmt.Errorf("request could not be decoded into handler input type: %v", err), WithErrorCode(http.StatusBadRequest))
 	}
 
 	output, err := h.fn(
@@ -147,7 +148,7 @@ func (o ctxWrapper) runWorkflow()     {}
 func (h *objectHandler[I, O]) Call(ctx restatecontext.Context, bytes []byte) ([]byte, error) {
 	var input I
 	if err := encoding.Unmarshal(h.options.Codec, bytes, &input); err != nil {
-		return nil, TerminalError(fmt.Errorf("request could not be decoded into handler input type: %w", err), http.StatusBadRequest)
+		return nil, ToTerminalError(fmt.Errorf("request could not be decoded into handler input type: %v", err), WithErrorCode(http.StatusBadRequest))
 	}
 
 	var output O
@@ -236,7 +237,7 @@ func NewWorkflowSharedHandler[I any, O any](fn WorkflowSharedHandlerFn[I, O], op
 func (h *workflowHandler[I, O]) Call(ctx restatecontext.Context, bytes []byte) ([]byte, error) {
 	var input I
 	if err := encoding.Unmarshal(h.options.Codec, bytes, &input); err != nil {
-		return nil, TerminalError(fmt.Errorf("request could not be decoded into handler input type: %w", err), http.StatusBadRequest)
+		return nil, ToTerminalError(fmt.Errorf("request could not be decoded into handler input type: %v", err), WithErrorCode(http.StatusBadRequest))
 	}
 
 	var output O

@@ -7,9 +7,13 @@ import (
 
 func newFailureFromError(err error) *pbinternal.Failure {
 	failure := pbinternal.Failure{}
-	failure.SetCode(uint32(errors.ErrorCode(err)))
-	failure.SetMessage(err.Error())
-	failure.SetMetadata(metadataToHeaders(errors.ErrorMetadata(err)))
+	terminalError := errors.ToTerminalError(err)
+	if terminalError == nil {
+		panic("expecting err to be non-nil")
+	}
+	failure.SetCode(uint32(terminalError.Code()))
+	failure.SetMessage(terminalError.Message())
+	failure.SetMetadata(metadataToHeaders(terminalError.Metadata()))
 	return &failure
 }
 

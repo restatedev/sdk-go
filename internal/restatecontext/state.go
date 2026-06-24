@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/restatedev/sdk-go/encoding"
+	"github.com/restatedev/sdk-go/internal/errors"
 	pbinternal "github.com/restatedev/sdk-go/internal/generated"
 	"github.com/restatedev/sdk-go/internal/options"
 	"github.com/restatedev/sdk-go/internal/statemachine"
@@ -55,7 +56,7 @@ func (restateCtx *ctx) ClearAll() {
 	restateCtx.checkStateTransition()
 }
 
-func (restateCtx *ctx) Get(key string, output any, opts ...options.GetOption) (bool, error) {
+func (restateCtx *ctx) Get(key string, output any, opts ...options.GetOption) (bool, errors.TerminalError) {
 	o := options.GetOptions{}
 	for _, opt := range opts {
 		opt.BeforeGet(&o)
@@ -85,7 +86,7 @@ func (restateCtx *ctx) Get(key string, output any, opts ...options.GetOption) (b
 			if err := encoding.Unmarshal(o.Codec, result.Success, output); err != nil {
 				panic(fmt.Errorf("failed to unmarshal Get state into output: %w", err))
 			}
-			return true, err
+			return true, nil
 		}
 	case statemachine.ValueFailure:
 		return true, errorFromFailure(result)
@@ -95,7 +96,7 @@ func (restateCtx *ctx) Get(key string, output any, opts ...options.GetOption) (b
 	}
 }
 
-func (restateCtx *ctx) Keys() ([]string, error) {
+func (restateCtx *ctx) Keys() ([]string, errors.TerminalError) {
 	handle, err := restateCtx.stateMachine.SysStateGetKeys(restateCtx)
 	if err != nil {
 		panic(err)

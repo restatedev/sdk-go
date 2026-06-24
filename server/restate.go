@@ -17,6 +17,7 @@ import (
 
 	restate "github.com/restatedev/sdk-go"
 	"github.com/restatedev/sdk-go/internal"
+	restateerrors "github.com/restatedev/sdk-go/internal/errors"
 	pbinternal "github.com/restatedev/sdk-go/internal/generated"
 	"github.com/restatedev/sdk-go/internal/identity"
 	"github.com/restatedev/sdk-go/internal/log"
@@ -24,6 +25,15 @@ import (
 	"github.com/restatedev/sdk-go/internal/statemachine"
 	"go.opentelemetry.io/otel/propagation"
 )
+
+// retryableCode is the HTTP status to report for a non-terminal error from the state
+// machine, defaulting to 500 when the error carries no code.
+func retryableCode(err error) int {
+	if re := restateerrors.AsRetryableError(err); re != nil {
+		return int(re.Code())
+	}
+	return http.StatusInternalServerError
+}
 
 type ServiceProtocolVersion int32
 type ServiceDiscoveryProtocolVersion int32
@@ -83,7 +93,7 @@ func NewRestate() *Restate {
 // WithLogger overrides the slog handler used by the SDK (which defaults to the slog Default())
 // You may specify with dropReplayLogs whether to drop logs that originated from handler code
 // while the invocation was replaying. If they are not dropped, you may still determine the replay
-// status in a slog.Handler using [github.com/restatedev/sdk-go/rcontext.LogContextFrom]
+// status in a slog.Handler using [github.com/restatedev/sdk-go/logging.LogContextFrom]
 func (r *Restate) WithLogger(h slog.Handler, dropReplayLogs bool) *Restate {
 	r.dropReplayLogs = dropReplayLogs
 	r.systemLog = slog.New(log.NewRestateContextHandler(h))
@@ -512,7 +522,7 @@ func (r *Restate) handleInvokeRequest(service, method string, writer http.Respon
 	stateMachine, err := core.NewStateMachine(ctx, headers)
 	if err != nil {
 		logger.WarnContext(ctx, "Error when instantiating the state machine", slog.Any("err", err))
-		writer.WriteHeader(int(restate.ErrorCode(err)))
+		writer.WriteHeader(retryableCode(err))
 		return
 	}
 
@@ -530,7 +540,7 @@ func (r *Restate) handleInvokeRequest(service, method string, writer http.Respon
 	responseHeaders, err := stateMachine.GetResponseHead(ctx)
 	if err != nil {
 		logger.WarnContext(ctx, "Error when getting response head from the state machine", slog.Any("err", err))
-		writer.WriteHeader(int(restate.ErrorCode(err)))
+		writer.WriteHeader(retryableCode(err))
 		return
 	}
 	for _, h := range responseHeaders.GetHeaders() {
@@ -543,7 +553,7 @@ func (r *Restate) handleInvokeRequest(service, method string, writer http.Respon
 		isReadyToExecute, err := stateMachine.IsReadyToExecute(ctx)
 		if err != nil {
 			logger.WarnContext(ctx, "Error when preparing the state machine", slog.Any("err", err))
-			writer.WriteHeader(int(restate.ErrorCode(err)))
+			writer.WriteHeader(retryableCode(err))
 			return
 		}
 		if isReadyToExecute {
@@ -556,7 +566,7 @@ func (r *Restate) handleInvokeRequest(service, method string, writer http.Respon
 		if read > 0 {
 			if err = stateMachine.NotifyInput(ctx, buf[0:read]); err != nil {
 				logger.WarnContext(ctx, "Error when notifying input to the state machine", slog.Any("err", err))
-				writer.WriteHeader(int(restate.ErrorCode(err)))
+				writer.WriteHeader(retryableCode(err))
 				return
 			}
 		}

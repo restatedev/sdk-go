@@ -7,7 +7,7 @@ import (
 	"reflect"
 	"sync/atomic"
 
-	"github.com/restatedev/sdk-go/rcontext"
+	"github.com/restatedev/sdk-go/logging"
 )
 
 const (
@@ -39,18 +39,18 @@ func Error(err error) slog.Attr {
 }
 
 type contextInjectingHandler struct {
-	logContext *atomic.Pointer[rcontext.LogContext]
+	logContext *atomic.Pointer[logging.LogContext]
 	dropReplay bool
 	inner      slog.Handler
 }
 
-func NewUserContextHandler(logContext *atomic.Pointer[rcontext.LogContext], dropReplay bool, inner slog.Handler) slog.Handler {
+func NewUserContextHandler(logContext *atomic.Pointer[logging.LogContext], dropReplay bool, inner slog.Handler) slog.Handler {
 	return &contextInjectingHandler{logContext, dropReplay, inner}
 }
 
 func NewRestateContextHandler(inner slog.Handler) slog.Handler {
-	logContext := atomic.Pointer[rcontext.LogContext]{}
-	logContext.Store(&rcontext.LogContext{Source: rcontext.LogSourceRestate, IsReplaying: false})
+	logContext := atomic.Pointer[logging.LogContext]{}
+	logContext.Store(&logging.LogContext{Source: logging.LogSourceRestate, IsReplaying: false})
 	return &contextInjectingHandler{&logContext, false, inner}
 }
 
@@ -59,11 +59,11 @@ func (d *contextInjectingHandler) Enabled(ctx context.Context, l slog.Level) boo
 	if d.dropReplay && lc.IsReplaying {
 		return false
 	}
-	return d.inner.Enabled(rcontext.WithLogContext(ctx, lc), l)
+	return d.inner.Enabled(logging.WithLogContext(ctx, lc), l)
 }
 
 func (d *contextInjectingHandler) Handle(ctx context.Context, record slog.Record) error {
-	return d.inner.Handle(rcontext.WithLogContext(ctx, d.logContext.Load()), record)
+	return d.inner.Handle(logging.WithLogContext(ctx, d.logContext.Load()), record)
 }
 
 func (d *contextInjectingHandler) WithAttrs(attrs []slog.Attr) slog.Handler {

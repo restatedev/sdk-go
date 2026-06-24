@@ -127,26 +127,6 @@ func WorkflowHandle[O any](c *Client, serviceName, workflowID string, opts ...op
 	}
 }
 
-// Deprecated: use InvocationById
-func AttachInvocation[O any](c *Client, invocationID string) InvocationHandle[O] {
-	return InvocationById[O](c, invocationID)
-}
-
-// Deprecated: use ServiceInvocationByIdempotencyKey
-func AttachService[O any](c *Client, serviceName, handlerName, idempotencyKey string) InvocationHandle[O] {
-	return ServiceInvocationByIdempotencyKey[O](c, serviceName, handlerName, idempotencyKey)
-}
-
-// Deprecated: use ObjectInvocationByIdempotencyKey
-func AttachObject[O any](c *Client, serviceName, objectKey, handlerName, idempotencyKey string) InvocationHandle[O] {
-	return ObjectInvocationByIdempotencyKey[O](c, serviceName, objectKey, handlerName, idempotencyKey)
-}
-
-// Deprecated: use WorkflowHandle
-func AttachWorkflow[O any](c *Client, serviceName, workflowID string) InvocationHandle[O] {
-	return WorkflowHandle[O](c, serviceName, workflowID)
-}
-
 type invocationHandle[O any] struct {
 	client     *ingress.Client
 	params     ingress.IngressAttachParams

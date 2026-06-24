@@ -8,4 +8,4 @@ plugins:
       - paths=source_relative
       - default_api_level=API_OPAQUE
 inputs:
-  - proto_file: proto/internal.proto
+  - proto_file: internal/proto/internal.proto

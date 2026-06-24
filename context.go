@@ -60,3 +60,13 @@ func WrapContext[T Context](restateCtx T, wrappedCtx context.Context) T {
 func WithValue[T Context](restateCtx T, key, val any) T {
 	return WrapContext(restateCtx, context.WithValue(restateCtx, key, val))
 }
+
+// MockableContext is the context interface that test mocks implement. To be used with
+// *MockContext from the github.com/restatedev/sdk-go/x/mocks module.
+type MockableContext = restatecontext.Context
+
+// WithMockContext wraps a [MockableContext]. To be used with *MockContext from the
+// github.com/restatedev/sdk-go/x/mocks module.
+func WithMockContext(ctx MockableContext) ctxWrapper {
+	return ctxWrapper{ctx}
+}

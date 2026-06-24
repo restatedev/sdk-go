@@ -42,21 +42,10 @@ type SendResponse[O any] interface {
 //	output, err := requester.Request(ctx, &MyInput{...})
 //	// Send request:
 //	response, err := requester.Send(ctx, &MyInput{...})
-func Service[I any, O any](c *Client, serviceName, handlerName string) Requester[I, O] {
+func Service[I any, O any](c *Client, serviceName, handlerName string, opts ...options.ClientOption) Requester[I, O] {
 	return requester[I, O]{
 		client: c,
-		params: ingress.IngressParams{
-			Service: serviceName,
-			Handler: handlerName,
-		},
-	}
-}
-
-// ScopedService gets an ingress client for a Restate service handler within the given scope.
-func ScopedService[I any, O any](c *Client, scope, serviceName, handlerName string) Requester[I, O] {
-	return requester[I, O]{
-		client: c,
-		scope:  scope,
+		scope:  clientScope(opts),
 		params: ingress.IngressParams{
 			Service: serviceName,
 			Handler: handlerName,
@@ -74,9 +63,10 @@ func ScopedService[I any, O any](c *Client, scope, serviceName, handlerName stri
 //	output, err := requester.Request(ctx, &MyInput{...})
 //	// Send request:
 //	response, err := requester.Send(ctx, &MyInput{...})
-func Object[I any, O any](c *Client, serviceName, objectKey, handlerName string) Requester[I, O] {
+func Object[I any, O any](c *Client, serviceName, objectKey, handlerName string, opts ...options.ClientOption) Requester[I, O] {
 	return requester[I, O]{
 		client: c,
+		scope:  clientScope(opts),
 		params: ingress.IngressParams{
 			Service: serviceName,
 			Key:     objectKey,
@@ -95,9 +85,10 @@ func Object[I any, O any](c *Client, serviceName, objectKey, handlerName string)
 //	output, err := requester.Request(ctx, &MyInput{...})
 //	// Send request:
 //	response, err := requester.Send(ctx, &MyInput{...})
-func Workflow[I any, O any](c *Client, serviceName, workflowID, handlerName string) Requester[I, O] {
+func Workflow[I any, O any](c *Client, serviceName, workflowID, handlerName string, opts ...options.ClientOption) Requester[I, O] {
 	return requester[I, O]{
 		client: c,
+		scope:  clientScope(opts),
 		params: ingress.IngressParams{
 			Service: serviceName,
 			Handler: handlerName,
@@ -106,17 +97,14 @@ func Workflow[I any, O any](c *Client, serviceName, workflowID, handlerName stri
 	}
 }
 
-// ScopedWorkflow gets an ingress client for a Restate workflow handler within the given scope.
-func ScopedWorkflow[I any, O any](c *Client, scope, serviceName, workflowID, handlerName string) Requester[I, O] {
-	return requester[I, O]{
-		client: c,
-		scope:  scope,
-		params: ingress.IngressParams{
-			Service: serviceName,
-			Handler: handlerName,
-			Key:     workflowID,
-		},
+// clientScope resolves the scope from the given client options, returning the
+// empty string (unscoped) if none was provided.
+func clientScope(opts []options.ClientOption) string {
+	o := options.ClientOptions{}
+	for _, opt := range opts {
+		opt.BeforeClient(&o)
 	}
+	return o.Scope
 }
 
 type requester[I any, O any] struct {

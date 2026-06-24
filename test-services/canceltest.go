@@ -23,7 +23,7 @@ func init() {
 			Handler("startTest", restate.NewObjectHandler(
 				func(ctx restate.ObjectContext, operation BlockingOperation) (restate.Void, error) {
 					if _, err := restate.Object[restate.Void](ctx, "CancelTestBlockingService", restate.Key(ctx), "block").Request(operation); err != nil {
-						if restate.ErrorCode(err) == 409 {
+						if err != nil && err.Code() == 409 {
 							restate.Set(ctx, CanceledState, true)
 							return restate.Void{}, nil
 						}
@@ -54,7 +54,7 @@ func init() {
 					case AwakeableOp:
 						return restate.Awakeable[restate.Void](ctx).Result()
 					default:
-						return restate.Void{}, restate.TerminalError(fmt.Errorf("unexpected operation %s", operation), 400)
+						return restate.Void{}, restate.ToTerminalError(fmt.Errorf("unexpected operation %s", operation), restate.WithErrorCode(400))
 					}
 				})).
 			Handler("isUnlocked", restate.NewObjectHandler(

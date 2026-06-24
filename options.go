@@ -189,25 +189,20 @@ type withScope struct {
 	scope string
 }
 
-var _ options.RequestOption = withScope{}
-var _ options.SendOption = withScope{}
-var _ options.IngressRequestOption = withScope{}
-var _ options.IngressSendOption = withScope{}
+var _ options.ClientOption = withScope{}
 
-func (w withScope) BeforeRequest(opts *options.RequestOptions) {
+func (w withScope) BeforeClient(opts *options.ClientOptions) {
 	opts.Scope = w.scope
 }
 
-func (w withScope) BeforeSend(opts *options.SendOptions) {
-	opts.Scope = w.scope
-}
-
-func (w withScope) BeforeIngressRequest(opts *options.IngressRequestOptions) {
-	opts.Scope = w.scope
-}
-
-func (w withScope) BeforeIngressSend(opts *options.IngressSendOptions) {
-	opts.Scope = w.scope
+// Scoped sets the scope within which invocations made through this client are routed.
+//
+// It is a client-level option: pass it when constructing a client (e.g. via [Service],
+// [Object] or [Workflow], or the equivalent ingress constructors) and it applies to
+// every Request, RequestFuture and Send made through that client. An empty scope is a
+// no-op, leaving the invocation unscoped.
+func Scoped(scope string) withScope {
+	return withScope{scope: scope}
 }
 
 type withLimitKey struct {

@@ -140,6 +140,7 @@ type SetOption interface {
 
 type ClientOptions struct {
 	Codec encoding.Codec
+	Scope string
 }
 
 type ClientOption interface {

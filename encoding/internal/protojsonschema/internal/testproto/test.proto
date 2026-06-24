@@ -1,0 +1,22 @@
+syntax = "proto3";
+
+option go_package = "github.com/restatedev/sdk-go/encoding/internal/protojsonschema/internal/testproto";
+
+// Standalone fixtures for the protojsonschema tests. Intentionally has no
+// services / restate extensions so it carries no dependency on the codegen
+// contract module.
+package protojsonschematest;
+
+message HelloRequest {
+  string name = 1;
+}
+
+message StatusResponse {
+  string status = 1;
+}
+
+message Test {
+  Test inner = 1;
+  string primitive = 2;
+  StatusResponse another_inner = 3;
+}

@@ -31,7 +31,7 @@ func init() {
 						return restate.Void{}, err
 					}
 					if id == "" {
-						return restate.Void{}, restate.TerminalError(fmt.Errorf("No awakeable registered"), 404)
+						return restate.Void{}, restate.ToTerminalError(fmt.Errorf("No awakeable registered"), restate.WithErrorCode(404))
 					}
 					restate.ResolveAwakeable(ctx, id, payload)
 					restate.Clear(ctx, ID_KEY)

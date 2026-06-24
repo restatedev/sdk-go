@@ -78,7 +78,7 @@ type GreeterServer interface {
 type UnimplementedGreeterServer struct{}
 
 func (UnimplementedGreeterServer) SayHello(ctx sdk_go.Context, req *HelloRequest) (*HelloResponse, error) {
-	return nil, sdk_go.TerminalError(fmt.Errorf("method SayHello not implemented"), 501)
+	return nil, sdk_go.ToTerminalError(fmt.Errorf("method SayHello not implemented"), sdk_go.WithErrorCode(501))
 }
 func (UnimplementedGreeterServer) testEmbeddedByValue() {}
 
@@ -193,10 +193,10 @@ type CounterServer interface {
 type UnimplementedCounterServer struct{}
 
 func (UnimplementedCounterServer) Add(ctx sdk_go.ObjectContext, req *AddRequest) (*GetResponse, error) {
-	return nil, sdk_go.TerminalError(fmt.Errorf("method Add not implemented"), 501)
+	return nil, sdk_go.ToTerminalError(fmt.Errorf("method Add not implemented"), sdk_go.WithErrorCode(501))
 }
 func (UnimplementedCounterServer) Get(ctx sdk_go.ObjectSharedContext, req *GetRequest) (*GetResponse, error) {
-	return nil, sdk_go.TerminalError(fmt.Errorf("method Get not implemented"), 501)
+	return nil, sdk_go.ToTerminalError(fmt.Errorf("method Get not implemented"), sdk_go.WithErrorCode(501))
 }
 func (UnimplementedCounterServer) testEmbeddedByValue() {}
 
@@ -337,13 +337,13 @@ type WorkflowServer interface {
 type UnimplementedWorkflowServer struct{}
 
 func (UnimplementedWorkflowServer) Run(ctx sdk_go.WorkflowContext, req *RunRequest) (*RunResponse, error) {
-	return nil, sdk_go.TerminalError(fmt.Errorf("method Run not implemented"), 501)
+	return nil, sdk_go.ToTerminalError(fmt.Errorf("method Run not implemented"), sdk_go.WithErrorCode(501))
 }
 func (UnimplementedWorkflowServer) Finish(ctx sdk_go.WorkflowSharedContext, req *FinishRequest) (*FinishResponse, error) {
-	return nil, sdk_go.TerminalError(fmt.Errorf("method Finish not implemented"), 501)
+	return nil, sdk_go.ToTerminalError(fmt.Errorf("method Finish not implemented"), sdk_go.WithErrorCode(501))
 }
 func (UnimplementedWorkflowServer) Status(ctx sdk_go.WorkflowSharedContext, req *StatusRequest) (*StatusResponse, error) {
-	return nil, sdk_go.TerminalError(fmt.Errorf("method Status not implemented"), 501)
+	return nil, sdk_go.ToTerminalError(fmt.Errorf("method Status not implemented"), sdk_go.WithErrorCode(501))
 }
 func (UnimplementedWorkflowServer) testEmbeddedByValue() {}
 

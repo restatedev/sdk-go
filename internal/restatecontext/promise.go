@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"github.com/restatedev/sdk-go/encoding"
+	"github.com/restatedev/sdk-go/internal/errors"
 	pbinternal "github.com/restatedev/sdk-go/internal/generated"
 	"github.com/restatedev/sdk-go/internal/options"
 	"github.com/restatedev/sdk-go/internal/statemachine"
@@ -32,11 +33,11 @@ func (restateCtx *ctx) Promise(key string, opts ...options.PromiseOption) Durabl
 }
 
 type DurablePromise interface {
-	Selectable
-	Result(output any) (err error)
-	Peek(output any) (ok bool, err error)
-	Resolve(value any) error
-	Reject(reason error) error
+	Future
+	Result(output any) errors.TerminalError
+	Peek(output any) (ok bool, err errors.TerminalError)
+	Resolve(value any) errors.TerminalError
+	Reject(reason error) errors.TerminalError
 }
 
 type durablePromise struct {
@@ -45,7 +46,7 @@ type durablePromise struct {
 	codec encoding.Codec
 }
 
-func (d *durablePromise) Result(output any) (err error) {
+func (d *durablePromise) Result(output any) errors.TerminalError {
 	switch result := d.pollProgressAndLoadValue().(type) {
 	case statemachine.ValueSuccess:
 		{
@@ -62,7 +63,7 @@ func (d *durablePromise) Result(output any) (err error) {
 	}
 }
 
-func (d *durablePromise) Peek(output any) (ok bool, err error) {
+func (d *durablePromise) Peek(output any) (bool, errors.TerminalError) {
 	handle, err := d.ctx.stateMachine.SysPromisePeek(d.ctx, d.key)
 	if err != nil {
 		panic(err)
@@ -87,7 +88,7 @@ func (d *durablePromise) Peek(output any) (ok bool, err error) {
 	}
 }
 
-func (d *durablePromise) Resolve(value any) error {
+func (d *durablePromise) Resolve(value any) errors.TerminalError {
 	bytes, err := encoding.Marshal(d.codec, value)
 	if err != nil {
 		panic(fmt.Errorf("failed to marshal Promise Resolve value: %w", err))
@@ -116,7 +117,7 @@ func (d *durablePromise) Resolve(value any) error {
 	}
 }
 
-func (d *durablePromise) Reject(reason error) error {
+func (d *durablePromise) Reject(reason error) errors.TerminalError {
 	input := pbinternal.VmSysPromiseCompleteParameters{}
 	input.SetId(d.key)
 	input.SetFailure(newFailureFromError(reason))

@@ -2,12 +2,14 @@ package restatecontext
 
 import (
 	"fmt"
+	"time"
+
+	"github.com/restatedev/sdk-go/internal/errors"
 	"github.com/restatedev/sdk-go/internal/options"
 	"github.com/restatedev/sdk-go/internal/statemachine"
-	"time"
 )
 
-func (restateCtx *ctx) Sleep(d time.Duration, opts ...options.SleepOption) error {
+func (restateCtx *ctx) Sleep(d time.Duration, opts ...options.SleepOption) errors.TerminalError {
 	return restateCtx.After(d, opts...).Done()
 }
 
@@ -18,8 +20,8 @@ type AfterFuture interface {
 	// It is *not* safe to call this in a goroutine - use Context.Select if you want to wait on multiple
 	// results at once. Can return a terminal error in the case where the invocation was cancelled mid-sleep,
 	// hence Done() should always be called, even afterFuture using Context.Select.
-	Done() error
-	Selectable
+	Done() errors.TerminalError
+	Future
 }
 
 func (restateCtx *ctx) After(d time.Duration, opts ...options.SleepOption) AfterFuture {
@@ -43,7 +45,7 @@ type afterFuture struct {
 	asyncResult
 }
 
-func (a *afterFuture) Done() error {
+func (a *afterFuture) Done() errors.TerminalError {
 	switch result := a.pollProgressAndLoadValue().(type) {
 	case statemachine.ValueVoid:
 		return nil

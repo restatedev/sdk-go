@@ -1186,15 +1186,10 @@ func (sm *StateMachine) Free(ctx context.Context) error {
 // -- Memory tingling
 
 func wasmFailureToGoError(failure *pbinternal.Failure) error {
-	metadata := make(map[string]string, len(failure.GetMetadata()))
-	for _, h := range failure.GetMetadata() {
-		metadata[h.GetKey()] = h.GetValue()
-	}
-	return &errors.CodeError{
-		Code:     errors.Code(failure.GetCode()),
-		Inner:    fmt.Errorf("[%d] %s", failure.GetCode(), failure.GetMessage()),
-		Metadata: metadata,
-	}
+	return errors.NewRetryableError(
+		fmt.Errorf("%s", failure.GetMessage()),
+		errors.Code(failure.GetCode()),
+	)
 }
 
 func (core *Core) transferInputStructToWasmMemory(ctx context.Context, t proto.Message) (uint64, uint64) {

@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"github.com/restatedev/sdk-go/encoding"
+	"github.com/restatedev/sdk-go/internal/errors"
 	pbinternal "github.com/restatedev/sdk-go/internal/generated"
 	"github.com/restatedev/sdk-go/internal/options"
 	"github.com/restatedev/sdk-go/internal/statemachine"
@@ -32,9 +33,9 @@ func (restateCtx *ctx) Awakeable(opts ...options.AwakeableOption) AwakeableFutur
 }
 
 type AwakeableFuture interface {
-	Selectable
+	Future
 	Id() string
-	Result(output any) error
+	Result(output any) errors.TerminalError
 }
 
 type awakeableFuture struct {
@@ -45,7 +46,7 @@ type awakeableFuture struct {
 
 func (d *awakeableFuture) Id() string { return d.id }
 
-func (d *awakeableFuture) Result(output any) error {
+func (d *awakeableFuture) Result(output any) errors.TerminalError {
 	switch result := d.pollProgressAndLoadValue().(type) {
 	case statemachine.ValueSuccess:
 		{
