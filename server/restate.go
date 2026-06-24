@@ -37,7 +37,7 @@ const (
 	minServiceDiscoveryProtocolVersion                                      = ServiceDiscoveryProtocolVersion_V2
 	maxServiceDiscoveryProtocolVersion                                      = ServiceDiscoveryProtocolVersion_V4
 	minServiceProtocolVersion                                               = 5
-	maxServiceProtocolVersion                                               = 6
+	maxServiceProtocolVersion                                               = 7
 )
 
 var xRestateServer = `restate-sdk-go/unknown`

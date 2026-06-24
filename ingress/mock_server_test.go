@@ -46,7 +46,7 @@ func (m *mockIngressServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		m.query[k] = v[0]
 	}
 
-	if strings.HasSuffix(m.path, "/send") {
+	if strings.HasSuffix(m.path, "/send") || (strings.HasPrefix(m.path, "/restate/scope/") && strings.Contains(m.path, "/send/")) {
 		inv := ingress.Invocation{
 			Id:     "inv_1",
 			Status: "Accepted",

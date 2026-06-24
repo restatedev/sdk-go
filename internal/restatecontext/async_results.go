@@ -18,7 +18,11 @@ var CancelledFailureValue = func() statemachine.Value {
 }()
 
 func errorFromFailure(failure statemachine.ValueFailure) error {
-	return &errors.CodeError{Inner: &errors.TerminalError{Inner: fmt.Errorf("%s", failure.Failure.GetMessage())}, Code: errors.Code(failure.Failure.GetCode())}
+	return &errors.CodeError{
+		Inner:    &errors.TerminalError{Inner: fmt.Errorf("%s", failure.Failure.GetMessage())},
+		Code:     errors.Code(failure.Failure.GetCode()),
+		Metadata: metadataFromHeaders(failure.Failure.GetMetadata()),
+	}
 }
 
 type Selectable interface {

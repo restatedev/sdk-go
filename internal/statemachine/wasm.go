@@ -143,6 +143,8 @@ type Core struct {
 	vmSysSleep             api.Function
 	vmSysAwakeable         api.Function
 	vmSysCompleteAwakeable api.Function
+	vmSysSignal            api.Function
+	vmSysCompleteSignal    api.Function
 	vmSysCall              api.Function
 	vmSysSend              api.Function
 	vmSysCancelInvocation  api.Function
@@ -209,6 +211,8 @@ func NewCore(ctx context.Context) (*Core, error) {
 		vmSysSleep:             instance.ExportedFunction("vm_sys_sleep"),
 		vmSysAwakeable:         instance.ExportedFunction("vm_sys_awakeable"),
 		vmSysCompleteAwakeable: instance.ExportedFunction("vm_sys_complete_awakeable"),
+		vmSysSignal:            instance.ExportedFunction("vm_sys_signal"),
+		vmSysCompleteSignal:    instance.ExportedFunction("vm_sys_complete_signal"),
 		vmSysCall:              instance.ExportedFunction("vm_sys_call"),
 		vmSysSend:              instance.ExportedFunction("vm_sys_send"),
 		vmSysCancelInvocation:  instance.ExportedFunction("vm_sys_cancel_invocation"),
@@ -792,6 +796,60 @@ func (sm *StateMachine) SysAwakeable(ctx context.Context) (string, uint32, error
 	return output.GetOk().GetId(), output.GetOk().GetHandle(), nil
 }
 
+func (sm *StateMachine) SysSignal(ctx context.Context, name string) (uint32, error) {
+	if !sm.core.coreMutex.TryLock() {
+		panic(concurrentContextUseError{})
+	}
+	defer sm.core.coreMutex.Unlock()
+
+	params := pbinternal.VmSysSignalParameters{}
+	params.SetName(name)
+	inputPtr, inputLen := sm.core.transferInputStructToWasmMemory(ctx, &params)
+
+	sm.core.callStack[0] = sm.vmPointer
+	sm.core.callStack[1] = inputPtr
+	sm.core.callStack[2] = inputLen
+	err := sm.core.vmSysSignal.CallWithStack(ctx, sm.core.callStack)
+	if err != nil {
+		return 0, fmt.Errorf("error when calling vm_sys_signal: %e", err)
+	}
+	out := sm.core.callStack[0]
+
+	output := pbinternal.SimpleSysAsyncResultReturn{}
+	sm.core.transferOutputStructFromWasmMemory(ctx, out, &output)
+
+	if output.HasFailure() {
+		return 0, wasmFailureToGoError(output.GetFailure())
+	}
+	return output.GetHandle(), nil
+}
+
+func (sm *StateMachine) SysCompleteSignal(ctx context.Context, input *pbinternal.VmSysCompleteSignalParameters) error {
+	if !sm.core.coreMutex.TryLock() {
+		panic(concurrentContextUseError{})
+	}
+	defer sm.core.coreMutex.Unlock()
+
+	inputPtr, inputLen := sm.core.transferInputStructToWasmMemory(ctx, input)
+
+	sm.core.callStack[0] = sm.vmPointer
+	sm.core.callStack[1] = inputPtr
+	sm.core.callStack[2] = inputLen
+	err := sm.core.vmSysCompleteSignal.CallWithStack(ctx, sm.core.callStack)
+	if err != nil {
+		return fmt.Errorf("error when calling vm_sys_complete_signal: %e", err)
+	}
+	out := sm.core.callStack[0]
+
+	output := pbinternal.GenericEmptyReturn{}
+	sm.core.transferOutputStructFromWasmMemory(ctx, out, &output)
+
+	if output.HasFailure() {
+		return wasmFailureToGoError(output.GetFailure())
+	}
+	return nil
+}
+
 func (sm *StateMachine) SysCall(ctx context.Context, input *pbinternal.VmSysCallParameters) (uint32, uint32, error) {
 	if !sm.core.coreMutex.TryLock() {
 		panic(concurrentContextUseError{})
@@ -1128,9 +1186,14 @@ func (sm *StateMachine) Free(ctx context.Context) error {
 // -- Memory tingling
 
 func wasmFailureToGoError(failure *pbinternal.Failure) error {
+	metadata := make(map[string]string, len(failure.GetMetadata()))
+	for _, h := range failure.GetMetadata() {
+		metadata[h.GetKey()] = h.GetValue()
+	}
 	return &errors.CodeError{
-		Code:  errors.Code(failure.GetCode()),
-		Inner: fmt.Errorf("[%d] %s", failure.GetCode(), failure.GetMessage()),
+		Code:     errors.Code(failure.GetCode()),
+		Inner:    fmt.Errorf("[%d] %s", failure.GetCode(), failure.GetMessage()),
+		Metadata: metadata,
 	}
 }
 

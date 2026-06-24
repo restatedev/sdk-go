@@ -4,7 +4,6 @@ import (
 	"fmt"
 
 	"github.com/restatedev/sdk-go/encoding"
-	"github.com/restatedev/sdk-go/internal/errors"
 	pbinternal "github.com/restatedev/sdk-go/internal/generated"
 	"github.com/restatedev/sdk-go/internal/options"
 	"github.com/restatedev/sdk-go/internal/statemachine"
@@ -89,13 +88,9 @@ func (restateCtx *ctx) ResolveAwakeable(id string, value any, opts ...options.Re
 }
 
 func (restateCtx *ctx) RejectAwakeable(id string, reason error) {
-	failure := pbinternal.Failure{}
-	failure.SetCode(uint32(errors.ErrorCode(reason)))
-	failure.SetMessage(reason.Error())
-
 	input := pbinternal.VmSysCompleteAwakeableParameters{}
 	input.SetId(id)
-	input.SetFailure(&failure)
+	input.SetFailure(newFailureFromError(reason))
 	if err := restateCtx.stateMachine.SysCompleteAwakeable(restateCtx, &input); err != nil {
 		panic(err)
 	}

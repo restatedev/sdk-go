@@ -19,6 +19,12 @@ type Request struct {
 	// The unique id that identifies the current function invocation. This id is guaranteed to be
 	// unique across invocations, but constant across reties and suspensions.
 	ID string
+	// Scope is the invocation scope supplied by the runtime.
+	Scope string
+	// LimitKey is the invocation concurrency limit key supplied by the runtime.
+	LimitKey string
+	// IdempotencyKey is the idempotency key supplied by the runtime.
+	IdempotencyKey string
 	// Request headers - the following headers capture the original invocation headers, as provided to
 	// the ingress.
 	Headers map[string]string
@@ -48,6 +54,9 @@ type Context interface {
 	Awakeable(options ...options.AwakeableOption) AwakeableFuture
 	ResolveAwakeable(id string, value any, options ...options.ResolveAwakeableOption)
 	RejectAwakeable(id string, reason error)
+	Signal(name string, options ...options.SignalOption) SignalFuture
+	ResolveSignal(invocationID string, name string, value any, options ...options.ResolveSignalOption)
+	RejectSignal(invocationID string, name string, reason error)
 	Select(futs ...Selectable) Selector
 	WaitIter(futs ...Selectable) WaitIterator
 	Run(fn func(ctx RunContext) (any, error), output any, options ...options.RunOption) error
@@ -102,6 +111,9 @@ var _ Context = (*ctx)(nil)
 func newContext(inner context.Context, machine *statemachine.StateMachine, invocationInput *pbinternal.VmSysInputReturn_Input, stream io.ReadWriter, attemptHeaders map[string][]string, dropReplayLogs bool, logHandler slog.Handler) *ctx {
 	request := Request{
 		ID:             invocationInput.GetInvocationId(),
+		Scope:          invocationInput.GetScope(),
+		LimitKey:       invocationInput.GetLimitKey(),
+		IdempotencyKey: invocationInput.GetIdempotencyKey(),
 		Headers:        make(map[string]string),
 		AttemptHeaders: attemptHeaders,
 		Body:           invocationInput.GetInput(),

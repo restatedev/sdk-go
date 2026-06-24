@@ -50,6 +50,18 @@ func ServiceSend[I any](c *Client, serviceName, handlerName string) SendRequeste
 	}
 }
 
+// ScopedServiceSend gets a send-only ingress client for a Restate service handler within the given scope.
+func ScopedServiceSend[I any](c *Client, scope, serviceName, handlerName string) SendRequester[I] {
+	return sendRequester[I]{
+		client: c,
+		scope:  scope,
+		params: ingress.IngressParams{
+			Service: serviceName,
+			Handler: handlerName,
+		},
+	}
+}
+
 // ObjectSend gets a send-only ingress client for a Restate virtual object handler.
 //
 // This is a simplified version of Object that doesn't require the output type generic parameter.
@@ -92,10 +104,24 @@ func WorkflowSend[I any](c *Client, serviceName, workflowID, handlerName string)
 	}
 }
 
+// ScopedWorkflowSend gets a send-only ingress client for a Restate workflow handler within the given scope.
+func ScopedWorkflowSend[I any](c *Client, scope, serviceName, workflowID, handlerName string) SendRequester[I] {
+	return sendRequester[I]{
+		client: c,
+		scope:  scope,
+		params: ingress.IngressParams{
+			Service: serviceName,
+			Handler: handlerName,
+			Key:     workflowID,
+		},
+	}
+}
+
 type sendRequester[I any] struct {
 	client *Client
 	params ingress.IngressParams
 	codec  encoding.PayloadCodec
+	scope  string
 }
 
 type simpleSendResponse struct {
@@ -114,6 +140,7 @@ func (s simpleSendResponse) Status() string {
 func (c sendRequester[I]) Send(ctx context.Context, input I, opts ...options.IngressSendOption) (SimpleSendResponse, error) {
 	sendOpts := options.IngressSendOptions{}
 	sendOpts.Codec = c.codec
+	sendOpts.Scope = c.scope
 	for _, opt := range opts {
 		opt.BeforeIngressSend(&sendOpts)
 	}

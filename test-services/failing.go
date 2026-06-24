@@ -22,7 +22,10 @@ func init() {
 		restate.NewObject("Failing").
 			Handler("terminallyFailingCall", restate.NewObjectHandler(
 				func(ctx restate.ObjectContext, failure FailureToPropagate) (restate.Void, error) {
-					return restate.Void{}, restate.TerminalErrorf("%s", failure.ErrorMessage)
+					return restate.Void{}, restate.WithErrorMetadata(
+						restate.TerminalErrorf("%s", failure.ErrorMessage),
+						errorMetadata(failure.Metadata),
+					)
 				})).
 			Handler("callTerminallyFailingCall", restate.NewObjectHandler(
 				func(ctx restate.ObjectContext, failure FailureToPropagate) (string, error) {
@@ -45,7 +48,10 @@ func init() {
 			Handler("terminallyFailingSideEffect", restate.NewObjectHandler(
 				func(ctx restate.ObjectContext, failure FailureToPropagate) (restate.Void, error) {
 					err := restate.RunVoid(ctx, func(ctx restate.RunContext) error {
-						return restate.TerminalErrorf("%s", failure.ErrorMessage)
+						return restate.WithErrorMetadata(
+							restate.TerminalErrorf("%s", failure.ErrorMessage),
+							errorMetadata(failure.Metadata),
+						)
 					})
 					return restate.Void{}, err
 				})).
@@ -75,4 +81,21 @@ func init() {
 					}
 					return 0, restate.TerminalErrorf("Expecting the side effect to fail!")
 				})))
+}
+
+func errorMetadata(metadata any) map[string]string {
+	switch metadata := metadata.(type) {
+	case nil:
+		return nil
+	case map[string]string:
+		return metadata
+	case map[string]any:
+		out := make(map[string]string, len(metadata))
+		for k, v := range metadata {
+			out[k] = fmt.Sprint(v)
+		}
+		return out
+	default:
+		return map[string]string{"metadata": fmt.Sprint(metadata)}
+	}
 }

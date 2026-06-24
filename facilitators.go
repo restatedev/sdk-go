@@ -53,9 +53,19 @@ func Service[O any](ctx Context, service string, method string, options ...optio
 	return outputClient[O]{ctx.inner().Service(service, method, options...)}
 }
 
-// Service gets a Service send client by service and method name
+// ScopedService gets a Service request client by service and method name within the given scope.
+func ScopedService[O any](ctx Context, scope string, service string, method string, options ...options.ClientOption) Client[any, O] {
+	return scopedClient[any, O]{inner: Service[O](ctx, service, method, options...), scope: scope}
+}
+
+// ServiceSend gets a Service send client by service and method name
 func ServiceSend(ctx Context, service string, method string, options ...options.ClientOption) SendClient[any] {
 	return ctx.inner().Service(service, method, options...)
+}
+
+// ScopedServiceSend gets a Service send client by service and method name within the given scope.
+func ScopedServiceSend(ctx Context, scope string, service string, method string, options ...options.ClientOption) SendClient[any] {
+	return scopedSendClient[any]{inner: ServiceSend(ctx, service, method, options...), scope: scope}
 }
 
 // Object gets an Object request client by service name, key and method name
@@ -73,9 +83,19 @@ func Workflow[O any](ctx Context, service string, workflowID string, method stri
 	return outputClient[O]{ctx.inner().Workflow(service, workflowID, method, options...)}
 }
 
+// ScopedWorkflow gets a Workflow request client by service name, workflow ID and method name within the given scope.
+func ScopedWorkflow[O any](ctx Context, scope string, service string, workflowID string, method string, options ...options.ClientOption) Client[any, O] {
+	return scopedClient[any, O]{inner: Workflow[O](ctx, service, workflowID, method, options...), scope: scope}
+}
+
 // WorkflowSend gets a Workflow send client by service name, workflow ID and method name
 func WorkflowSend(ctx Context, service string, workflowID string, method string, options ...options.ClientOption) SendClient[any] {
 	return ctx.inner().Workflow(service, workflowID, method, options...)
+}
+
+// ScopedWorkflowSend gets a Workflow send client by service name, workflow ID and method name within the given scope.
+func ScopedWorkflowSend(ctx Context, scope string, service string, workflowID string, method string, options ...options.ClientOption) SendClient[any] {
+	return scopedSendClient[any]{inner: WorkflowSend(ctx, service, workflowID, method, options...), scope: scope}
 }
 
 // Client represents all the different ways you can invoke a particular service-method.
@@ -110,6 +130,32 @@ func (t outputClient[O]) Send(input any, options ...options.SendOption) Invocati
 	return t.inner.Send(input, options...)
 }
 
+type scopedClient[I any, O any] struct {
+	inner Client[I, O]
+	scope string
+}
+
+func (t scopedClient[I, O]) Request(input I, options ...options.RequestOption) (O, error) {
+	return t.inner.Request(input, withRequestScope(t.scope, options)...)
+}
+
+func (t scopedClient[I, O]) RequestFuture(input I, options ...options.RequestOption) ResponseFuture[O] {
+	return t.inner.RequestFuture(input, withRequestScope(t.scope, options)...)
+}
+
+func (t scopedClient[I, O]) Send(input I, options ...options.SendOption) Invocation {
+	return t.inner.Send(input, withSendScope(t.scope, options)...)
+}
+
+type scopedSendClient[I any] struct {
+	inner SendClient[I]
+	scope string
+}
+
+func (t scopedSendClient[I]) Send(input I, options ...options.SendOption) Invocation {
+	return t.inner.Send(input, withSendScope(t.scope, options)...)
+}
+
 type client[I any, O any] struct {
 	inner Client[any, O]
 }
@@ -132,6 +178,20 @@ func (t client[I, O]) RequestFuture(input I, options ...options.RequestOption) R
 
 func (t client[I, O]) Send(input I, options ...options.SendOption) Invocation {
 	return t.inner.Send(input, options...)
+}
+
+func withRequestScope(scope string, opts []options.RequestOption) []options.RequestOption {
+	scopedOpts := make([]options.RequestOption, 0, len(opts)+1)
+	scopedOpts = append(scopedOpts, withScope{scope: scope})
+	scopedOpts = append(scopedOpts, opts...)
+	return scopedOpts
+}
+
+func withSendScope(scope string, opts []options.SendOption) []options.SendOption {
+	scopedOpts := make([]options.SendOption, 0, len(opts)+1)
+	scopedOpts = append(scopedOpts, withScope{scope: scope})
+	scopedOpts = append(scopedOpts, opts...)
+	return scopedOpts
 }
 
 // ResponseFuture is a handle on a potentially not-yet completed outbound call.
@@ -194,6 +254,31 @@ func ResolveAwakeable[T any](ctx Context, id string, value T, options ...options
 // rejected with a particular error.
 func RejectAwakeable(ctx Context, id string, reason error) {
 	ctx.inner().RejectAwakeable(id, reason)
+}
+
+// Signal returns a future for a signal by name.
+func Signal[T any](ctx Context, name string, options ...options.SignalOption) SignalFuture[T] {
+	return converters.SignalFuture[T]{SignalFuture: ctx.inner().Signal(name, options...)}
+}
+
+// SignalFuture is a promise to a future signal value or error.
+type SignalFuture[T any] interface {
+	// Result blocks on receiving the result of the signal, returning the value it was
+	// resolved with or the error it was rejected with.
+	// It is *not* safe to call this in a goroutine - use Context.Select if you
+	// want to wait on multiple results at once.
+	Result() (T, error)
+	restatecontext.Selectable
+}
+
+// ResolveSignal resolves a signal on an invocation with a particular value.
+func ResolveSignal[T any](ctx Context, invocationID string, name string, value T, options ...options.ResolveSignalOption) {
+	ctx.inner().ResolveSignal(invocationID, name, value, options...)
+}
+
+// RejectSignal rejects a signal on an invocation with a particular error.
+func RejectSignal(ctx Context, invocationID string, name string, reason error) {
+	ctx.inner().RejectSignal(invocationID, name, reason)
 }
 
 // Deprecated: Please use WaitFirst or Wait or WaitIter instead

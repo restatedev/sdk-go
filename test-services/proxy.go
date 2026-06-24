@@ -15,23 +15,35 @@ type ProxyRequest struct {
 	Message        []int   `json:"message"`
 	IdempotencyKey *string `json:"idempotencyKey,omitempty"`
 	DelayMillis    *uint64 `json:"delayMillis,omitempty"`
+	Scope          *string `json:"scope,omitempty"`
+	LimitKey       *string `json:"limitKey,omitempty"`
 }
 
-func (req *ProxyRequest) ToTarget(ctx restate.Context) restate.Client[[]byte, []byte] {
+func (req *ProxyRequest) ToTarget(ctx restate.Context) (restate.Client[[]byte, []byte], error) {
 	if req.VirtualObjectKey != nil {
+		if req.Scope != nil {
+			return nil, restate.TerminalErrorf("scoped object calls are not supported")
+		}
 		return restate.WithRequestType[[]byte](restate.Object[[]byte](
 			ctx,
 			req.ServiceName,
 			*req.VirtualObjectKey,
 			req.HandlerName,
-			restate.WithBinary))
-	} else {
-		return restate.WithRequestType[[]byte](restate.Service[[]byte](
+			restate.WithBinary)), nil
+	}
+	if req.Scope != nil {
+		return restate.WithRequestType[[]byte](restate.ScopedService[[]byte](
 			ctx,
+			*req.Scope,
 			req.ServiceName,
 			req.HandlerName,
-			restate.WithBinary))
+			restate.WithBinary)), nil
 	}
+	return restate.WithRequestType[[]byte](restate.Service[[]byte](
+		ctx,
+		req.ServiceName,
+		req.HandlerName,
+		restate.WithBinary)), nil
 }
 
 type ManyCallRequest struct {
@@ -51,7 +63,14 @@ func init() {
 					if req.IdempotencyKey != nil {
 						opts = append(opts, restate.WithIdempotencyKey(*req.IdempotencyKey))
 					}
-					bytes, err := req.ToTarget(ctx).Request(input, opts...)
+					if req.LimitKey != nil {
+						opts = append(opts, restate.WithLimitKey(*req.LimitKey))
+					}
+					target, err := req.ToTarget(ctx)
+					if err != nil {
+						return nil, err
+					}
+					bytes, err := target.Request(input, opts...)
 					return byteArrayToIntArray(bytes), err
 				})).
 			Handler("oneWayCall", restate.NewServiceHandler(
@@ -62,10 +81,17 @@ func init() {
 					if req.IdempotencyKey != nil {
 						opts = append(opts, restate.WithIdempotencyKey(*req.IdempotencyKey))
 					}
+					if req.LimitKey != nil {
+						opts = append(opts, restate.WithLimitKey(*req.LimitKey))
+					}
 					if req.DelayMillis != nil {
 						opts = append(opts, restate.WithDelay(time.Millisecond*time.Duration(*req.DelayMillis)))
 					}
-					return req.ToTarget(ctx).Send(input, opts...).GetInvocationId(), nil
+					target, err := req.ToTarget(ctx)
+					if err != nil {
+						return "", err
+					}
+					return target.Send(input, opts...).GetInvocationId(), nil
 				})).
 			Handler("manyCalls", restate.NewServiceHandler(
 				// We need to use []int because Golang takes the opinionated choice of treating []byte as Base64
@@ -79,16 +105,30 @@ func init() {
 							if req.ProxyRequest.IdempotencyKey != nil {
 								opts = append(opts, restate.WithIdempotencyKey(*req.ProxyRequest.IdempotencyKey))
 							}
+							if req.ProxyRequest.LimitKey != nil {
+								opts = append(opts, restate.WithLimitKey(*req.ProxyRequest.LimitKey))
+							}
 							if req.ProxyRequest.DelayMillis != nil {
 								opts = append(opts, restate.WithDelay(time.Millisecond*time.Duration(*req.ProxyRequest.DelayMillis)))
 							}
-							req.ProxyRequest.ToTarget(ctx).Send(input, opts...)
+							target, err := req.ProxyRequest.ToTarget(ctx)
+							if err != nil {
+								return restate.Void{}, err
+							}
+							target.Send(input, opts...)
 						} else {
 							var opts []options.RequestOption
 							if req.ProxyRequest.IdempotencyKey != nil {
 								opts = append(opts, restate.WithIdempotencyKey(*req.ProxyRequest.IdempotencyKey))
 							}
-							fut := req.ProxyRequest.ToTarget(ctx).RequestFuture(input, opts...)
+							if req.ProxyRequest.LimitKey != nil {
+								opts = append(opts, restate.WithLimitKey(*req.ProxyRequest.LimitKey))
+							}
+							target, err := req.ProxyRequest.ToTarget(ctx)
+							if err != nil {
+								return restate.Void{}, err
+							}
+							fut := target.RequestFuture(input, opts...)
 							if req.AwaitAtTheEnd {
 								toAwait = append(toAwait, fut)
 							}

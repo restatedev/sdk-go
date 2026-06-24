@@ -90,6 +90,14 @@ type AwakeableOption interface {
 	BeforeAwakeable(*AwakeableOptions)
 }
 
+type SignalOptions struct {
+	Codec encoding.Codec
+}
+
+type SignalOption interface {
+	BeforeSignal(*SignalOptions)
+}
+
 type PromiseOptions struct {
 	Codec encoding.Codec
 }
@@ -104,6 +112,14 @@ type ResolveAwakeableOptions struct {
 
 type ResolveAwakeableOption interface {
 	BeforeResolveAwakeable(*ResolveAwakeableOptions)
+}
+
+type ResolveSignalOptions struct {
+	Codec encoding.Codec
+}
+
+type ResolveSignalOption interface {
+	BeforeResolveSignal(*ResolveSignalOptions)
 }
 
 type GetOptions struct {
@@ -133,6 +149,8 @@ type ClientOption interface {
 type RequestOptions struct {
 	IdempotencyKey string
 	Headers        map[string]string
+	Scope          string
+	LimitKey       string
 }
 
 type RequestOption interface {
@@ -152,6 +170,8 @@ type SendOptions struct {
 	IdempotencyKey string
 	Headers        map[string]string
 	Delay          time.Duration
+	Scope          string
+	LimitKey       string
 }
 
 type SendOption interface {
