@@ -6,8 +6,8 @@ import (
 	"github.com/restatedev/sdk-go/internal/stringmap"
 )
 
-func newFailureFromError(err error) *pbinternal.Failure {
-	failure := pbinternal.Failure{}
+func newFailureFromError(err error) *pbinternal.TerminalFailure {
+	failure := pbinternal.TerminalFailure{}
 	terminalError := errors.ToTerminalError(err)
 	if terminalError == nil {
 		panic("expecting err to be non-nil")

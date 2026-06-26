@@ -1047,18 +1047,17 @@ mod pb {
     include!(concat!(env!("OUT_DIR"), "/_.rs"));
 }
 
-impl From<Error> for pb::Failure {
+impl From<Error> for pb::RetryableFailure {
     fn from(value: Error) -> Self {
         Self {
             code: value.code().into(),
             message: value.to_string(),
-            metadata: Vec::new(),
         }
     }
 }
 
-impl From<pb::Failure> for Error {
-    fn from(value: pb::Failure) -> Self {
+impl From<pb::TerminalFailure> for Error {
+    fn from(value: pb::TerminalFailure) -> Self {
         Self::new(value.code as u16, value.message)
     }
 }
@@ -1069,8 +1068,8 @@ impl From<pb::FailureWithStacktrace> for Error {
     }
 }
 
-impl From<pb::Failure> for TerminalFailure {
-    fn from(value: pb::Failure) -> Self {
+impl From<pb::TerminalFailure> for TerminalFailure {
+    fn from(value: pb::TerminalFailure) -> Self {
         Self {
             code: value.code.try_into().expect("Should be u16"),
             message: value.message,
@@ -1083,7 +1082,7 @@ impl From<pb::Failure> for TerminalFailure {
     }
 }
 
-impl From<TerminalFailure> for pb::Failure {
+impl From<TerminalFailure> for pb::TerminalFailure {
     fn from(value: TerminalFailure) -> Self {
         Self {
             code: value.code.into(),

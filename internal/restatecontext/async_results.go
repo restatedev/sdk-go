@@ -11,7 +11,7 @@ import (
 )
 
 var CancelledFailureValue = func() statemachine.Value {
-	failure := pbinternal.Failure{}
+	failure := pbinternal.TerminalFailure{}
 	failure.SetCode(409)
 	failure.SetMessage("Cancelled")
 	return statemachine.ValueFailure{Failure: &failure}

@@ -503,7 +503,7 @@ type ValueSuccess struct {
 func (ValueSuccess) isValue() {}
 
 type ValueFailure struct {
-	Failure *pbinternal.Failure
+	Failure *pbinternal.TerminalFailure
 }
 
 func (ValueFailure) isValue() {}
@@ -1185,7 +1185,7 @@ func (sm *StateMachine) Free(ctx context.Context) error {
 
 // -- Memory tingling
 
-func wasmFailureToGoError(failure *pbinternal.Failure) error {
+func wasmFailureToGoError(failure *pbinternal.RetryableFailure) error {
 	return errors.NewRetryableError(
 		fmt.Errorf("%s", failure.GetMessage()),
 		errors.Code(failure.GetCode()),
