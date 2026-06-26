@@ -30,7 +30,7 @@ type InvocationHandle[O any] interface {
 //
 //	handle := ingress.InvocationById[*MyOutput](client, "inv_1iHLUz0JfQwr0g3903tBTvJLIPSGwxDRjX")
 //	output, err := handle.Attach(ctx)
-func InvocationById[O any](c *Client, invocationID string, opts ...options.IngressInvocationHandleOption) InvocationHandle[O] {
+func InvocationById[O any](c *Client, invocationID string, opts ...InvocationHandleOption) InvocationHandle[O] {
 	handleOpts := options.IngressInvocationHandleOptions{}
 	for _, opt := range opts {
 		opt.BeforeIngressInvocationHandle(&handleOpts)
@@ -55,7 +55,7 @@ func InvocationById[O any](c *Client, invocationID string, opts ...options.Ingre
 //
 //	handle := ingress.ServiceInvocationByIdempotencyKey[*MyOutput](client, "MyService", "myHandler", "my-idempotency-key")
 //	output, err := handle.Attach(ctx)
-func ServiceInvocationByIdempotencyKey[O any](c *Client, serviceName, handlerName, idempotencyKey string, opts ...options.IngressInvocationHandleOption) InvocationHandle[O] {
+func ServiceInvocationByIdempotencyKey[O any](c *Client, serviceName, handlerName, idempotencyKey string, opts ...InvocationHandleOption) InvocationHandle[O] {
 	handleOpts := options.IngressInvocationHandleOptions{}
 	for _, opt := range opts {
 		opt.BeforeIngressInvocationHandle(&handleOpts)
@@ -83,7 +83,7 @@ func ServiceInvocationByIdempotencyKey[O any](c *Client, serviceName, handlerNam
 //	handle := ingress.ObjectInvocationByIdempotencyKey[*MyOutput](
 //	    client, "MyObject", "object-123", "myHandler", "inv_1iHLUz0JfQwr0g3903tBTvJLIPSGwxDRjX")
 //	output, err := handle.Attach(ctx)
-func ObjectInvocationByIdempotencyKey[O any](c *Client, serviceName, objectKey, handlerName, idempotencyKey string, opts ...options.IngressInvocationHandleOption) InvocationHandle[O] {
+func ObjectInvocationByIdempotencyKey[O any](c *Client, serviceName, objectKey, handlerName, idempotencyKey string, opts ...InvocationHandleOption) InvocationHandle[O] {
 	handleOpts := options.IngressInvocationHandleOptions{}
 	for _, opt := range opts {
 		opt.BeforeIngressInvocationHandle(&handleOpts)
@@ -111,7 +111,7 @@ func ObjectInvocationByIdempotencyKey[O any](c *Client, serviceName, objectKey, 
 //
 //	handle := ingress.WorkflowHandle[*MyWorkflowOutput](client, "MyWorkflow", "workflow-123")
 //	output, err := handle.Attach(ctx)
-func WorkflowHandle[O any](c *Client, serviceName, workflowID string, opts ...options.IngressInvocationHandleOption) InvocationHandle[O] {
+func WorkflowHandle[O any](c *Client, serviceName, workflowID string, opts ...InvocationHandleOption) InvocationHandle[O] {
 	handleOpts := options.IngressInvocationHandleOptions{}
 	for _, opt := range opts {
 		opt.BeforeIngressInvocationHandle(&handleOpts)

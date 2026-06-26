@@ -17,9 +17,9 @@ import (
 // containing an InvocationHandle to retrieve the result later.
 type Requester[I any, O any] interface {
 	// Request makes a synchronous invocation and blocks until the result is available.
-	Request(ctx context.Context, input I, options ...options.IngressRequestOption) (O, error)
+	Request(ctx context.Context, input I, options ...RequestOption) (O, error)
 	// Send makes an asynchronous invocation and returns immediately with a handle to retrieve the result later.
-	Send(ctx context.Context, input I, options ...options.IngressSendOption) (SendResponse[O], error)
+	Send(ctx context.Context, input I, options ...SendOption) (SendResponse[O], error)
 }
 
 // SendResponse is returned by Requester.Send and combines both SimpleSendResponse (for invocation metadata)
@@ -132,7 +132,7 @@ func NewRequester[I any, O any](c *Client, serviceName, handlerName string, key 
 }
 
 // Request calls the ingress API with the given input and returns the result.
-func (c requester[I, O]) Request(ctx context.Context, input I, opts ...options.IngressRequestOption) (O, error) {
+func (c requester[I, O]) Request(ctx context.Context, input I, opts ...RequestOption) (O, error) {
 	reqOpts := options.IngressRequestOptions{}
 	reqOpts.Codec = c.codec
 	reqOpts.Scope = c.scope
@@ -162,7 +162,7 @@ func (s *sendResponse[O]) Status() string {
 }
 
 // Send calls the ingress API with the given input and returns an Invocation instance.
-func (c requester[I, O]) Send(ctx context.Context, input I, opts ...options.IngressSendOption) (SendResponse[O], error) {
+func (c requester[I, O]) Send(ctx context.Context, input I, opts ...SendOption) (SendResponse[O], error) {
 	sendOpts := options.IngressSendOptions{}
 	sendOpts.Codec = c.codec
 	sendOpts.Scope = c.scope

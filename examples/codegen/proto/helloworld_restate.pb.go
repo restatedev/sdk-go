@@ -275,7 +275,7 @@ func (c *workflowClient) Status(opts ...sdk_go.ClientOption) sdk_go.Client[*Stat
 // This client is used to call the service from outside of a Restate context.
 type WorkflowIngressClient interface {
 	// Execute the workflow
-	Submit(ctx context.Context, input *RunRequest, opts ...sdk_go.IngressSendOption) (ingress.SendResponse[*RunResponse], error)
+	Submit(ctx context.Context, input *RunRequest, opts ...ingress.SendOption) (ingress.SendResponse[*RunResponse], error)
 	// Handle creates an handle to the submitted workflow, useful to retrieve its output or attach to it
 	Handle() ingress.InvocationHandle[*RunResponse]
 	// Unblock the workflow
@@ -298,7 +298,7 @@ func NewWorkflowIngressClient(client *ingress.Client, workflowID string) Workflo
 	}
 }
 
-func (c *workflowIngressClient) Submit(ctx context.Context, input *RunRequest, opts ...sdk_go.IngressSendOption) (ingress.SendResponse[*RunResponse], error) {
+func (c *workflowIngressClient) Submit(ctx context.Context, input *RunRequest, opts ...ingress.SendOption) (ingress.SendResponse[*RunResponse], error) {
 	codec := encoding.ProtoJSONCodec
 	return ingress.NewRequester[*RunRequest, *RunResponse](c.client, c.serviceName, "Run", &c.workflowID, &codec).Send(ctx, input, opts...)
 }

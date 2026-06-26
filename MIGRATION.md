@@ -124,6 +124,22 @@ The `Run` option names are **unchanged** from v0.24.0 — and now also work insi
 `WithInvocationRetryPolicy`. `WithMaxRetryDuration` stays `Run`-only;
 `PauseOnMaxAttempts` / `KillOnMaxAttempts` stay invocation-policy-only.
 
+## Ingress client options
+
+The ingress client options moved from `restate` to the `ingress` package:
+
+| v0.24.0                        | 1.0                       |
+|--------------------------------|---------------------------|
+| `restate.WithHttpClient`       | `ingress.WithHttpClient`  |
+| `restate.WithAuthKey`          | `ingress.WithAuthKey`     |
+| `restate.IngressClientOption`  | `ingress.ClientOption`    |
+| `restate.IngressRequestOption` | `ingress.RequestOption`   |
+| `restate.IngressSendOption`    | `ingress.SendOption`      |
+
+The options you pass to ingress requests/sends themselves (`restate.WithHeaders`,
+`restate.WithIdempotencyKey`, the codec options, …) are unchanged — they're shared with
+in-process calls and stay in `restate`.
+
 ## Removed deprecations
 
 Symbols deprecated in v0.24.0 are gone. If you built against v0.24.0 with no deprecation

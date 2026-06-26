@@ -429,6 +429,6 @@ func TestWorkflowOutput(t *testing.T) {
 
 func newIngressClient(baseUri string) *ingress.Client {
 	return ingress.NewClient(baseUri,
-		restate.WithHttpClient(http.DefaultClient),
-		restate.WithAuthKey(authKey))
+		ingress.WithHttpClient(http.DefaultClient),
+		ingress.WithAuthKey(authKey))
 }

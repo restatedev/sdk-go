@@ -24,7 +24,7 @@ type Client = ingress.Client
 //	    // HTTP client wrapped with the otel transport.
 //	    restate.WithHttpClient(&http.Client{Transport: otelhttp.NewTransport(http.DefaultTransport)}),
 //	)
-func NewClient(baseUri string, opts ...options.IngressClientOption) *Client {
+func NewClient(baseUri string, opts ...ClientOption) *Client {
 	clientOpts := options.IngressClientOptions{}
 	for _, opt := range opts {
 		opt.BeforeIngress(&clientOpts)

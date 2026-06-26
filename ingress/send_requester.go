@@ -27,7 +27,7 @@ type SimpleSendResponse interface {
 // If you need to later retrieve the output, use InvocationById with the Id() from SimpleSendResponse,
 // or use Service/Object/Workflow functions instead which return SendResponse[O] with an InvocationHandle.
 type SendRequester[I any] interface {
-	Send(ctx context.Context, input I, options ...options.IngressSendOption) (SimpleSendResponse, error)
+	Send(ctx context.Context, input I, options ...SendOption) (SimpleSendResponse, error)
 }
 
 // ServiceSend gets a send-only ingress client for a Restate service handler.
@@ -115,7 +115,7 @@ func (s simpleSendResponse) Status() string {
 }
 
 // Send calls the ingress API with the given input and returns an Invocation instance.
-func (c sendRequester[I]) Send(ctx context.Context, input I, opts ...options.IngressSendOption) (SimpleSendResponse, error) {
+func (c sendRequester[I]) Send(ctx context.Context, input I, opts ...SendOption) (SimpleSendResponse, error) {
 	sendOpts := options.IngressSendOptions{}
 	sendOpts.Codec = c.codec
 	sendOpts.Scope = c.scope
