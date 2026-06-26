@@ -2,16 +2,9 @@ package errors
 
 import (
 	"errors"
-	"fmt"
 
 	"github.com/restatedev/sdk-go/internal/stringmap"
 )
-
-// Code is a numeric status code for an error, typically a HTTP status code.
-type Code uint16
-
-// DefaultCode is the code assigned to a terminal error when none is provided.
-const DefaultCode Code = 500
 
 // TerminalError finishes an invocation (or a Run function) with a failure result
 // instead of being retried. It carries a status code, a message and optional
@@ -44,54 +37,24 @@ func (e *terminalError) Metadata() stringmap.Map { return stringmap.New(e.metada
 func (e *terminalError) terminalError()          {}
 
 // TerminalErrorOption customizes a TerminalError at construction time.
-type TerminalErrorOption func(*terminalError)
+type TerminalErrorOption interface{ applyTerminal(*terminalError) }
 
-// WithCode sets the status code of a TerminalError.
-func WithCode(code Code) TerminalErrorOption {
-	return func(e *terminalError) { e.code = code }
-}
+// MetadataOption sets metadata. It applies only to terminal errors.
+type MetadataOption struct{ metadata map[string]string }
 
-// WithMetadata sets the metadata of a TerminalError.
-func WithMetadata(m map[string]string) TerminalErrorOption {
-	return func(e *terminalError) { e.metadata = m }
-}
+func (o MetadataOption) applyTerminal(e *terminalError) { e.metadata = o.metadata }
+
+// WithMetadata sets the metadata on a terminal error.
+func WithMetadata(m map[string]string) MetadataOption { return MetadataOption{metadata: m} }
 
 // NewTerminalError builds a TerminalError with the given message, defaulting the
 // code to DefaultCode unless overridden by an option.
 func NewTerminalError(message string, opts ...TerminalErrorOption) TerminalError {
 	e := &terminalError{code: DefaultCode, message: message}
 	for _, opt := range opts {
-		opt(e)
+		opt.applyTerminal(e)
 	}
 	return e
-}
-
-// RetryableError wraps an error with a status Code. Unlike a TerminalError it does
-// not finish the invocation: it represents a retryable runtime/protocol failure
-// (e.g. one surfaced by the state machine) and carries the Code the server should
-// respond with. It is not a terminal error and does not satisfy TerminalError.
-type RetryableError struct {
-	code Code
-	err  error
-}
-
-// NewRetryableError wraps err with the given status code.
-func NewRetryableError(err error, code Code) *RetryableError {
-	return &RetryableError{code: code, err: err}
-}
-
-func (e *RetryableError) Error() string { return fmt.Sprintf("[%d] %v", e.code, e.err) }
-func (e *RetryableError) Code() Code    { return e.code }
-func (e *RetryableError) Unwrap() error { return e.err }
-
-// AsRetryableError extracts the RetryableError from err if it is, or wraps, one;
-// otherwise it returns nil.
-func AsRetryableError(err error) *RetryableError {
-	var e *RetryableError
-	if errors.As(err, &e) {
-		return e
-	}
-	return nil
 }
 
 // IsTerminalError reports whether err is, or wraps, a TerminalError.

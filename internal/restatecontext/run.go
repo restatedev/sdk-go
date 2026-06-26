@@ -81,10 +81,16 @@ func (restateCtx *ctx) runAsync(goCtx context.Context, fn func(ctx RunContext) (
 				// Terminal error
 				proposal.SetTerminalFailure(newFailureFromError(err))
 			} else if err != nil {
-				// Retryable error
+				// Retryable error: any non-terminal error retries. If the user returned a
+				// RetryableError, carry its code and message; otherwise default to 500.
 				failure := pbinternal.FailureWithStacktrace{}
-				failure.SetCode(uint32(500))
-				failure.SetMessage(err.Error())
+				if re := errors.AsRetryableError(err); re != nil {
+					failure.SetCode(uint32(re.Code()))
+					failure.SetMessage(re.Message())
+				} else {
+					failure.SetCode(uint32(500))
+					failure.SetMessage(err.Error())
+				}
 				proposal.SetRetryableFailure(&failure)
 			} else {
 				// Success

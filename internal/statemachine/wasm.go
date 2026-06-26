@@ -1188,7 +1188,7 @@ func (sm *StateMachine) Free(ctx context.Context) error {
 func wasmFailureToGoError(failure *pbinternal.RetryableFailure) error {
 	return errors.NewRetryableError(
 		fmt.Errorf("%s", failure.GetMessage()),
-		errors.Code(failure.GetCode()),
+		errors.WithCode(errors.Code(failure.GetCode())),
 	)
 }
 
