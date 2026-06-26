@@ -1,75 +1,83 @@
 # Migration guide: v0.24.0 → 1.0
 
+## Reference of breaking changes
+
+Apply this renames as search-and-replace. The sections below explain the why.
+
+**Errors**
+- `restate.TerminalError(err)` → `restate.ToTerminalError(err)`
+- `restate.TerminalError(err, code)` → `restate.ToTerminalError(err, restate.WithErrorCode(code))`
+- `restate.WithErrorCode(err, code)` → `restate.ToTerminalError(err, restate.WithErrorCode(code))`
+- `restate.ErrorCode(err)` → `restate.AsTerminalError(err).Code()` (nil-check the result first)
+- `Get`/`Keys`/`Sleep`/`Wait`/`WaitFirst` now return `restate.TerminalError` (still an `error`)
+
+**Request headers**
+- `ctx.Request().Headers[k]` → `ctx.Request().Headers.Get(k)`
+- `range ctx.Request().Headers` → `range ctx.Request().Headers.Iter()`
+- need a plain map → `ctx.Request().Headers.ToMap()`
+
+**Randomness**
+- `restate.Rand(ctx).UUID()` → `restate.UUID(ctx)`
+- `restate.Rand(ctx)` is now `*math/rand/v2.Rand` (use its methods)
+
+**Retry options** (invocation-policy builders only; `Run` names unchanged)
+- `WithMaxAttempts(int)` → `WithMaxRetryAttempts(uint)`
+- `WithInitialInterval` → `WithInitialRetryInterval`
+- `WithMaxInterval` → `WithMaxRetryInterval`
+- `WithExponentiationFactor(float64)` → `WithRetryIntervalFactor(float32)`
+
+**Codecs**
+- `restate.WithPayloadCodec(c)` → `restate.WithCodec(c)`
+- `encoding.PayloadCodec` → `encoding.Codec`
+- custom codec with `InputPayload`/`OutputPayload` methods → implement `encoding.CodecMetadata` (+ `CodecInputMetadata`/`CodecOutputMetadata`) instead
+
+**Ingress** (moved from `restate` to the `ingress` package)
+- `restate.WithHttpClient` → `ingress.WithHttpClient`
+- `restate.WithAuthKey` → `ingress.WithAuthKey`
+- `restate.IngressClientOption` → `ingress.ClientOption`
+- `restate.IngressRequestOption` → `ingress.RequestOption`
+- `restate.IngressSendOption` → `ingress.SendOption`
+
+**Import paths** (each now its own module — `go get`/`go install`)
+- `github.com/restatedev/sdk-go/mocks` → `github.com/restatedev/sdk-go/x/mocks`
+- `github.com/restatedev/sdk-go/rcontext` → `github.com/restatedev/sdk-go/logging`
+- `github.com/restatedev/sdk-go/protoc-gen-go-restate` → `github.com/restatedev/sdk-go/x/protoc-gen-go-restate` (regenerate; contract import path → `…/x/protoc-gen-go-restate/generated/dev/restate/sdk`)
+- `github.com/restatedev/sdk-go/testing` — same path, now a separate module (`go get` it)
+
 ## Errors
 
-`TerminalError` is now a **type** (a sealed interface with `Code()`, `Message()`,
-`Metadata()`), not a constructor function. The constructors are `ToTerminalError` (from
-an `error`) and `TerminalErrorf` (from a format string); the code and metadata are set
-with the `WithErrorCode` and `WithMetadata` / `WithMetadataMap` **options**.
+Failures are now **explicit types** instead of opaque `error`s, each carrying the extra
+fields it supports: [`TerminalError`] completes the invocation with a failure (a status
+code and optional metadata), and [`RetryableError`] is a non-terminal failure that is
+retried (a status code). 
 
-> **The rename you'll do most:** the v0.24.0 `TerminalError(...)` *function* is gone — the
-> identifier is now the type. Replace calls with **`ToTerminalError`**, which takes the
-> same `error` input:
->
+Because `TerminalError` is now a *type*, the v0.24.0 `TerminalError(...)` *constructor
+function* had to be renamed to **`ToTerminalError`** (it takes the same `error`):
+
 > ```go
 > restate.TerminalError(err)        // → restate.ToTerminalError(err)
 > restate.TerminalError(err, 409)   // → restate.ToTerminalError(err, restate.WithErrorCode(409))
 > ```
 
-| v0.24.0                       | 1.0                                                                               |
-|-------------------------------|-----------------------------------------------------------------------------------|
-| `TerminalError(err)` *(func)* | `ToTerminalError(err)`                                                            |
-| `TerminalError(err, 409)`     | `ToTerminalError(err, WithErrorCode(409))`                                        |
-| `TerminalErrorf("…")`         | `TerminalErrorf("…")` *(unchanged; now returns `TerminalError`)*                  |
-| `IsTerminalError(err)`        | `IsTerminalError(err)` *(unchanged)*                                              |
-| `ErrorCode(err)`              | removed — use `if te := AsTerminalError(err); te != nil { te.Code() }`            |
-| —                             | `AsTerminalError(err) TerminalError` *(new: typed accessor, nil if not terminal)* |
+| v0.24.0                       | 1.0                                                                                           |
+|-------------------------------|-----------------------------------------------------------------------------------------------|
+| `TerminalError(err)` *(func)* | `ToTerminalError(err)`                                                                        |
+| `TerminalError(err, 409)`     | `ToTerminalError(err, WithErrorCode(409))`                                                    |
+| `WithErrorCode(err, 409)`     | `ToTerminalError(err, WithErrorCode(409))` or `ToRetryableError(err, WithErrorCode(409))`     |
+| `TerminalErrorf("…")`         | `TerminalErrorf("…")` *(unchanged; now returns `TerminalError`)*                              |
+| `IsTerminalError(err)`        | `IsTerminalError(err)` *(unchanged)*                                                          |
+| `ErrorCode(err)`              | removed — use `AsTerminalError(err)` or `AsRetryableError(err)` for downcasting to error type |
 
-```go
-// v0.24.0:  restate.TerminalError(fmt.Errorf("bad input: %w", err), http.StatusBadRequest)
-// 1.0:
-return restate.ToTerminalError(fmt.Errorf("bad input: %w", err), restate.WithErrorCode(http.StatusBadRequest))
+Operations that can only fail terminally now return [`TerminalError`] directly instead of
+a plain `error` — `Get`, `Keys`, `Sleep`, `Wait`, `WaitFirst` — to make that explicit in
+the signature. `TerminalError` still satisfies `error`, so most call sites are unaffected.
 
-// plain message, no code:
-return restate.TerminalErrorf("bad input: %v", err)
-
-// message + metadata:
-return restate.ToTerminalError(fmt.Errorf("nope"), restate.WithMetadataMap(map[string]string{"k": "v"}))
-```
-
-Inspecting an error returned by a Restate operation:
-```go
-if te := restate.AsTerminalError(err); te != nil {
-    code := te.Code()
-    meta := te.Metadata()            // now a restate.StringMap, not a map[string]string
-    v := meta.Get("k")               // read one value
-    m := meta.ToMap()                // or get a plain map
-}
-```
-
-**Note:** `ToTerminalError` does **not wrap** its argument — a `TerminalError` carries no
-nested error, so `errors.Is` / `errors.As` won't reach the original through it; only the
-message (`err.Error()`) is copied. There is no `NewTerminalError`.
-
-`TerminalError.Metadata()` now returns a read-only **`restate.StringMap`** instead of
-`map[string]string` — a deterministically-ordered (key-sorted) view. Use `.Get(k)`,
-range `.Iter()`, or `.ToMap()` for a plain map. Set metadata with `WithMetadata(k, v)` or
-`WithMetadataMap(m)` — the **same** option used for service/handler metadata.
-
-**New:** `RetryableError` is now a public type mirroring `TerminalError` —
-`ToRetryableError(err, WithErrorCode(c))` / `RetryableErrorf` / `AsRetryableError` /
-`IsRetryableError`. Returning one from a handler or `Run` closure retries (like any
-non-terminal error) but carries a code. Unlike `TerminalError`, it *wraps* its argument
-(`errors.Is`/`As` reach through it).
-
-`Get`, `Keys`, `Sleep`, `Wait`, and `WaitFirst` now return `restate.TerminalError`
-instead of `error` (it still satisfies `error`, so most call sites are unaffected).
+[`TerminalError`]: https://pkg.go.dev/github.com/restatedev/sdk-go#TerminalError
+[`RetryableError`]: https://pkg.go.dev/github.com/restatedev/sdk-go#RetryableError
 
 ## Request headers
 
-`ctx.Request().Headers` is now a read-only **`restate.StringMap`** instead of
-`map[string]string` (same deterministic, key-sorted view as error metadata). Index/range
-become method calls:
+`ctx.Request().Headers` now returns **`restate.StringMap`** instead of `map[string]string`:
 
 ```go
 // v0.24.0
@@ -77,7 +85,7 @@ h := ctx.Request().Headers["traceparent"]
 for k, v := range ctx.Request().Headers { /* ... */ }
 // 1.0
 h := ctx.Request().Headers.Get("traceparent")
-for k, v := range ctx.Request().Headers.Iter() { /* ... */ }
+for k, v := range ctx.Request().Headers.Iter() { /* iterate safely over it */ }
 m := ctx.Request().Headers.ToMap()   // when you need a plain map
 ```
 
@@ -108,10 +116,11 @@ mockCtx.EXPECT().WithRandSeed(42)              // deterministic Rand/UUID/RandSo
 
 ## Retry options
 
-`Run` retry options and the invocation retry policy ([WithInvocationRetryPolicy]) now
-share one vocabulary — the same builder works in both places (pass it to
-`Run`/`RunAsync`/`RunVoid`, or to `WithInvocationRetryPolicy`). The `Run` names (the ones
-with `Retry` in them) won, so the **invocation-policy** builders were renamed to match:
+`Run` retry options and the invocation retry policy (`WithInvocationRetryPolicy`) now
+share one vocabulary: the same builders work in both places (pass it to
+`Run`/`RunAsync`/`RunVoid`, or to `WithInvocationRetryPolicy`). 
+
+The **invocation-policy** builders were renamed to match:
 
 | v0.24.0 (invocation policy)         | 1.0                                  |
 |-------------------------------------|--------------------------------------|
@@ -120,9 +129,7 @@ with `Retry` in them) won, so the **invocation-policy** builders were renamed to
 | `WithMaxInterval`                   | `WithMaxRetryInterval`               |
 | `WithExponentiationFactor(float64)` | `WithRetryIntervalFactor(float32)`   |
 
-The `Run` option names are **unchanged** from v0.24.0 — and now also work inside
-`WithInvocationRetryPolicy`. `WithMaxRetryDuration` stays `Run`-only;
-`PauseOnMaxAttempts` / `KillOnMaxAttempts` stay invocation-policy-only.
+The `Run` option names are **unchanged**.
 
 ## Ingress client options
 
@@ -136,16 +143,12 @@ The ingress client options moved from `restate` to the `ingress` package:
 | `restate.IngressRequestOption` | `ingress.RequestOption`   |
 | `restate.IngressSendOption`    | `ingress.SendOption`      |
 
-The options you pass to ingress requests/sends themselves (`restate.WithHeaders`,
-`restate.WithIdempotencyKey`, the codec options, …) are unchanged — they're shared with
-in-process calls and stay in `restate`.
+The options you pass to ingress requests/sends themselves are unchanged.
 
 ## Codecs
 
-`PayloadCodec` is gone — there is now a single `encoding.Codec` used everywhere, so
-`WithPayloadCodec` is removed: use **`WithCodec`** (it now works for handlers, services,
-ingress and value operations alike). `WithProto`/`WithProtoJSON`/`WithBinary`/`WithJSON`
-are unchanged.
+`PayloadCodec` and `WithPayloadCodec` is gone. Only `encoding.Codec` exists now and can be used everywhere, for handlers, services, ingress and value operations alike.
+`WithProto`/`WithProtoJSON`/`WithBinary`/`WithJSON` are unchanged.
 
 Handlers, in-process calls, and ingress requests can now set the input and output codec
 **independently**:
@@ -155,12 +158,9 @@ restate.Service[O](ctx, "svc", "method", restate.WithInputCodec(c1), restate.Wit
 greeter.SayHello().Request(ctx, in, restate.WithInputCodec(c1), restate.WithOutputCodec(c2)) // ingress
 ```
 
-Custom codecs: `encoding.Codec` stays just `Marshal`/`Unmarshal`; the per-handler
-`InputPayload`/`OutputPayload` methods are gone. To describe payloads for service
-discovery a codec implements small **optional** interfaces (probed by the SDK):
-`encoding.CodecMetadata` (`ContentType() string` + `JsonSchema(v any) any`),
-`encoding.CodecInputMetadata` (`InputRequired() bool`), and `encoding.CodecOutputMetadata`
-(`SetContentTypeIfEmpty() bool`). Built-in codecs and the emitted manifest are unchanged.
+`encoding.Codec` interface was split: now it contains only `Marshal`/`Unmarshal`, and the additional optional interfaces `encoding.CodecMetadata`, `encoding.CodecInputMetadata` and `encoding.CodecOutputMetadata` can be implemented to augment the discovery metadata.
+
+Built-in codecs and the emitted manifest are unchanged.
 
 ## Removed deprecations
 
