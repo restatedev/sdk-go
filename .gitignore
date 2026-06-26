@@ -1,3 +1,6 @@
 test_report
 .restate
 internal/shared-core/pkg/
+
+.air
+.idea

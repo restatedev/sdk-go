@@ -10,6 +10,7 @@ import (
 	"github.com/restatedev/sdk-go/internal/restatecontext"
 
 	restate "github.com/restatedev/sdk-go"
+	"github.com/restatedev/sdk-go/internal/genericfutures"
 	options "github.com/restatedev/sdk-go/internal/options"
 	"github.com/restatedev/sdk-go/internal/randsource"
 	"github.com/stretchr/testify/assert"

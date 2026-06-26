@@ -33,7 +33,7 @@ func (req *ProxyRequest) ToTarget(ctx restate.Context) (restate.Client[[]byte, [
 	}
 	clientOpts := []options.ClientOption{restate.WithBinary}
 	if req.Scope != nil {
-		clientOpts = append(clientOpts, restate.Scoped(*req.Scope))
+		clientOpts = append(clientOpts, restate.WithScope(*req.Scope))
 	}
 	return restate.WithRequestType[[]byte](restate.Service[[]byte](
 		ctx,

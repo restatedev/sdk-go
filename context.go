@@ -48,6 +48,11 @@ type WorkflowContext interface {
 	runWorkflow()
 }
 
+// Key retrieves the key for this virtual object invocation or this workflow invocation.
+func Key(ctx ObjectSharedContext) string {
+	return ctx.inner().Key()
+}
+
 // WrapContext wraps the provided Restate context with a context.Context,
 // making sure all Context.Values from the wrappedCtx are accessible from the Restate context.
 func WrapContext[T Context](restateCtx T, wrappedCtx context.Context) T {

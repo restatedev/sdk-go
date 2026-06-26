@@ -74,7 +74,7 @@ func TestScopedServiceRequest(t *testing.T) {
 	require.NoError(t, json.Unmarshal(payload, &input))
 
 	c := newIngressClient(m.URL)
-	_, err := ingress.Service[map[string]any, any](c, myService, myHandler, restate.Scoped(scope)).
+	_, err := ingress.Service[map[string]any, any](c, myService, myHandler, restate.WithScope(scope)).
 		Request(context.Background(), input,
 			restate.WithIdempotencyKey(idempotencyKey),
 			restate.WithLimitKey(limitKey),
@@ -145,7 +145,7 @@ func TestScopedServiceSend(t *testing.T) {
 	require.NoError(t, json.Unmarshal(payload, &input))
 
 	c := newIngressClient(m.URL)
-	inv, err := ingress.ServiceSend[map[string]any](c, myService, myHandler, restate.Scoped(scope)).
+	inv, err := ingress.ServiceSend[map[string]any](c, myService, myHandler, restate.WithScope(scope)).
 		Send(context.Background(), input,
 			restate.WithIdempotencyKey(idempotencyKey),
 			restate.WithLimitKey(limitKey),
@@ -245,7 +245,7 @@ func TestScopedWorkflowRun(t *testing.T) {
 	require.NoError(t, json.Unmarshal(payload, &input))
 
 	c := newIngressClient(m.URL)
-	_, err := ingress.Workflow[map[string]any, any](c, myService, myWorkflowId, run, restate.Scoped(scope)).
+	_, err := ingress.Workflow[map[string]any, any](c, myService, myWorkflowId, run, restate.WithScope(scope)).
 		Request(context.Background(), input,
 			restate.WithIdempotencyKey(idempotencyKey),
 			restate.WithLimitKey(limitKey),
@@ -296,7 +296,7 @@ func TestScopedWorkflowSend(t *testing.T) {
 	require.NoError(t, json.Unmarshal(payload, &input))
 
 	c := newIngressClient(m.URL)
-	inv, err := ingress.WorkflowSend[map[string]any](c, myService, myWorkflowId, myHandler, restate.Scoped(scope)).
+	inv, err := ingress.WorkflowSend[map[string]any](c, myService, myWorkflowId, myHandler, restate.WithScope(scope)).
 		Send(context.Background(), input,
 			restate.WithIdempotencyKey(idempotencyKey),
 			restate.WithLimitKey(limitKey),
