@@ -4,8 +4,8 @@
 
 `TerminalError` is now a **type** (a sealed interface with `Code()`, `Message()`,
 `Metadata()`), not a constructor function. The constructors are `ToTerminalError` (from
-an `error`) and `TerminalErrorf` (from a format string); `WithErrorCode` /
-`WithErrorMetadata` became **options**.
+an `error`) and `TerminalErrorf` (from a format string); the code and metadata are set
+with the `WithErrorCode` and `WithMetadata` / `WithMetadataMap` **options**.
 
 > **The rename you'll do most:** the v0.24.0 `TerminalError(...)` *function* is gone — the
 > identifier is now the type. Replace calls with **`ToTerminalError`**, which takes the
@@ -34,13 +34,16 @@ return restate.ToTerminalError(fmt.Errorf("bad input: %w", err), restate.WithErr
 return restate.TerminalErrorf("bad input: %v", err)
 
 // message + metadata:
-return restate.ToTerminalError(fmt.Errorf("nope"), restate.WithErrorMetadata(map[string]string{"k": "v"}))
+return restate.ToTerminalError(fmt.Errorf("nope"), restate.WithMetadataMap(map[string]string{"k": "v"}))
 ```
 
 Inspecting an error returned by a Restate operation:
 ```go
 if te := restate.AsTerminalError(err); te != nil {
-    code, meta := te.Code(), te.Metadata()
+    code := te.Code()
+    meta := te.Metadata()            // now a restate.StringMap, not a map[string]string
+    v := meta.Get("k")               // read one value
+    m := meta.ToMap()                // or get a plain map
 }
 ```
 
@@ -48,8 +51,35 @@ if te := restate.AsTerminalError(err); te != nil {
 nested error, so `errors.Is` / `errors.As` won't reach the original through it; only the
 message (`err.Error()`) is copied. There is no `NewTerminalError`.
 
+`TerminalError.Metadata()` now returns a read-only **`restate.StringMap`** instead of
+`map[string]string` — a deterministically-ordered (key-sorted) view. Use `.Get(k)`,
+range `.Iter()`, or `.ToMap()` for a plain map. Set metadata with `WithMetadata(k, v)` or
+`WithMetadataMap(m)` — the **same** option used for service/handler metadata.
+
+**New:** `RetryableError` is now a public type mirroring `TerminalError` —
+`ToRetryableError(err, WithErrorCode(c))` / `RetryableErrorf` / `AsRetryableError` /
+`IsRetryableError`. Returning one from a handler or `Run` closure retries (like any
+non-terminal error) but carries a code. Unlike `TerminalError`, it *wraps* its argument
+(`errors.Is`/`As` reach through it).
+
 `Get`, `Keys`, `Sleep`, `Wait`, and `WaitFirst` now return `restate.TerminalError`
 instead of `error` (it still satisfies `error`, so most call sites are unaffected).
+
+## Request headers
+
+`ctx.Request().Headers` is now a read-only **`restate.StringMap`** instead of
+`map[string]string` (same deterministic, key-sorted view as error metadata). Index/range
+become method calls:
+
+```go
+// v0.24.0
+h := ctx.Request().Headers["traceparent"]
+for k, v := range ctx.Request().Headers { /* ... */ }
+// 1.0
+h := ctx.Request().Headers.Get("traceparent")
+for k, v := range ctx.Request().Headers.Iter() { /* ... */ }
+m := ctx.Request().Headers.ToMap()   // when you need a plain map
+```
 
 ## Randomness
 

@@ -3,6 +3,7 @@ package errors
 import (
 	"errors"
 
+	"github.com/restatedev/sdk-go/internal/options"
 	"github.com/restatedev/sdk-go/internal/stringmap"
 )
 
@@ -39,13 +40,45 @@ func (e *terminalError) terminalError()          {}
 // TerminalErrorOption customizes a TerminalError at construction time.
 type TerminalErrorOption interface{ applyTerminal(*terminalError) }
 
-// MetadataOption sets metadata. It applies only to terminal errors.
+// MetadataOption sets metadata. It is shared across everything that accepts metadata:
+// terminal errors, service definitions and handlers (and merges with any metadata
+// already set). It deliberately lives here, alongside the private terminalError it must
+// reach, while also satisfying the options package's service/handler interfaces.
 type MetadataOption struct{ metadata map[string]string }
 
-func (o MetadataOption) applyTerminal(e *terminalError) { e.metadata = o.metadata }
+var (
+	_ options.ServiceDefinitionOption = MetadataOption{}
+	_ options.HandlerOption           = MetadataOption{}
+)
 
-// WithMetadata sets the metadata on a terminal error.
+func (o MetadataOption) applyTerminal(e *terminalError) {
+	e.metadata = mergeMetadata(e.metadata, o.metadata)
+}
+
+func (o MetadataOption) BeforeServiceDefinition(opts *options.ServiceDefinitionOptions) {
+	opts.Metadata = mergeMetadata(opts.Metadata, o.metadata)
+}
+
+func (o MetadataOption) BeforeHandler(opts *options.HandlerOptions) {
+	opts.Metadata = mergeMetadata(opts.Metadata, o.metadata)
+}
+
+// WithMetadata returns an option adding the given metadata.
 func WithMetadata(m map[string]string) MetadataOption { return MetadataOption{metadata: m} }
+
+// mergeMetadata adds src into dst, allocating dst if needed, and returns it.
+func mergeMetadata(dst, src map[string]string) map[string]string {
+	if len(src) == 0 {
+		return dst
+	}
+	if dst == nil {
+		dst = make(map[string]string, len(src))
+	}
+	for k, v := range src {
+		dst[k] = v
+	}
+	return dst
+}
 
 // NewTerminalError builds a TerminalError with the given message, defaulting the
 // code to DefaultCode unless overridden by an option.

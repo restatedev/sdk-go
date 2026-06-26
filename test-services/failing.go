@@ -24,7 +24,7 @@ func init() {
 				func(ctx restate.ObjectContext, failure FailureToPropagate) (restate.Void, error) {
 					return restate.Void{}, restate.ToTerminalError(
 						fmt.Errorf("%s", failure.ErrorMessage),
-						restate.WithErrorMetadata(errorMetadata(failure.Metadata)),
+						restate.WithMetadataMap(errorMetadata(failure.Metadata)),
 					)
 				})).
 			Handler("callTerminallyFailingCall", restate.NewObjectHandler(
@@ -50,7 +50,7 @@ func init() {
 					err := restate.RunVoid(ctx, func(ctx restate.RunContext) error {
 						return restate.ToTerminalError(
 							fmt.Errorf("%s", failure.ErrorMessage),
-							restate.WithErrorMetadata(errorMetadata(failure.Metadata)),
+							restate.WithMetadataMap(errorMetadata(failure.Metadata)),
 						)
 					})
 					return restate.Void{}, err

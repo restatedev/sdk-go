@@ -31,11 +31,6 @@ type TerminalError = errors.TerminalError
 // TerminalErrorOption customizes a [TerminalError]. Pass it to [ToTerminalError].
 type TerminalErrorOption = errors.TerminalErrorOption
 
-// WithErrorMetadata sets the metadata of a [TerminalError]. Pass it to [ToTerminalError].
-func WithErrorMetadata(metadata map[string]string) TerminalErrorOption {
-	return errors.WithMetadata(metadata)
-}
-
 // ToTerminalError converts err into a [TerminalError], so that returning it from a
 // handler or Run finishes the invocation with a failure result instead of being
 // retried.
@@ -46,7 +41,7 @@ func WithErrorMetadata(metadata map[string]string) TerminalErrorOption {
 //
 // It returns nil if err is nil; if err already is, or wraps, a [TerminalError] and no
 // options are given, that [TerminalError] is returned unchanged. The code defaults to
-// 500 unless set with [WithErrorCode]; metadata can be attached with [WithErrorMetadata].
+// 500 unless set with [WithErrorCode]; metadata can be attached with [WithMetadata].
 func ToTerminalError(err error, opts ...TerminalErrorOption) TerminalError {
 	return errors.ToTerminalError(err, opts...)
 }

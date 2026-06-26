@@ -3,6 +3,7 @@ package restate
 import (
 	"net/http"
 
+	"github.com/restatedev/sdk-go/internal/errors"
 	"github.com/restatedev/sdk-go/internal/options"
 )
 
@@ -13,6 +14,20 @@ import (
 type IngressRequestOption = options.IngressRequestOption
 type IngressSendOption = options.IngressSendOption
 type IngressClientOption = options.IngressClientOption
+
+// WithMetadataMap adds the given metadata. It applies anywhere metadata is accepted:
+// service/handler definitions (shown in the Admin API) and [ToTerminalError]. Multiple
+// metadata options merge.
+func WithMetadataMap(metadata map[string]string) errors.MetadataOption {
+	return errors.WithMetadata(metadata)
+}
+
+// WithMetadata adds the given key/value as metadata. It applies anywhere metadata is
+// accepted: service/handler definitions (shown in the Admin API) and [ToTerminalError].
+// Multiple metadata options merge.
+func WithMetadata(metadataKey string, metadataValue string) errors.MetadataOption {
+	return errors.WithMetadata(map[string]string{metadataKey: metadataValue})
+}
 
 type withName struct {
 	name string
