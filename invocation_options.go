@@ -270,33 +270,3 @@ func WithInvocationRetryPolicy(opts ...InvocationRetryPolicyOption) withInvocati
 	}
 	return withInvocationRetryPolicy{policy: p}
 }
-
-// WithInitialInterval sets the initial delay before the first retry attempt. If unset, server defaults apply.
-func WithInitialInterval(d time.Duration) options.InvocationRetryPolicyOption {
-	return options.InvokeRetryWithInitialInterval(d)
-}
-
-// WithExponentiationFactor sets the exponential backoff multiplier used to compute the next retry delay.
-func WithExponentiationFactor(f float64) options.InvocationRetryPolicyOption {
-	return options.InvokeRetryWithExponentiationFactor(f)
-}
-
-// WithMaxInterval sets the upper bound for any computed retry delay.
-func WithMaxInterval(d time.Duration) options.InvocationRetryPolicyOption {
-	return options.InvokeRetryWithMaxInterval(d)
-}
-
-// WithMaxAttempts sets the maximum number of attempts before giving up retrying. The initial call counts as the first attempt.
-func WithMaxAttempts(n int) options.InvocationRetryPolicyOption {
-	return options.InvokeRetryWithMaxAttempts(n)
-}
-
-// PauseOnMaxAttempts sets the behavior to pause when reaching max attempts.
-func PauseOnMaxAttempts() options.InvocationRetryPolicyOption {
-	return options.InvokeRetryWithOnMaxAttempts(options.OnMaxAttemptsPause)
-}
-
-// KillOnMaxAttempts sets the behavior to kill when reaching max attempts.
-func KillOnMaxAttempts() options.InvocationRetryPolicyOption {
-	return options.InvokeRetryWithOnMaxAttempts(options.OnMaxAttemptsKill)
-}

@@ -106,6 +106,24 @@ mockCtx.EXPECT().RandUUID().Return(uuid.Max)   // force a specific UUID
 mockCtx.EXPECT().WithRandSeed(42)              // deterministic Rand/UUID/RandSource from a seed
 ```
 
+## Retry options
+
+`Run` retry options and the invocation retry policy ([WithInvocationRetryPolicy]) now
+share one vocabulary — the same builder works in both places (pass it to
+`Run`/`RunAsync`/`RunVoid`, or to `WithInvocationRetryPolicy`). The `Run` names (the ones
+with `Retry` in them) won, so the **invocation-policy** builders were renamed to match:
+
+| v0.24.0 (invocation policy)         | 1.0                                  |
+|-------------------------------------|--------------------------------------|
+| `WithMaxAttempts(int)`              | `WithMaxRetryAttempts(uint)`         |
+| `WithInitialInterval`               | `WithInitialRetryInterval`           |
+| `WithMaxInterval`                   | `WithMaxRetryInterval`               |
+| `WithExponentiationFactor(float64)` | `WithRetryIntervalFactor(float32)`   |
+
+The `Run` option names are **unchanged** from v0.24.0 — and now also work inside
+`WithInvocationRetryPolicy`. `WithMaxRetryDuration` stays `Run`-only;
+`PauseOnMaxAttempts` / `KillOnMaxAttempts` stay invocation-policy-only.
+
 ## Removed deprecations
 
 Symbols deprecated in v0.24.0 are gone. If you built against v0.24.0 with no deprecation
