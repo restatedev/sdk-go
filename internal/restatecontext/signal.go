@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"github.com/restatedev/sdk-go/encoding"
+	"github.com/restatedev/sdk-go/internal/errors"
 	pbinternal "github.com/restatedev/sdk-go/internal/generated"
 	"github.com/restatedev/sdk-go/internal/options"
 	"github.com/restatedev/sdk-go/internal/statemachine"
@@ -31,8 +32,8 @@ func (restateCtx *ctx) Signal(name string, opts ...options.SignalOption) SignalF
 }
 
 type SignalFuture interface {
-	Selectable
-	Result(output any) error
+	Future
+	Result(output any) errors.TerminalError
 }
 
 type signalFuture struct {
@@ -40,7 +41,7 @@ type signalFuture struct {
 	codec encoding.Codec
 }
 
-func (d *signalFuture) Result(output any) error {
+func (d *signalFuture) Result(output any) errors.TerminalError {
 	switch result := d.pollProgressAndLoadValue().(type) {
 	case statemachine.ValueSuccess:
 		if err := encoding.Unmarshal(d.codec, result.Success, output); err != nil {

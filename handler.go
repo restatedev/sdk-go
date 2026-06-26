@@ -2,8 +2,9 @@ package restate
 
 import (
 	"fmt"
-	"github.com/restatedev/sdk-go/internal/restatecontext"
 	"net/http"
+
+	"github.com/restatedev/sdk-go/internal/restatecontext"
 
 	"github.com/restatedev/sdk-go/encoding"
 	"github.com/restatedev/sdk-go/internal"
@@ -55,8 +56,8 @@ func NewServiceHandler[I any, O any](fn ServiceHandlerFn[I, O], opts ...options.
 
 func (h *serviceHandler[I, O]) Call(ctx restatecontext.Context, bytes []byte) ([]byte, error) {
 	var input I
-	if err := encoding.Unmarshal(h.options.Codec, bytes, &input); err != nil {
-		return nil, TerminalError(fmt.Errorf("request could not be decoded into handler input type: %w", err), http.StatusBadRequest)
+	if err := encoding.Unmarshal(h.options.InputCodec, bytes, &input); err != nil {
+		return nil, ToTerminalError(fmt.Errorf("request could not be decoded into handler input type: %v", err), WithErrorCode(http.StatusBadRequest))
 	}
 
 	output, err := h.fn(
@@ -67,7 +68,7 @@ func (h *serviceHandler[I, O]) Call(ctx restatecontext.Context, bytes []byte) ([
 		return nil, err
 	}
 
-	bytes, err = encoding.Marshal(h.options.Codec, output)
+	bytes, err = encoding.Marshal(h.options.OutputCodec, output)
 	if err != nil {
 		// we don't use a terminal error here as this is hot-fixable by changing the return type
 		return nil, fmt.Errorf("failed to serialize output: %w", err)
@@ -78,12 +79,12 @@ func (h *serviceHandler[I, O]) Call(ctx restatecontext.Context, bytes []byte) ([
 
 func (h *serviceHandler[I, O]) InputPayload() *encoding.InputPayload {
 	var i I
-	return encoding.InputPayloadFor(h.options.Codec, i)
+	return encoding.InputPayloadFor(h.options.InputCodec, i)
 }
 
 func (h *serviceHandler[I, O]) OutputPayload() *encoding.OutputPayload {
 	var o O
-	return encoding.OutputPayloadFor(h.options.Codec, o)
+	return encoding.OutputPayloadFor(h.options.OutputCodec, o)
 }
 
 func (h *serviceHandler[I, O]) HandlerType() *internal.ServiceHandlerType {
@@ -146,8 +147,8 @@ func (o ctxWrapper) runWorkflow()     {}
 
 func (h *objectHandler[I, O]) Call(ctx restatecontext.Context, bytes []byte) ([]byte, error) {
 	var input I
-	if err := encoding.Unmarshal(h.options.Codec, bytes, &input); err != nil {
-		return nil, TerminalError(fmt.Errorf("request could not be decoded into handler input type: %w", err), http.StatusBadRequest)
+	if err := encoding.Unmarshal(h.options.InputCodec, bytes, &input); err != nil {
+		return nil, ToTerminalError(fmt.Errorf("request could not be decoded into handler input type: %v", err), WithErrorCode(http.StatusBadRequest))
 	}
 
 	var output O
@@ -168,7 +169,7 @@ func (h *objectHandler[I, O]) Call(ctx restatecontext.Context, bytes []byte) ([]
 		return nil, err
 	}
 
-	bytes, err = encoding.Marshal(h.options.Codec, output)
+	bytes, err = encoding.Marshal(h.options.OutputCodec, output)
 	if err != nil {
 		// we don't use a terminal error here as this is hot-fixable by changing the return type
 		return nil, fmt.Errorf("failed to serialize output: %w", err)
@@ -179,12 +180,12 @@ func (h *objectHandler[I, O]) Call(ctx restatecontext.Context, bytes []byte) ([]
 
 func (h *objectHandler[I, O]) InputPayload() *encoding.InputPayload {
 	var i I
-	return encoding.InputPayloadFor(h.options.Codec, i)
+	return encoding.InputPayloadFor(h.options.InputCodec, i)
 }
 
 func (h *objectHandler[I, O]) OutputPayload() *encoding.OutputPayload {
 	var o O
-	return encoding.OutputPayloadFor(h.options.Codec, o)
+	return encoding.OutputPayloadFor(h.options.OutputCodec, o)
 }
 
 func (h *objectHandler[I, O]) GetOptions() *options.HandlerOptions {
@@ -235,8 +236,8 @@ func NewWorkflowSharedHandler[I any, O any](fn WorkflowSharedHandlerFn[I, O], op
 
 func (h *workflowHandler[I, O]) Call(ctx restatecontext.Context, bytes []byte) ([]byte, error) {
 	var input I
-	if err := encoding.Unmarshal(h.options.Codec, bytes, &input); err != nil {
-		return nil, TerminalError(fmt.Errorf("request could not be decoded into handler input type: %w", err), http.StatusBadRequest)
+	if err := encoding.Unmarshal(h.options.InputCodec, bytes, &input); err != nil {
+		return nil, ToTerminalError(fmt.Errorf("request could not be decoded into handler input type: %v", err), WithErrorCode(http.StatusBadRequest))
 	}
 
 	var output O
@@ -257,7 +258,7 @@ func (h *workflowHandler[I, O]) Call(ctx restatecontext.Context, bytes []byte) (
 		return nil, err
 	}
 
-	bytes, err = encoding.Marshal(h.options.Codec, output)
+	bytes, err = encoding.Marshal(h.options.OutputCodec, output)
 	if err != nil {
 		// we don't use a terminal error here as this is hot-fixable by changing the return type
 		return nil, fmt.Errorf("failed to serialize output: %w", err)
@@ -268,12 +269,12 @@ func (h *workflowHandler[I, O]) Call(ctx restatecontext.Context, bytes []byte) (
 
 func (h *workflowHandler[I, O]) InputPayload() *encoding.InputPayload {
 	var i I
-	return encoding.InputPayloadFor(h.options.Codec, i)
+	return encoding.InputPayloadFor(h.options.InputCodec, i)
 }
 
 func (h *workflowHandler[I, O]) OutputPayload() *encoding.OutputPayload {
 	var o O
-	return encoding.OutputPayloadFor(h.options.Codec, o)
+	return encoding.OutputPayloadFor(h.options.OutputCodec, o)
 }
 
 func (h *workflowHandler[I, O]) GetOptions() *options.HandlerOptions {

@@ -1,0 +1,18 @@
+with-expecter: true
+issue-845-fix: true
+resolve-type-alias: false
+dir: .
+outPkg: mocks
+packages:
+  github.com/restatedev/sdk-go/internal/restatecontext:
+    interfaces:
+      AfterFuture:
+      AttachFuture:
+      AwakeableFuture:
+      Client:
+      Context:
+      DurablePromise:
+      Invocation:
+      ResponseFuture:
+      RunAsyncFuture:
+      WaitIterator:

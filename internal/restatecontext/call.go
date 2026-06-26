@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/restatedev/sdk-go/encoding"
+	"github.com/restatedev/sdk-go/internal/errors"
 	pbinternal "github.com/restatedev/sdk-go/internal/generated"
 	"github.com/restatedev/sdk-go/internal/statemachine"
 
@@ -12,9 +13,9 @@ import (
 )
 
 type ResponseFuture interface {
-	Selectable
+	Future
 	Invocation
-	Response(output any) error
+	Response(output any) errors.TerminalError
 }
 
 type Invocation interface {
@@ -23,7 +24,7 @@ type Invocation interface {
 
 type Client interface {
 	RequestFuture(input any, opts ...options.RequestOption) ResponseFuture
-	Request(input any, output any, opts ...options.RequestOption) error
+	Request(input any, output any, opts ...options.RequestOption) errors.TerminalError
 	Send(input any, opts ...options.SendOption) Invocation
 }
 
@@ -37,12 +38,12 @@ type client struct {
 
 // RequestFuture makes a call and returns a coreHandle on the response
 func (c *client) RequestFuture(input any, opts ...options.RequestOption) ResponseFuture {
-	o := options.RequestOptions{}
+	o := options.RequestOptions{Scope: c.options.Scope}
 	for _, opt := range opts {
 		opt.BeforeRequest(&o)
 	}
 
-	inputBytes, err := encoding.Marshal(c.options.Codec, input)
+	inputBytes, err := encoding.Marshal(c.options.InputCodec, input)
 	if err != nil {
 		panic(fmt.Errorf("failed to marshal RequestFuture input: %w", err))
 	}
@@ -74,7 +75,7 @@ func (c *client) RequestFuture(input any, opts ...options.RequestOption) Respons
 	}
 	inputParams.SetInput(inputBytes)
 	inputParams.SetUnstableSerialization(
-		encoding.IsNonDeterministicSerialization(c.options.Codec),
+		encoding.IsNonDeterministicSerialization(c.options.InputCodec),
 	)
 
 	invocationIdHandle, resultHandle, err := c.restateContext.stateMachine.SysCall(c.restateContext, &inputParams)
@@ -115,11 +116,11 @@ type responseFuture struct {
 	options options.ClientOptions
 }
 
-func (d *responseFuture) Response(output any) (err error) {
+func (d *responseFuture) Response(output any) errors.TerminalError {
 	switch result := d.pollProgressAndLoadValue().(type) {
 	case statemachine.ValueSuccess:
 		{
-			if err := encoding.Unmarshal(d.options.Codec, result.Success, output); err != nil {
+			if err := encoding.Unmarshal(d.options.OutputCodec, result.Success, output); err != nil {
 				panic(fmt.Errorf("failed to unmarshal call result into output: %w", err))
 			}
 			return nil
@@ -132,18 +133,18 @@ func (d *responseFuture) Response(output any) (err error) {
 }
 
 // Request makes a call and blocks on the response
-func (c *client) Request(input any, output any, opts ...options.RequestOption) error {
+func (c *client) Request(input any, output any, opts ...options.RequestOption) errors.TerminalError {
 	return c.RequestFuture(input, opts...).Response(output)
 }
 
 // Send runs a call in the background afterFuture delay duration
 func (c *client) Send(input any, opts ...options.SendOption) Invocation {
-	o := options.SendOptions{}
+	o := options.SendOptions{Scope: c.options.Scope}
 	for _, opt := range opts {
 		opt.BeforeSend(&o)
 	}
 
-	inputBytes, err := encoding.Marshal(c.options.Codec, input)
+	inputBytes, err := encoding.Marshal(c.options.InputCodec, input)
 	if err != nil {
 		panic(fmt.Errorf("failed to marshal RequestFuture input: %w", err))
 	}
@@ -178,7 +179,7 @@ func (c *client) Send(input any, opts ...options.SendOption) Invocation {
 		inputParams.SetExecutionTimeSinceUnixEpochMillis(uint64(time.Now().Add(o.Delay).UnixMilli()))
 	}
 	inputParams.SetUnstableSerialization(
-		encoding.IsNonDeterministicSerialization(c.options.Codec),
+		encoding.IsNonDeterministicSerialization(c.options.InputCodec),
 	)
 
 	invocationIdHandle, err := c.restateContext.stateMachine.SysSend(c.restateContext, &inputParams)
@@ -197,8 +198,11 @@ func (restateCtx *ctx) Service(service, method string, opts ...options.ClientOpt
 	for _, opt := range opts {
 		opt.BeforeClient(&o)
 	}
-	if o.Codec == nil {
-		o.Codec = encoding.JSONCodec
+	if o.InputCodec == nil {
+		o.InputCodec = encoding.JSONCodec
+	}
+	if o.OutputCodec == nil {
+		o.OutputCodec = encoding.JSONCodec
 	}
 
 	return &client{
@@ -214,8 +218,11 @@ func (restateCtx *ctx) Object(service, key, method string, opts ...options.Clien
 	for _, opt := range opts {
 		opt.BeforeClient(&o)
 	}
-	if o.Codec == nil {
-		o.Codec = encoding.JSONCodec
+	if o.InputCodec == nil {
+		o.InputCodec = encoding.JSONCodec
+	}
+	if o.OutputCodec == nil {
+		o.OutputCodec = encoding.JSONCodec
 	}
 
 	return &client{
@@ -232,8 +239,11 @@ func (restateCtx *ctx) Workflow(service, workflowID, method string, opts ...opti
 	for _, opt := range opts {
 		opt.BeforeClient(&o)
 	}
-	if o.Codec == nil {
-		o.Codec = encoding.JSONCodec
+	if o.InputCodec == nil {
+		o.InputCodec = encoding.JSONCodec
+	}
+	if o.OutputCodec == nil {
+		o.OutputCodec = encoding.JSONCodec
 	}
 
 	return &client{
@@ -254,8 +264,8 @@ func (restateCtx *ctx) CancelInvocation(invocationId string) {
 }
 
 type AttachFuture interface {
-	Selectable
-	Response(output any) error
+	Future
+	Response(output any) errors.TerminalError
 }
 
 func (restateCtx *ctx) AttachInvocation(invocationId string, opts ...options.AttachOption) AttachFuture {
@@ -284,7 +294,7 @@ type attachFuture struct {
 	codec encoding.Codec
 }
 
-func (d *attachFuture) Response(output any) (err error) {
+func (d *attachFuture) Response(output any) errors.TerminalError {
 	switch result := d.pollProgressAndLoadValue().(type) {
 	case statemachine.ValueSuccess:
 		{

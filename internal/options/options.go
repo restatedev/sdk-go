@@ -30,47 +30,6 @@ type InvocationRetryPolicyOption interface {
 	BeforeRetryPolicy(*InvocationRetryPolicy)
 }
 
-// Helper constructors to be used by public API
-func InvokeRetryWithInitialInterval(d time.Duration) InvocationRetryPolicyOption {
-	return withInitialInterval{d}
-}
-
-type withInitialInterval struct{ d time.Duration }
-
-func (w withInitialInterval) BeforeRetryPolicy(p *InvocationRetryPolicy) { p.InitialInterval = &w.d }
-
-func InvokeRetryWithMaxInterval(d time.Duration) InvocationRetryPolicyOption {
-	return withMaxInterval{d}
-}
-
-type withMaxInterval struct{ d time.Duration }
-
-func (w withMaxInterval) BeforeRetryPolicy(p *InvocationRetryPolicy) { p.MaxInterval = &w.d }
-
-func InvokeRetryWithExponentiationFactor(f float64) InvocationRetryPolicyOption {
-	return withExponentiationFactor{f}
-}
-
-type withExponentiationFactor struct{ f float64 }
-
-func (w withExponentiationFactor) BeforeRetryPolicy(p *InvocationRetryPolicy) {
-	p.ExponentiationFactor = &w.f
-}
-
-func InvokeRetryWithMaxAttempts(n int) InvocationRetryPolicyOption { return withMaxAttempts{n} }
-
-type withMaxAttempts struct{ n int }
-
-func (w withMaxAttempts) BeforeRetryPolicy(p *InvocationRetryPolicy) { p.MaxAttempts = &w.n }
-
-func InvokeRetryWithOnMaxAttempts(v OnMaxAttempts) InvocationRetryPolicyOption {
-	return withOnMaxAttempts{v}
-}
-
-type withOnMaxAttempts struct{ v OnMaxAttempts }
-
-func (w withOnMaxAttempts) BeforeRetryPolicy(p *InvocationRetryPolicy) { p.OnMaxAttempts = &w.v }
-
 // all options interfaces should be re-exported in the top-level options.go
 
 type SleepOptions struct {
@@ -139,7 +98,9 @@ type SetOption interface {
 }
 
 type ClientOptions struct {
-	Codec encoding.Codec
+	InputCodec  encoding.Codec
+	OutputCodec encoding.Codec
+	Scope       string
 }
 
 type ClientOption interface {
@@ -159,7 +120,8 @@ type RequestOption interface {
 
 type IngressRequestOptions struct {
 	RequestOptions
-	Codec encoding.PayloadCodec
+	InputCodec  encoding.Codec
+	OutputCodec encoding.Codec
 }
 
 type IngressRequestOption interface {
@@ -180,7 +142,7 @@ type SendOption interface {
 
 type IngressSendOptions struct {
 	SendOptions
-	Codec encoding.PayloadCodec
+	Codec encoding.Codec
 }
 
 type IngressSendOption interface {
@@ -188,7 +150,7 @@ type IngressSendOption interface {
 }
 
 type IngressInvocationHandleOptions struct {
-	Codec encoding.PayloadCodec
+	Codec encoding.Codec
 }
 
 type IngressInvocationHandleOption interface {
@@ -244,7 +206,8 @@ type AttachOption interface {
 }
 
 type HandlerOptions struct {
-	Codec                 encoding.PayloadCodec
+	InputCodec            encoding.Codec
+	OutputCodec           encoding.Codec
 	Metadata              map[string]string
 	Documentation         string
 	AbortTimeout          *time.Duration
@@ -262,7 +225,7 @@ type HandlerOption interface {
 }
 
 type ServiceDefinitionOptions struct {
-	DefaultCodec          encoding.PayloadCodec
+	DefaultCodec          encoding.Codec
 	Metadata              map[string]string
 	Documentation         string
 	AbortTimeout          *time.Duration
@@ -282,7 +245,7 @@ type ServiceDefinitionOption interface {
 type IngressClientOptions struct {
 	HttpClient *http.Client
 	AuthKey    string
-	Codec      encoding.PayloadCodec
+	Codec      encoding.Codec
 }
 
 type IngressClientOption interface {

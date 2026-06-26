@@ -31,19 +31,15 @@ func (req *ProxyRequest) ToTarget(ctx restate.Context) (restate.Client[[]byte, [
 			req.HandlerName,
 			restate.WithBinary)), nil
 	}
+	clientOpts := []options.ClientOption{restate.WithBinary}
 	if req.Scope != nil {
-		return restate.WithRequestType[[]byte](restate.ScopedService[[]byte](
-			ctx,
-			*req.Scope,
-			req.ServiceName,
-			req.HandlerName,
-			restate.WithBinary)), nil
+		clientOpts = append(clientOpts, restate.WithScope(*req.Scope))
 	}
 	return restate.WithRequestType[[]byte](restate.Service[[]byte](
 		ctx,
 		req.ServiceName,
 		req.HandlerName,
-		restate.WithBinary)), nil
+		clientOpts...)), nil
 }
 
 type ManyCallRequest struct {
@@ -96,7 +92,7 @@ func init() {
 			Handler("manyCalls", restate.NewServiceHandler(
 				// We need to use []int because Golang takes the opinionated choice of treating []byte as Base64
 				func(ctx restate.Context, requests []ManyCallRequest) (restate.Void, error) {
-					var toAwait []restate.Selectable
+					var toAwait []restate.Future
 
 					for _, req := range requests {
 						input := intArrayToByteArray(req.ProxyRequest.Message)

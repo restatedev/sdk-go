@@ -21,8 +21,8 @@ import (
 )
 
 const (
-	RESTATE_ADMIN_ENDPOINT_PORT   = "9070"
-	RESTATE_INGRESS_ENDPOINT_PORT = "8080"
+	RestateAdminEndpointPort   = "9070"
+	RestateIngressEndpointPort = "8080"
 )
 
 type TestEnvironment struct {
@@ -122,8 +122,8 @@ func StartWithOptions(t *testing.T, restateSrv *server.Restate, opts ...TestEnvi
 	}
 
 	// These are overridden, the user cannot effectively set them
-	config.restateEnv["RESTATE_META__REST_ADDRESS"] = "0.0.0.0:" + RESTATE_ADMIN_ENDPOINT_PORT
-	config.restateEnv["RESTATE_WORKER__INGRESS__BIND_ADDRESS"] = "0.0.0.0:" + RESTATE_INGRESS_ENDPOINT_PORT
+	config.restateEnv["RESTATE_META__REST_ADDRESS"] = "0.0.0.0:" + RestateAdminEndpointPort
+	config.restateEnv["RESTATE_WORKER__INGRESS__BIND_ADDRESS"] = "0.0.0.0:" + RestateIngressEndpointPort
 
 	// Start HTTP/2 server for serving the SDK
 	restateHandler, err := restateSrv.Handler()
@@ -145,12 +145,12 @@ func StartWithOptions(t *testing.T, restateSrv *server.Restate, opts ...TestEnvi
 	restateC, err := testcontainers.Run(
 		t.Context(), config.restateImage,
 		testcontainers.WithEnv(config.restateEnv),
-		testcontainers.WithExposedPorts(RESTATE_INGRESS_ENDPOINT_PORT+"/tcp", RESTATE_ADMIN_ENDPOINT_PORT+"/tcp"),
+		testcontainers.WithExposedPorts(RestateIngressEndpointPort+"/tcp", RestateAdminEndpointPort+"/tcp"),
 		testcontainers.WithWaitStrategyAndDeadline(
 			time.Minute,
 			wait.ForAll(
-				wait.ForHTTP("/health").WithPort(RESTATE_ADMIN_ENDPOINT_PORT+"/tcp"),
-				wait.ForHTTP("/restate/health").WithPort(RESTATE_INGRESS_ENDPOINT_PORT+"/tcp"),
+				wait.ForHTTP("/health").WithPort(RestateAdminEndpointPort+"/tcp"),
+				wait.ForHTTP("/restate/health").WithPort(RestateIngressEndpointPort+"/tcp"),
 			),
 		),
 		testcontainers.WithHostPortAccess(sdkPort),
@@ -172,9 +172,9 @@ func StartWithOptions(t *testing.T, restateSrv *server.Restate, opts ...TestEnvi
 		}()
 	}
 
-	adminPort, err := restateC.MappedPort(t.Context(), RESTATE_ADMIN_ENDPOINT_PORT)
+	adminPort, err := restateC.MappedPort(t.Context(), RestateAdminEndpointPort)
 	require.NoError(t, err)
-	ingressPort, err := restateC.MappedPort(t.Context(), RESTATE_INGRESS_ENDPOINT_PORT)
+	ingressPort, err := restateC.MappedPort(t.Context(), RestateIngressEndpointPort)
 	require.NoError(t, err)
 
 	t.Log("Executing registration of port", sdkPort)

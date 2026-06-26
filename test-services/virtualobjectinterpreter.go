@@ -185,11 +185,11 @@ func resolveAwakeableHandler(ctx restate.ObjectSharedContext, req ResolveAwakeab
 }
 
 func awaitAnyCommand(ctx restate.ObjectContext, commands []AwaitableCommand) (string, error) {
-	var selectables []restate.Selectable
+	var Futures []restate.Future
 	for _, cmd := range commands {
-		selectables = append(selectables, cmd.toFuture(ctx))
+		Futures = append(Futures, cmd.toFuture(ctx))
 	}
-	resultFut, err := restate.WaitFirst(ctx, selectables...)
+	resultFut, err := restate.WaitFirst(ctx, Futures...)
 	if err != nil {
 		return "", err
 	}
@@ -197,12 +197,12 @@ func awaitAnyCommand(ctx restate.ObjectContext, commands []AwaitableCommand) (st
 }
 
 func awaitAnySuccessfulCommand(ctx restate.ObjectContext, commands []AwaitableCommand) (string, error) {
-	var selectables []restate.Future
+	var Futures []restate.Future
 	for _, cmd := range commands {
-		selectables = append(selectables, cmd.toFuture(ctx))
+		Futures = append(Futures, cmd.toFuture(ctx))
 	}
 	var lastErr error
-	for fut, err := range restate.Wait(ctx, selectables...) {
+	for fut, err := range restate.Wait(ctx, Futures...) {
 		if err != nil {
 			return "", err
 		}
@@ -264,7 +264,7 @@ func awaitAllCompletedCommand(ctx restate.ObjectContext, commands []AwaitableCom
 	return strings.Join(results, "|"), nil
 }
 
-func awaitableCommandResult(selected restate.Selectable) (string, error) {
+func awaitableCommandResult(selected restate.Future) (string, error) {
 	switch selected := selected.(type) {
 	case restate.AwakeableFuture[string]:
 		res, err := selected.Result()
@@ -283,7 +283,7 @@ func awaitableCommandResult(selected restate.Selectable) (string, error) {
 	}
 }
 
-func awaitableCommandCompletedResult(selected restate.Selectable) string {
+func awaitableCommandCompletedResult(selected restate.Future) string {
 	res, err := awaitableCommandResult(selected)
 	if err != nil {
 		return fmt.Sprintf("err:%s", errMessage(err))
@@ -305,7 +305,7 @@ func awakeableStateKey(awkKey string) string {
 	return fmt.Sprintf("awk-%s", awkKey)
 }
 
-func (cmd AwaitableCommand) toFuture(ctx restate.ObjectContext) restate.Selectable {
+func (cmd AwaitableCommand) toFuture(ctx restate.ObjectContext) restate.Future {
 	switch cmd.Type {
 	case "createAwakeable":
 		awk := restate.Awakeable[string](ctx)

@@ -7,14 +7,14 @@ import (
 
 	"github.com/google/uuid"
 	restate "github.com/restatedev/sdk-go"
-	"github.com/restatedev/sdk-go/mocks"
+	"github.com/restatedev/sdk-go/x/mocks"
 	"github.com/stretchr/testify/assert"
 )
 
 func TestPayment(t *testing.T) {
 	mockCtx := mocks.NewMockContext(t)
 
-	mockCtx.EXPECT().MockRand().UUID().Return(uuid.Max)
+	mockCtx.EXPECT().RandUUID().Return(uuid.Max)
 
 	mockCtx.EXPECT().RunAndExpect(mockCtx, true, nil)
 	mockCtx.EXPECT().Log().Return(slog.Default())

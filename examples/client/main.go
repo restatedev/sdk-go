@@ -83,7 +83,7 @@ func serviceExample() {
 	// When calling a handler from outside of a restate context
 
 	client := restateingress.NewClient("http://localhost:8080",
-		restate.WithAuthKey("authkey"))
+		restateingress.WithAuthKey("authkey"))
 
 	var input MyInput
 	input.Name = "World"
@@ -107,7 +107,7 @@ func serviceSendExample() {
 	// When sending a message to a handler without waiting for a response
 
 	client := restateingress.NewClient("http://localhost:8080",
-		restate.WithAuthKey("authkey"))
+		restateingress.WithAuthKey("authkey"))
 
 	var input MyInput
 	input.Name = "World"
@@ -132,7 +132,7 @@ func objectExample() {
 	// When calling an object handler from outside of a restate context
 
 	client := restateingress.NewClient("http://localhost:8080",
-		restate.WithAuthKey("authkey"))
+		restateingress.WithAuthKey("authkey"))
 
 	var input MyInput
 	input.Name = "World"
@@ -156,7 +156,7 @@ func objectSendExample() {
 	// When sending a message to an object handler without waiting for a response
 
 	client := restateingress.NewClient("http://localhost:8080",
-		restate.WithAuthKey("authkey"))
+		restateingress.WithAuthKey("authkey"))
 
 	var input MyInput
 	input.Name = "World"
@@ -181,7 +181,7 @@ func workflowExample() {
 	// When calling a workflow from outside of a restate context
 
 	client := restateingress.NewClient("http://localhost:8080",
-		restate.WithAuthKey("authkey"))
+		restateingress.WithAuthKey("authkey"))
 
 	var input MyInput
 	input.Name = "World"
@@ -205,7 +205,7 @@ func workflowSendExample() {
 	// When sending a message to a workflow without waiting for a response
 
 	client := restateingress.NewClient("http://localhost:8080",
-		restate.WithAuthKey("authkey"))
+		restateingress.WithAuthKey("authkey"))
 
 	var input MyInput
 	input.Name = "World"
@@ -235,7 +235,7 @@ func attachInvocationExample() {
 
 	// Blocking until invocation returns output
 	client := restateingress.NewClient("http://localhost:8080",
-		restate.WithAuthKey("authkey"))
+		restateingress.WithAuthKey("authkey"))
 
 	invocationId := "some-invocation-id"
 
@@ -269,13 +269,13 @@ func attachServiceExample() {
 
 	// Blocking until service invocation returns output
 	client := restateingress.NewClient("http://localhost:8080",
-		restate.WithAuthKey("authkey"))
+		restateingress.WithAuthKey("authkey"))
 
 	serviceName := "ServiceName"
 	handlerName := "handlerName"
 	idempotencyKey := "idem-key-1"
 
-	output, err := restateingress.AttachService[*MyOutput](
+	output, err := restateingress.ServiceInvocationByIdempotencyKey[*MyOutput](
 		client, serviceName, handlerName, idempotencyKey).
 		Attach(context.Background())
 
@@ -305,7 +305,7 @@ func attachObjectExample() {
 
 	// Blocking until object invocation returns output
 	client := restateingress.NewClient("http://localhost:8080",
-		restate.WithAuthKey("authkey"))
+		restateingress.WithAuthKey("authkey"))
 
 	serviceName := "ServiceName"
 	objectKey := "objectKey"
@@ -342,7 +342,7 @@ func attachWorkflowExample() {
 
 	// Blocking until workflow returns output
 	client := restateingress.NewClient("http://localhost:8080",
-		restate.WithAuthKey("authkey"))
+		restateingress.WithAuthKey("authkey"))
 
 	serviceName := "ServiceName"
 	workflowId := "workflowId"
@@ -375,7 +375,7 @@ func otelExample() {
 	client := restateingress.NewClient("http://localhost:8080",
 		// Provide an HTTP client wrapped using the otel transport.
 		// The otel transport makes sure spans get propagated correctly.
-		restate.WithHttpClient(&http.Client{Transport: otelhttp.NewTransport(http.DefaultTransport)}))
+		restateingress.WithHttpClient(&http.Client{Transport: otelhttp.NewTransport(http.DefaultTransport)}))
 
 	var input MyInput
 	input.Name = "World"

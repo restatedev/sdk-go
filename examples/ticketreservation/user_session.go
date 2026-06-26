@@ -84,9 +84,9 @@ func (u *userSession) Checkout(ctx restate.ObjectContext, _ restate.Void) (bool,
 		RequestFuture(PaymentRequest{UserID: userId, Tickets: tickets})
 
 	// race between the request and the timeout
-	resultFut, err := restate.WaitFirst(ctx, timeout, request)
-	if err != nil {
-		return false, err
+	resultFut, cancelErr := restate.WaitFirst(ctx, timeout, request)
+	if cancelErr != nil {
+		return false, cancelErr
 	}
 	switch resultFut {
 	case request:

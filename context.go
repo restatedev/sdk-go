@@ -48,6 +48,11 @@ type WorkflowContext interface {
 	runWorkflow()
 }
 
+// Key retrieves the key for this virtual object invocation or this workflow invocation.
+func Key(ctx ObjectSharedContext) string {
+	return ctx.inner().Key()
+}
+
 // WrapContext wraps the provided Restate context with a context.Context,
 // making sure all Context.Values from the wrappedCtx are accessible from the Restate context.
 func WrapContext[T Context](restateCtx T, wrappedCtx context.Context) T {
@@ -59,4 +64,14 @@ func WrapContext[T Context](restateCtx T, wrappedCtx context.Context) T {
 // WithValue is like context.WithValue, but wrapping the restate context
 func WithValue[T Context](restateCtx T, key, val any) T {
 	return WrapContext(restateCtx, context.WithValue(restateCtx, key, val))
+}
+
+// MockableContext is the context interface that test mocks implement. To be used with
+// *MockContext from the github.com/restatedev/sdk-go/x/mocks module.
+type MockableContext = restatecontext.Context
+
+// WithMockContext wraps a [MockableContext]. To be used with *MockContext from the
+// github.com/restatedev/sdk-go/x/mocks module.
+func WithMockContext(ctx MockableContext) ctxWrapper {
+	return ctxWrapper{ctx}
 }

@@ -4,7 +4,7 @@ import (
 	"testing"
 
 	"github.com/restatedev/sdk-go/encoding/internal/protojsonschema"
-	helloworld "github.com/restatedev/sdk-go/examples/codegen/proto"
+	testproto "github.com/restatedev/sdk-go/encoding/internal/protojsonschema/internal/testproto"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/anypb"
@@ -25,13 +25,13 @@ type testCase struct {
 var testCases = []testCase{
 	{
 		desc:   "HelloRequest",
-		msg:    &helloworld.HelloRequest{},
-		schema: `{"$schema":"https://json-schema.org/draft/2020-12/schema","$id":"https://github.com/restatedev/sdk-go/examples/codegen/proto/helloworld.-hello-request","$defs":{"helloworld.HelloRequest":{"$ref":"#"}},"properties":{"name":{"type":"string"}},"additionalProperties":false,"type":"object"}`,
+		msg:    &testproto.HelloRequest{},
+		schema: `{"$schema":"https://json-schema.org/draft/2020-12/schema","$id":"https://github.com/restatedev/sdk-go/encoding/internal/protojsonschema/internal/testproto/protojsonschematest.-hello-request","$defs":{"protojsonschematest.HelloRequest":{"$ref":"#"}},"properties":{"name":{"type":"string"}},"additionalProperties":false,"type":"object"}`,
 	},
 	{
 		desc:   "Test",
-		msg:    &helloworld.Test{},
-		schema: `{"$schema":"https://json-schema.org/draft/2020-12/schema","$id":"https://github.com/restatedev/sdk-go/examples/codegen/proto/helloworld.-test","$defs":{"helloworld.StatusResponse":{"properties":{"status":{"type":"string"}},"additionalProperties":false,"type":"object"},"helloworld.Test":{"$ref":"#"}},"properties":{"inner":{"$ref":"#/$defs/helloworld.Test"},"primitive":{"type":"string"},"anotherInner":{"$ref":"#/$defs/helloworld.StatusResponse"}},"additionalProperties":false,"type":"object"}`,
+		msg:    &testproto.Test{},
+		schema: `{"$schema":"https://json-schema.org/draft/2020-12/schema","$id":"https://github.com/restatedev/sdk-go/encoding/internal/protojsonschema/internal/testproto/protojsonschematest.-test","$defs":{"protojsonschematest.StatusResponse":{"properties":{"status":{"type":"string"}},"additionalProperties":false,"type":"object"},"protojsonschematest.Test":{"$ref":"#"}},"properties":{"inner":{"$ref":"#/$defs/protojsonschematest.Test"},"primitive":{"type":"string"},"anotherInner":{"$ref":"#/$defs/protojsonschematest.StatusResponse"}},"additionalProperties":false,"type":"object"}`,
 	},
 	{
 		desc:   "google.protobuf.Duration",

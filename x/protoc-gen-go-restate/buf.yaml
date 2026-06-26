@@ -1,0 +1,12 @@
+version: v2
+modules:
+  - path: proto
+    name: buf.build/restatedev/sdk-go
+deps:
+  - buf.build/protocolbuffers/wellknowntypes:v29.3
+lint:
+  use:
+    - DEFAULT
+breaking:
+  use:
+    - FILE

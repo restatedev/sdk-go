@@ -1,8 +1,6 @@
 package restatecontext
 
 import (
-	"fmt"
-
 	"github.com/restatedev/sdk-go/internal/errors"
 )
 
@@ -13,15 +11,15 @@ type WaitIterator interface {
 	Next() bool
 
 	// Err returns an error if the waiter was canceled using Restate's cancellation feature.
-	Err() error
+	Err() errors.TerminalError
 
 	// Value returns the current value of this iterator, or nil if the iterator returned Next previously.
 	// Panics if called before the first Next
-	Value() Selectable
+	Value() Future
 }
 
-func (restateCtx *ctx) WaitIter(futs ...Selectable) WaitIterator {
-	indexedFuts := make(map[uint32]Selectable, len(futs))
+func (restateCtx *ctx) WaitIter(futs ...Future) WaitIterator {
+	indexedFuts := make(map[uint32]Future, len(futs))
 	for i := range futs {
 		handle := futs[i].handle()
 		indexedFuts[handle] = futs[i]
@@ -35,8 +33,8 @@ func (restateCtx *ctx) WaitIter(futs ...Selectable) WaitIterator {
 
 type waitIterator struct {
 	restateCtx    *ctx
-	indexedFuts   map[uint32]Selectable
-	lastCompleted Selectable
+	indexedFuts   map[uint32]Future
+	lastCompleted Future
 	cancelled     bool
 }
 
@@ -76,14 +74,14 @@ func (s *waitIterator) Next() bool {
 	panic("Unexpectedly none of the remaining handles completed, this looks like a bug")
 }
 
-func (s *waitIterator) Err() error {
+func (s *waitIterator) Err() errors.TerminalError {
 	if s.cancelled {
-		return &errors.CodeError{Inner: &errors.TerminalError{Inner: fmt.Errorf("cancelled")}, Code: errors.Code(409)}
+		return errors.NewTerminalError("cancelled", errors.WithCode(409))
 	}
 	return nil
 }
 
-func (s *waitIterator) Value() Selectable {
+func (s *waitIterator) Value() Future {
 	if !s.cancelled && s.lastCompleted == nil {
 		panic("Unexpected call to Value() before first call to Next()")
 	}

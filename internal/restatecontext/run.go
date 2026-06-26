@@ -14,7 +14,7 @@ import (
 	"github.com/restatedev/sdk-go/internal/statemachine"
 )
 
-func (restateCtx *ctx) Run(fn func(ctx RunContext) (any, error), output any, opts ...options.RunOption) error {
+func (restateCtx *ctx) Run(fn func(ctx RunContext) (any, error), output any, opts ...options.RunOption) errors.TerminalError {
 	return restateCtx.RunAsync(fn, opts...).Result(output)
 }
 
@@ -81,10 +81,16 @@ func (restateCtx *ctx) runAsync(goCtx context.Context, fn func(ctx RunContext) (
 				// Terminal error
 				proposal.SetTerminalFailure(newFailureFromError(err))
 			} else if err != nil {
-				// Retryable error
+				// Retryable error: any non-terminal error retries. If the user returned a
+				// RetryableError, carry its code and message; otherwise default to 500.
 				failure := pbinternal.FailureWithStacktrace{}
-				failure.SetCode(uint32(errors.ErrorCode(err)))
-				failure.SetMessage(err.Error())
+				if re := errors.AsRetryableError(err); re != nil {
+					failure.SetCode(uint32(re.Code()))
+					failure.SetMessage(re.Message())
+				} else {
+					failure.SetCode(uint32(500))
+					failure.SetMessage(err.Error())
+				}
 				proposal.SetRetryableFailure(&failure)
 			} else {
 				// Success
@@ -130,8 +136,8 @@ func runWrapPanic(fn func(ctx RunContext) (any, error)) func(ctx RunContext) (an
 }
 
 type RunAsyncFuture interface {
-	Selectable
-	Result(output any) error
+	Future
+	Result(output any) errors.TerminalError
 }
 
 type runAsyncFuture struct {
@@ -139,7 +145,7 @@ type runAsyncFuture struct {
 	codec encoding.Codec
 }
 
-func (d *runAsyncFuture) Result(output any) error {
+func (d *runAsyncFuture) Result(output any) errors.TerminalError {
 	switch result := d.pollProgressAndLoadValue().(type) {
 	case statemachine.ValueSuccess:
 		{

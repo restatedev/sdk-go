@@ -27,7 +27,7 @@ type SimpleSendResponse interface {
 // If you need to later retrieve the output, use InvocationById with the Id() from SimpleSendResponse,
 // or use Service/Object/Workflow functions instead which return SendResponse[O] with an InvocationHandle.
 type SendRequester[I any] interface {
-	Send(ctx context.Context, input I, options ...options.IngressSendOption) (SimpleSendResponse, error)
+	Send(ctx context.Context, input I, options ...SendOption) (SimpleSendResponse, error)
 }
 
 // ServiceSend gets a send-only ingress client for a Restate service handler.
@@ -40,21 +40,10 @@ type SendRequester[I any] interface {
 //	requester := ingress.ServiceSend[*MyInput](client, "MyService", "myHandler")
 //	response, err := requester.Send(ctx, &MyInput{...})
 //	fmt.Println("Invocation ID:", response.Id())
-func ServiceSend[I any](c *Client, serviceName, handlerName string) SendRequester[I] {
+func ServiceSend[I any](c *Client, serviceName, handlerName string, opts ...options.ClientOption) SendRequester[I] {
 	return sendRequester[I]{
 		client: c,
-		params: ingress.IngressParams{
-			Service: serviceName,
-			Handler: handlerName,
-		},
-	}
-}
-
-// ScopedServiceSend gets a send-only ingress client for a Restate service handler within the given scope.
-func ScopedServiceSend[I any](c *Client, scope, serviceName, handlerName string) SendRequester[I] {
-	return sendRequester[I]{
-		client: c,
-		scope:  scope,
+		scope:  clientScope(opts),
 		params: ingress.IngressParams{
 			Service: serviceName,
 			Handler: handlerName,
@@ -72,9 +61,10 @@ func ScopedServiceSend[I any](c *Client, scope, serviceName, handlerName string)
 //	requester := ingress.ObjectSend[*MyInput](client, "MyObject", "object-123", "myHandler")
 //	response, err := requester.Send(ctx, &MyInput{...})
 //	fmt.Println("Invocation ID:", response.Id())
-func ObjectSend[I any](c *Client, serviceName, objectKey, handlerName string) SendRequester[I] {
+func ObjectSend[I any](c *Client, serviceName, objectKey, handlerName string, opts ...options.ClientOption) SendRequester[I] {
 	return sendRequester[I]{
 		client: c,
+		scope:  clientScope(opts),
 		params: ingress.IngressParams{
 			Service: serviceName,
 			Key:     objectKey,
@@ -93,22 +83,10 @@ func ObjectSend[I any](c *Client, serviceName, objectKey, handlerName string) Se
 //	requester := ingress.WorkflowSend[*MyInput](client, "MyWorkflow", "workflow-123", "myHandler")
 //	response, err := requester.Send(ctx, &MyInput{...})
 //	fmt.Println("Invocation ID:", response.Id())
-func WorkflowSend[I any](c *Client, serviceName, workflowID, handlerName string) SendRequester[I] {
+func WorkflowSend[I any](c *Client, serviceName, workflowID, handlerName string, opts ...options.ClientOption) SendRequester[I] {
 	return sendRequester[I]{
 		client: c,
-		params: ingress.IngressParams{
-			Service: serviceName,
-			Handler: handlerName,
-			Key:     workflowID,
-		},
-	}
-}
-
-// ScopedWorkflowSend gets a send-only ingress client for a Restate workflow handler within the given scope.
-func ScopedWorkflowSend[I any](c *Client, scope, serviceName, workflowID, handlerName string) SendRequester[I] {
-	return sendRequester[I]{
-		client: c,
-		scope:  scope,
+		scope:  clientScope(opts),
 		params: ingress.IngressParams{
 			Service: serviceName,
 			Handler: handlerName,
@@ -120,7 +98,7 @@ func ScopedWorkflowSend[I any](c *Client, scope, serviceName, workflowID, handle
 type sendRequester[I any] struct {
 	client *Client
 	params ingress.IngressParams
-	codec  encoding.PayloadCodec
+	codec  encoding.Codec
 	scope  string
 }
 
@@ -137,7 +115,7 @@ func (s simpleSendResponse) Status() string {
 }
 
 // Send calls the ingress API with the given input and returns an Invocation instance.
-func (c sendRequester[I]) Send(ctx context.Context, input I, opts ...options.IngressSendOption) (SimpleSendResponse, error) {
+func (c sendRequester[I]) Send(ctx context.Context, input I, opts ...SendOption) (SimpleSendResponse, error) {
 	sendOpts := options.IngressSendOptions{}
 	sendOpts.Codec = c.codec
 	sendOpts.Scope = c.scope

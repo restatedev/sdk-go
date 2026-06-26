@@ -11,21 +11,21 @@ import (
 )
 
 var CancelledFailureValue = func() statemachine.Value {
-	failure := pbinternal.Failure{}
+	failure := pbinternal.TerminalFailure{}
 	failure.SetCode(409)
 	failure.SetMessage("Cancelled")
 	return statemachine.ValueFailure{Failure: &failure}
 }()
 
-func errorFromFailure(failure statemachine.ValueFailure) error {
-	return &errors.CodeError{
-		Inner:    &errors.TerminalError{Inner: fmt.Errorf("%s", failure.Failure.GetMessage())},
-		Code:     errors.Code(failure.Failure.GetCode()),
-		Metadata: metadataFromHeaders(failure.Failure.GetMetadata()),
-	}
+func errorFromFailure(failure statemachine.ValueFailure) errors.TerminalError {
+	return errors.NewTerminalError(
+		failure.Failure.GetMessage(),
+		errors.WithCode(errors.Code(failure.Failure.GetCode())),
+		errors.WithMetadata(metadataFromHeaders(failure.Failure.GetMetadata())),
+	)
 }
 
-type Selectable interface {
+type Future interface {
 	handle() uint32
 }
 

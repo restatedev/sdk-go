@@ -246,16 +246,16 @@ func (h *reflectHandler) GetOptions() *options.HandlerOptions {
 
 func (h *reflectHandler) InputPayload() *encoding.InputPayload {
 	if h.input == nil {
-		return encoding.InputPayloadFor(h.options.Codec, Void{})
+		return encoding.InputPayloadFor(h.options.InputCodec, Void{})
 	}
-	return encoding.InputPayloadFor(h.options.Codec, reflect.Zero(h.input).Interface())
+	return encoding.InputPayloadFor(h.options.InputCodec, reflect.Zero(h.input).Interface())
 }
 
 func (h *reflectHandler) OutputPayload() *encoding.OutputPayload {
 	if h.output == nil {
-		return encoding.OutputPayloadFor(h.options.Codec, Void{})
+		return encoding.OutputPayloadFor(h.options.OutputCodec, Void{})
 	}
-	return encoding.OutputPayloadFor(h.options.Codec, reflect.Zero(h.output).Interface())
+	return encoding.OutputPayloadFor(h.options.OutputCodec, reflect.Zero(h.output).Interface())
 }
 
 func (h *reflectHandler) HandlerType() *internal.ServiceHandlerType {
@@ -268,8 +268,8 @@ func (h *reflectHandler) Call(ctx restatecontext.Context, bytes []byte) ([]byte,
 	if h.input != nil {
 		input := reflect.New(h.input)
 
-		if err := encoding.Unmarshal(h.options.Codec, bytes, input.Interface()); err != nil {
-			return nil, TerminalError(fmt.Errorf("request could not be decoded into handler input type: %w", err), http.StatusBadRequest)
+		if err := encoding.Unmarshal(h.options.InputCodec, bytes, input.Interface()); err != nil {
+			return nil, ToTerminalError(fmt.Errorf("request could not be decoded into handler input type: %v", err), WithErrorCode(http.StatusBadRequest))
 		}
 
 		args = []reflect.Value{h.receiver, reflect.ValueOf(ctxWrapper{ctx}), input.Elem()}
@@ -303,7 +303,7 @@ func (h *reflectHandler) Call(ctx restatecontext.Context, bytes []byte) ([]byte,
 		outI = output[0].Interface()
 	}
 
-	bytes, err := encoding.Marshal(h.options.Codec, outI)
+	bytes, err := encoding.Marshal(h.options.OutputCodec, outI)
 	if err != nil {
 		// we don't use a terminal error here as this is hot-fixable by changing the return type
 		return nil, fmt.Errorf("failed to serialize output: %w", err)

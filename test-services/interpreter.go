@@ -92,7 +92,7 @@ func interpret(ctx restate.ObjectContext, layer uint32, value Program) error {
 				return err
 			}
 			if response != expected {
-				return restate.TerminalError(fmt.Errorf("Expected %s but got %s", expected, response))
+				return restate.ToTerminalError(fmt.Errorf("Expected %s but got %s", expected, response))
 			}
 			break
 		case IncrementViaDelayedCall:
@@ -114,7 +114,7 @@ func interpret(ctx restate.ObjectContext, layer uint32, value Program) error {
 				return err
 			}
 			if response != expected {
-				return restate.TerminalError(fmt.Errorf("Expected %s but got %s", expected, response))
+				return restate.ToTerminalError(fmt.Errorf("Expected %s but got %s", expected, response))
 			}
 			break
 		case SideEffect:
@@ -124,7 +124,7 @@ func interpret(ctx restate.ObjectContext, layer uint32, value Program) error {
 				return err
 			}
 			if response != expected {
-				return restate.TerminalError(fmt.Errorf("Expected %s but got %s", expected, response))
+				return restate.ToTerminalError(fmt.Errorf("Expected %s but got %s", expected, response))
 			}
 			break
 		case SlowSideEffect:
@@ -141,7 +141,7 @@ func interpret(ctx restate.ObjectContext, layer uint32, value Program) error {
 			_, err := restate.Service[string](ctx, "ServiceInterpreterHelper", "terminalFailure").
 				Request(restate.Void{})
 			if err == nil {
-				return restate.TerminalError(fmt.Errorf("Test assertion failed, was expected to get a terminal error."))
+				return restate.ToTerminalError(fmt.Errorf("Test assertion failed, was expected to get a terminal error."))
 			}
 			break
 		case ThrowingSideEffect:
@@ -167,7 +167,7 @@ func interpret(ctx restate.ObjectContext, layer uint32, value Program) error {
 				return err
 			}
 			if response != expected {
-				return restate.TerminalError(fmt.Errorf("Expected %s but got %s", expected, response))
+				return restate.ToTerminalError(fmt.Errorf("Expected %s but got %s", expected, response))
 			}
 			break
 		case RejectAwakeable:
@@ -175,7 +175,7 @@ func interpret(ctx restate.ObjectContext, layer uint32, value Program) error {
 			restate.Service[any](ctx, "ServiceInterpreterHelper", "rejectAwakeable").Send(awakeable.Id())
 			_, err := awakeable.Result()
 			if err == nil {
-				return restate.TerminalError(fmt.Errorf("Test assertion failed, was expected to get a terminal error."))
+				return restate.ToTerminalError(fmt.Errorf("Test assertion failed, was expected to get a terminal error."))
 			}
 			break
 		case IncrementStateCounterViaAwakeable:

@@ -17,9 +17,9 @@ import (
 // containing an InvocationHandle to retrieve the result later.
 type Requester[I any, O any] interface {
 	// Request makes a synchronous invocation and blocks until the result is available.
-	Request(ctx context.Context, input I, options ...options.IngressRequestOption) (O, error)
+	Request(ctx context.Context, input I, options ...RequestOption) (O, error)
 	// Send makes an asynchronous invocation and returns immediately with a handle to retrieve the result later.
-	Send(ctx context.Context, input I, options ...options.IngressSendOption) (SendResponse[O], error)
+	Send(ctx context.Context, input I, options ...SendOption) (SendResponse[O], error)
 }
 
 // SendResponse is returned by Requester.Send and combines both SimpleSendResponse (for invocation metadata)
@@ -42,21 +42,10 @@ type SendResponse[O any] interface {
 //	output, err := requester.Request(ctx, &MyInput{...})
 //	// Send request:
 //	response, err := requester.Send(ctx, &MyInput{...})
-func Service[I any, O any](c *Client, serviceName, handlerName string) Requester[I, O] {
+func Service[I any, O any](c *Client, serviceName, handlerName string, opts ...options.ClientOption) Requester[I, O] {
 	return requester[I, O]{
 		client: c,
-		params: ingress.IngressParams{
-			Service: serviceName,
-			Handler: handlerName,
-		},
-	}
-}
-
-// ScopedService gets an ingress client for a Restate service handler within the given scope.
-func ScopedService[I any, O any](c *Client, scope, serviceName, handlerName string) Requester[I, O] {
-	return requester[I, O]{
-		client: c,
-		scope:  scope,
+		scope:  clientScope(opts),
 		params: ingress.IngressParams{
 			Service: serviceName,
 			Handler: handlerName,
@@ -74,9 +63,10 @@ func ScopedService[I any, O any](c *Client, scope, serviceName, handlerName stri
 //	output, err := requester.Request(ctx, &MyInput{...})
 //	// Send request:
 //	response, err := requester.Send(ctx, &MyInput{...})
-func Object[I any, O any](c *Client, serviceName, objectKey, handlerName string) Requester[I, O] {
+func Object[I any, O any](c *Client, serviceName, objectKey, handlerName string, opts ...options.ClientOption) Requester[I, O] {
 	return requester[I, O]{
 		client: c,
+		scope:  clientScope(opts),
 		params: ingress.IngressParams{
 			Service: serviceName,
 			Key:     objectKey,
@@ -95,9 +85,10 @@ func Object[I any, O any](c *Client, serviceName, objectKey, handlerName string)
 //	output, err := requester.Request(ctx, &MyInput{...})
 //	// Send request:
 //	response, err := requester.Send(ctx, &MyInput{...})
-func Workflow[I any, O any](c *Client, serviceName, workflowID, handlerName string) Requester[I, O] {
+func Workflow[I any, O any](c *Client, serviceName, workflowID, handlerName string, opts ...options.ClientOption) Requester[I, O] {
 	return requester[I, O]{
 		client: c,
+		scope:  clientScope(opts),
 		params: ingress.IngressParams{
 			Service: serviceName,
 			Handler: handlerName,
@@ -106,27 +97,24 @@ func Workflow[I any, O any](c *Client, serviceName, workflowID, handlerName stri
 	}
 }
 
-// ScopedWorkflow gets an ingress client for a Restate workflow handler within the given scope.
-func ScopedWorkflow[I any, O any](c *Client, scope, serviceName, workflowID, handlerName string) Requester[I, O] {
-	return requester[I, O]{
-		client: c,
-		scope:  scope,
-		params: ingress.IngressParams{
-			Service: serviceName,
-			Handler: handlerName,
-			Key:     workflowID,
-		},
+// clientScope resolves the scope from the given client options, returning the
+// empty string (unscoped) if none was provided.
+func clientScope(opts []options.ClientOption) string {
+	o := options.ClientOptions{}
+	for _, opt := range opts {
+		opt.BeforeClient(&o)
 	}
+	return o.Scope
 }
 
 type requester[I any, O any] struct {
 	client *Client
 	params ingress.IngressParams
-	codec  encoding.PayloadCodec
+	codec  encoding.Codec
 	scope  string
 }
 
-func NewRequester[I any, O any](c *Client, serviceName, handlerName string, key *string, codec *encoding.PayloadCodec) Requester[I, O] {
+func NewRequester[I any, O any](c *Client, serviceName, handlerName string, key *string, codec *encoding.Codec) Requester[I, O] {
 	req := requester[I, O]{
 		client: c,
 		params: ingress.IngressParams{
@@ -144,9 +132,10 @@ func NewRequester[I any, O any](c *Client, serviceName, handlerName string, key 
 }
 
 // Request calls the ingress API with the given input and returns the result.
-func (c requester[I, O]) Request(ctx context.Context, input I, opts ...options.IngressRequestOption) (O, error) {
+func (c requester[I, O]) Request(ctx context.Context, input I, opts ...RequestOption) (O, error) {
 	reqOpts := options.IngressRequestOptions{}
-	reqOpts.Codec = c.codec
+	reqOpts.InputCodec = c.codec
+	reqOpts.OutputCodec = c.codec
 	reqOpts.Scope = c.scope
 	for _, opt := range opts {
 		opt.BeforeIngressRequest(&reqOpts)
@@ -174,7 +163,7 @@ func (s *sendResponse[O]) Status() string {
 }
 
 // Send calls the ingress API with the given input and returns an Invocation instance.
-func (c requester[I, O]) Send(ctx context.Context, input I, opts ...options.IngressSendOption) (SendResponse[O], error) {
+func (c requester[I, O]) Send(ctx context.Context, input I, opts ...SendOption) (SendResponse[O], error) {
 	sendOpts := options.IngressSendOptions{}
 	sendOpts.Codec = c.codec
 	sendOpts.Scope = c.scope
@@ -189,6 +178,6 @@ func (c requester[I, O]) Send(ctx context.Context, input I, opts ...options.Ingr
 
 	return &sendResponse[O]{
 		invocation:       inv,
-		InvocationHandle: InvocationById[O](c.client, inv.Id, restate.WithPayloadCodec(c.codec)),
+		InvocationHandle: InvocationById[O](c.client, inv.Id, restate.WithCodec(c.codec)),
 	}, nil
 }

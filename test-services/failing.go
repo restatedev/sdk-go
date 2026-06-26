@@ -22,9 +22,9 @@ func init() {
 		restate.NewObject("Failing").
 			Handler("terminallyFailingCall", restate.NewObjectHandler(
 				func(ctx restate.ObjectContext, failure FailureToPropagate) (restate.Void, error) {
-					return restate.Void{}, restate.WithErrorMetadata(
-						restate.TerminalErrorf("%s", failure.ErrorMessage),
-						errorMetadata(failure.Metadata),
+					return restate.Void{}, restate.ToTerminalError(
+						fmt.Errorf("%s", failure.ErrorMessage),
+						restate.WithMetadataMap(errorMetadata(failure.Metadata)),
 					)
 				})).
 			Handler("callTerminallyFailingCall", restate.NewObjectHandler(
@@ -48,9 +48,9 @@ func init() {
 			Handler("terminallyFailingSideEffect", restate.NewObjectHandler(
 				func(ctx restate.ObjectContext, failure FailureToPropagate) (restate.Void, error) {
 					err := restate.RunVoid(ctx, func(ctx restate.RunContext) error {
-						return restate.WithErrorMetadata(
-							restate.TerminalErrorf("%s", failure.ErrorMessage),
-							errorMetadata(failure.Metadata),
+						return restate.ToTerminalError(
+							fmt.Errorf("%s", failure.ErrorMessage),
+							restate.WithMetadataMap(errorMetadata(failure.Metadata)),
 						)
 					})
 					return restate.Void{}, err

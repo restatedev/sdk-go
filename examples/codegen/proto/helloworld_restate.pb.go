@@ -78,7 +78,7 @@ type GreeterServer interface {
 type UnimplementedGreeterServer struct{}
 
 func (UnimplementedGreeterServer) SayHello(ctx sdk_go.Context, req *HelloRequest) (*HelloResponse, error) {
-	return nil, sdk_go.TerminalError(fmt.Errorf("method SayHello not implemented"), 501)
+	return nil, sdk_go.ToTerminalError(fmt.Errorf("method SayHello not implemented"), sdk_go.WithErrorCode(501))
 }
 func (UnimplementedGreeterServer) testEmbeddedByValue() {}
 
@@ -193,10 +193,10 @@ type CounterServer interface {
 type UnimplementedCounterServer struct{}
 
 func (UnimplementedCounterServer) Add(ctx sdk_go.ObjectContext, req *AddRequest) (*GetResponse, error) {
-	return nil, sdk_go.TerminalError(fmt.Errorf("method Add not implemented"), 501)
+	return nil, sdk_go.ToTerminalError(fmt.Errorf("method Add not implemented"), sdk_go.WithErrorCode(501))
 }
 func (UnimplementedCounterServer) Get(ctx sdk_go.ObjectSharedContext, req *GetRequest) (*GetResponse, error) {
-	return nil, sdk_go.TerminalError(fmt.Errorf("method Get not implemented"), 501)
+	return nil, sdk_go.ToTerminalError(fmt.Errorf("method Get not implemented"), sdk_go.WithErrorCode(501))
 }
 func (UnimplementedCounterServer) testEmbeddedByValue() {}
 
@@ -275,7 +275,7 @@ func (c *workflowClient) Status(opts ...sdk_go.ClientOption) sdk_go.Client[*Stat
 // This client is used to call the service from outside of a Restate context.
 type WorkflowIngressClient interface {
 	// Execute the workflow
-	Submit(ctx context.Context, input *RunRequest, opts ...sdk_go.IngressSendOption) (ingress.SendResponse[*RunResponse], error)
+	Submit(ctx context.Context, input *RunRequest, opts ...ingress.SendOption) (ingress.SendResponse[*RunResponse], error)
 	// Handle creates an handle to the submitted workflow, useful to retrieve its output or attach to it
 	Handle() ingress.InvocationHandle[*RunResponse]
 	// Unblock the workflow
@@ -298,7 +298,7 @@ func NewWorkflowIngressClient(client *ingress.Client, workflowID string) Workflo
 	}
 }
 
-func (c *workflowIngressClient) Submit(ctx context.Context, input *RunRequest, opts ...sdk_go.IngressSendOption) (ingress.SendResponse[*RunResponse], error) {
+func (c *workflowIngressClient) Submit(ctx context.Context, input *RunRequest, opts ...ingress.SendOption) (ingress.SendResponse[*RunResponse], error) {
 	codec := encoding.ProtoJSONCodec
 	return ingress.NewRequester[*RunRequest, *RunResponse](c.client, c.serviceName, "Run", &c.workflowID, &codec).Send(ctx, input, opts...)
 }
@@ -337,13 +337,13 @@ type WorkflowServer interface {
 type UnimplementedWorkflowServer struct{}
 
 func (UnimplementedWorkflowServer) Run(ctx sdk_go.WorkflowContext, req *RunRequest) (*RunResponse, error) {
-	return nil, sdk_go.TerminalError(fmt.Errorf("method Run not implemented"), 501)
+	return nil, sdk_go.ToTerminalError(fmt.Errorf("method Run not implemented"), sdk_go.WithErrorCode(501))
 }
 func (UnimplementedWorkflowServer) Finish(ctx sdk_go.WorkflowSharedContext, req *FinishRequest) (*FinishResponse, error) {
-	return nil, sdk_go.TerminalError(fmt.Errorf("method Finish not implemented"), 501)
+	return nil, sdk_go.ToTerminalError(fmt.Errorf("method Finish not implemented"), sdk_go.WithErrorCode(501))
 }
 func (UnimplementedWorkflowServer) Status(ctx sdk_go.WorkflowSharedContext, req *StatusRequest) (*StatusResponse, error) {
-	return nil, sdk_go.TerminalError(fmt.Errorf("method Status not implemented"), 501)
+	return nil, sdk_go.ToTerminalError(fmt.Errorf("method Status not implemented"), sdk_go.WithErrorCode(501))
 }
 func (UnimplementedWorkflowServer) testEmbeddedByValue() {}
 

@@ -3,22 +3,30 @@ package restatecontext
 import (
 	"github.com/restatedev/sdk-go/internal/errors"
 	pbinternal "github.com/restatedev/sdk-go/internal/generated"
+	"github.com/restatedev/sdk-go/internal/stringmap"
 )
 
-func newFailureFromError(err error) *pbinternal.Failure {
-	failure := pbinternal.Failure{}
-	failure.SetCode(uint32(errors.ErrorCode(err)))
-	failure.SetMessage(err.Error())
-	failure.SetMetadata(metadataToHeaders(errors.ErrorMetadata(err)))
+func newFailureFromError(err error) *pbinternal.TerminalFailure {
+	failure := pbinternal.TerminalFailure{}
+	terminalError := errors.ToTerminalError(err)
+	if terminalError == nil {
+		panic("expecting err to be non-nil")
+	}
+	failure.SetCode(uint32(terminalError.Code()))
+	failure.SetMessage(terminalError.Message())
+	failure.SetMetadata(metadataToHeaders(terminalError.Metadata()))
 	return &failure
 }
 
-func metadataToHeaders(metadata map[string]string) []*pbinternal.Header {
-	if len(metadata) == 0 {
+// metadataToHeaders converts metadata to wire headers. It iterates in the Map's
+// deterministic (key-sorted) order: the ordering must be stable before it reaches the
+// wasm layer.
+func metadataToHeaders(metadata stringmap.Map) []*pbinternal.Header {
+	if metadata == nil {
 		return nil
 	}
-	headers := make([]*pbinternal.Header, 0, len(metadata))
-	for k, v := range metadata {
+	var headers []*pbinternal.Header
+	for k, v := range metadata.Iter() {
 		header := pbinternal.Header{}
 		header.SetKey(k)
 		header.SetValue(v)
