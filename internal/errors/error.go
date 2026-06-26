@@ -3,6 +3,8 @@ package errors
 import (
 	"errors"
 	"fmt"
+
+	"github.com/restatedev/sdk-go/internal/stringmap"
 )
 
 // Code is a numeric status code for an error, typically a HTTP status code.
@@ -20,8 +22,8 @@ type TerminalError interface {
 	Code() Code
 	// Message returns the error message.
 	Message() string
-	// Metadata returns the metadata attached to the error, or nil if none.
-	Metadata() map[string]string
+	// Metadata returns the metadata attached to the error as a read-only view.
+	Metadata() stringmap.Map
 
 	// To seal the interface
 	terminalError()
@@ -35,11 +37,11 @@ type terminalError struct {
 
 var _ TerminalError = (*terminalError)(nil)
 
-func (e *terminalError) Error() string               { return e.message }
-func (e *terminalError) Code() Code                  { return e.code }
-func (e *terminalError) Message() string             { return e.message }
-func (e *terminalError) Metadata() map[string]string { return e.metadata }
-func (e *terminalError) terminalError()              {}
+func (e *terminalError) Error() string           { return e.message }
+func (e *terminalError) Code() Code              { return e.code }
+func (e *terminalError) Message() string         { return e.message }
+func (e *terminalError) Metadata() stringmap.Map { return stringmap.New(e.metadata) }
+func (e *terminalError) terminalError()          {}
 
 // TerminalErrorOption customizes a TerminalError at construction time.
 type TerminalErrorOption func(*terminalError)
@@ -50,8 +52,8 @@ func WithCode(code Code) TerminalErrorOption {
 }
 
 // WithMetadata sets the metadata of a TerminalError.
-func WithMetadata(metadata map[string]string) TerminalErrorOption {
-	return func(e *terminalError) { e.metadata = metadata }
+func WithMetadata(m map[string]string) TerminalErrorOption {
+	return func(e *terminalError) { e.metadata = m }
 }
 
 // NewTerminalError builds a TerminalError with the given message, defaulting the

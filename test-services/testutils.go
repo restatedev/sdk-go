@@ -32,7 +32,7 @@ func init() {
 					return strings.ToUpper(input), nil
 				})).
 			Handler("echoHeaders", restate.NewServiceHandler(
-				func(ctx restate.Context, _ restate.Void) (map[string]string, error) {
+				func(ctx restate.Context, _ restate.Void) (restate.StringMap, error) {
 					return ctx.Request().Headers, nil
 				})).
 			Handler("rawEcho", restate.NewServiceHandler(
