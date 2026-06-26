@@ -5,22 +5,33 @@ import (
 	"github.com/restatedev/sdk-go/internal/options"
 )
 
-// Codec options apply across any operation that performs (de)serialisation.
+// Codec options select how values are (de)serialised. A single [encoding.Codec] now
+// applies everywhere - value operations, handlers, calls, services and ingress - so
+// [WithCodec] works in every position. For handlers and calls (which have both an input
+// and an output) [WithInputCodec] / [WithOutputCodec] override a single direction.
 
 type withCodec struct {
 	codec encoding.Codec
 }
 
-var _ options.GetOption = withCodec{}
-var _ options.SetOption = withCodec{}
-var _ options.RunOption = withCodec{}
-var _ options.AwakeableOption = withCodec{}
-var _ options.SignalOption = withCodec{}
-var _ options.PromiseOption = withCodec{}
-var _ options.ResolveAwakeableOption = withCodec{}
-var _ options.ResolveSignalOption = withCodec{}
-var _ options.ClientOption = withCodec{}
-var _ options.AttachOption = withCodec{}
+var (
+	_ options.GetOption                     = withCodec{}
+	_ options.SetOption                     = withCodec{}
+	_ options.RunOption                     = withCodec{}
+	_ options.AwakeableOption               = withCodec{}
+	_ options.SignalOption                  = withCodec{}
+	_ options.PromiseOption                 = withCodec{}
+	_ options.ResolveAwakeableOption        = withCodec{}
+	_ options.ResolveSignalOption           = withCodec{}
+	_ options.AttachOption                  = withCodec{}
+	_ options.ClientOption                  = withCodec{}
+	_ options.HandlerOption                 = withCodec{}
+	_ options.ServiceDefinitionOption       = withCodec{}
+	_ options.IngressClientOption           = withCodec{}
+	_ options.IngressRequestOption          = withCodec{}
+	_ options.IngressSendOption             = withCodec{}
+	_ options.IngressInvocationHandleOption = withCodec{}
+)
 
 func (w withCodec) BeforeGet(opts *options.GetOptions)             { opts.Codec = w.codec }
 func (w withCodec) BeforeSet(opts *options.SetOptions)             { opts.Codec = w.codec }
@@ -34,65 +45,91 @@ func (w withCodec) BeforeResolveAwakeable(opts *options.ResolveAwakeableOptions)
 func (w withCodec) BeforeResolveSignal(opts *options.ResolveSignalOptions) {
 	opts.Codec = w.codec
 }
-func (w withCodec) BeforeClient(opts *options.ClientOptions) { opts.Codec = w.codec }
 func (w withCodec) BeforeAttach(opts *options.AttachOptions) { opts.Codec = w.codec }
 
-// WithCodec is an option that can be provided to many different functions that perform (de)serialisation
-// in order to specify a custom codec with which to (de)serialise instead of the default of JSON.
+// On clients and handlers, WithCodec sets both directions.
+func (w withCodec) BeforeClient(opts *options.ClientOptions) {
+	opts.InputCodec = w.codec
+	opts.OutputCodec = w.codec
+}
+func (w withCodec) BeforeHandler(opts *options.HandlerOptions) {
+	opts.InputCodec = w.codec
+	opts.OutputCodec = w.codec
+}
+func (w withCodec) BeforeServiceDefinition(opts *options.ServiceDefinitionOptions) {
+	opts.DefaultCodec = w.codec
+}
+func (w withCodec) BeforeIngress(opts *options.IngressClientOptions) { opts.Codec = w.codec }
+func (w withCodec) BeforeIngressRequest(opts *options.IngressRequestOptions) {
+	opts.InputCodec = w.codec
+	opts.OutputCodec = w.codec
+}
+func (w withCodec) BeforeIngressSend(opts *options.IngressSendOptions) { opts.Codec = w.codec }
+func (w withCodec) BeforeIngressInvocationHandle(opts *options.IngressInvocationHandleOptions) {
+	opts.Codec = w.codec
+}
+
+// WithCodec sets the [encoding.Codec] used to (de)serialise values. It applies to any
+// operation that (de)serialises; on handlers and calls it sets both the input and output
+// codec (override one with [WithInputCodec] / [WithOutputCodec]).
 //
-// See also [WithProto], [WithBinary], [WithJSON].
+// See also [WithProto], [WithBinary], [WithJSON], [WithProtoJSON].
 func WithCodec(codec encoding.Codec) withCodec {
 	return withCodec{codec}
 }
 
-type withPayloadCodec struct {
-	withCodec
-	codec encoding.PayloadCodec
+type withInputCodec struct {
+	codec encoding.Codec
 }
 
-var _ options.HandlerOption = withPayloadCodec{}
-var _ options.ServiceDefinitionOption = withPayloadCodec{}
-var _ options.IngressClientOption = withPayloadCodec{}
-var _ options.IngressRequestOption = withPayloadCodec{}
-var _ options.IngressSendOption = withPayloadCodec{}
-var _ options.IngressInvocationHandleOption = withPayloadCodec{}
+var (
+	_ options.ClientOption         = withInputCodec{}
+	_ options.HandlerOption        = withInputCodec{}
+	_ options.IngressRequestOption = withInputCodec{}
+)
 
-func (w withPayloadCodec) BeforeHandler(opts *options.HandlerOptions) {
-	opts.Codec = w.codec
-}
-func (w withPayloadCodec) BeforeServiceDefinition(opts *options.ServiceDefinitionOptions) {
-	opts.DefaultCodec = w.codec
-}
-func (w withPayloadCodec) BeforeIngress(opts *options.IngressClientOptions) {
-	opts.Codec = w.codec
-}
-func (w withPayloadCodec) BeforeIngressRequest(opts *options.IngressRequestOptions) {
-	opts.Codec = w.codec
-}
-func (w withPayloadCodec) BeforeIngressSend(opts *options.IngressSendOptions) {
-	opts.Codec = w.codec
-}
-func (w withPayloadCodec) BeforeIngressInvocationHandle(opts *options.IngressInvocationHandleOptions) {
-	opts.Codec = w.codec
+func (w withInputCodec) BeforeClient(opts *options.ClientOptions)   { opts.InputCodec = w.codec }
+func (w withInputCodec) BeforeHandler(opts *options.HandlerOptions) { opts.InputCodec = w.codec }
+func (w withInputCodec) BeforeIngressRequest(opts *options.IngressRequestOptions) {
+	opts.InputCodec = w.codec
 }
 
-// WithPayloadCodec is an option that can be provided to handler/service options
-// in order to specify a custom [encoding.PayloadCodec] with which to (de)serialise and
-// set content-types instead of the default of JSON.
-//
-// See also [WithProto], [WithBinary], [WithJSON].
-func WithPayloadCodec(codec encoding.PayloadCodec) withPayloadCodec {
-	return withPayloadCodec{withCodec{codec}, codec}
+// WithInputCodec sets the [encoding.Codec] used to (de)serialise the input of a handler
+// or call, independently of the output.
+func WithInputCodec(codec encoding.Codec) withInputCodec {
+	return withInputCodec{codec}
+}
+
+type withOutputCodec struct {
+	codec encoding.Codec
+}
+
+var (
+	_ options.ClientOption         = withOutputCodec{}
+	_ options.HandlerOption        = withOutputCodec{}
+	_ options.IngressRequestOption = withOutputCodec{}
+)
+
+func (w withOutputCodec) BeforeClient(opts *options.ClientOptions)   { opts.OutputCodec = w.codec }
+func (w withOutputCodec) BeforeHandler(opts *options.HandlerOptions) { opts.OutputCodec = w.codec }
+func (w withOutputCodec) BeforeIngressRequest(opts *options.IngressRequestOptions) {
+	opts.OutputCodec = w.codec
+}
+
+// WithOutputCodec sets the [encoding.Codec] used to (de)serialise the output of a handler
+// or call, independently of the input.
+func WithOutputCodec(codec encoding.Codec) withOutputCodec {
+	return withOutputCodec{codec}
 }
 
 // WithProto is an option to specify the use of [encoding.ProtoCodec] for (de)serialisation
-var WithProto = WithPayloadCodec(encoding.ProtoCodec)
+var WithProto = WithCodec(encoding.ProtoCodec)
 
 // WithProtoJSON is an option to specify the use of [encoding.ProtoJSONCodec] for (de)serialisation
-var WithProtoJSON = WithPayloadCodec(encoding.ProtoJSONCodec)
+var WithProtoJSON = WithCodec(encoding.ProtoJSONCodec)
 
 // WithBinary is an option to specify the use of [encoding.BinaryCodec] for (de)serialisation
-var WithBinary = WithPayloadCodec(encoding.BinaryCodec)
+var WithBinary = WithCodec(encoding.BinaryCodec)
 
-// WithJSON is an option to specify the use of [encoding.JsonCodec] for (de)serialisation
-var WithJSON = WithPayloadCodec(encoding.JSONCodec)
+// WithJSON is an option to specify the use of [encoding.JSONCodec] for (de)serialisation
+var WithJSON = WithCodec(encoding.JSONCodec)

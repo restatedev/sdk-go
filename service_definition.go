@@ -88,8 +88,11 @@ func NewService(name string, opts ...options.ServiceDefinitionOption) *service {
 
 // Handler registers a new Service handler by name
 func (r *service) Handler(name string, handler restatecontext.Handler) *service {
-	if handler.GetOptions().Codec == nil {
-		handler.GetOptions().Codec = r.options.DefaultCodec
+	if handler.GetOptions().InputCodec == nil {
+		handler.GetOptions().InputCodec = r.options.DefaultCodec
+	}
+	if handler.GetOptions().OutputCodec == nil {
+		handler.GetOptions().OutputCodec = r.options.DefaultCodec
 	}
 	r.handlers[name] = handler
 	return r
@@ -123,8 +126,11 @@ func NewObject(name string, opts ...options.ServiceDefinitionOption) *object {
 
 // Handler registers a new Virtual Object handler by name
 func (r *object) Handler(name string, handler restatecontext.Handler) *object {
-	if handler.GetOptions().Codec == nil {
-		handler.GetOptions().Codec = r.options.DefaultCodec
+	if handler.GetOptions().InputCodec == nil {
+		handler.GetOptions().InputCodec = r.options.DefaultCodec
+	}
+	if handler.GetOptions().OutputCodec == nil {
+		handler.GetOptions().OutputCodec = r.options.DefaultCodec
 	}
 	r.handlers[name] = handler
 	return r
@@ -155,8 +161,11 @@ func NewWorkflow(name string, opts ...options.ServiceDefinitionOption) *workflow
 
 // Handler registers a new Workflow handler by name
 func (r *workflow) Handler(name string, handler restatecontext.Handler) *workflow {
-	if handler.GetOptions().Codec == nil {
-		handler.GetOptions().Codec = r.options.DefaultCodec
+	if handler.GetOptions().InputCodec == nil {
+		handler.GetOptions().InputCodec = r.options.DefaultCodec
+	}
+	if handler.GetOptions().OutputCodec == nil {
+		handler.GetOptions().OutputCodec = r.options.DefaultCodec
 	}
 	r.handlers[name] = handler
 	return r

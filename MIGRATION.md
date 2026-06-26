@@ -140,6 +140,28 @@ The options you pass to ingress requests/sends themselves (`restate.WithHeaders`
 `restate.WithIdempotencyKey`, the codec options, …) are unchanged — they're shared with
 in-process calls and stay in `restate`.
 
+## Codecs
+
+`PayloadCodec` is gone — there is now a single `encoding.Codec` used everywhere, so
+`WithPayloadCodec` is removed: use **`WithCodec`** (it now works for handlers, services,
+ingress and value operations alike). `WithProto`/`WithProtoJSON`/`WithBinary`/`WithJSON`
+are unchanged.
+
+Handlers, in-process calls, and ingress requests can now set the input and output codec
+**independently**:
+```go
+restate.NewServiceHandler(fn, restate.WithInputCodec(c1), restate.WithOutputCodec(c2))
+restate.Service[O](ctx, "svc", "method", restate.WithInputCodec(c1), restate.WithOutputCodec(c2))
+greeter.SayHello().Request(ctx, in, restate.WithInputCodec(c1), restate.WithOutputCodec(c2)) // ingress
+```
+
+Custom codecs: `encoding.Codec` stays just `Marshal`/`Unmarshal`; the per-handler
+`InputPayload`/`OutputPayload` methods are gone. To describe payloads for service
+discovery a codec implements small **optional** interfaces (probed by the SDK):
+`encoding.CodecMetadata` (`ContentType() string` + `JsonSchema(v any) any`),
+`encoding.CodecInputMetadata` (`InputRequired() bool`), and `encoding.CodecOutputMetadata`
+(`SetContentTypeIfEmpty() bool`). Built-in codecs and the emitted manifest are unchanged.
+
 ## Removed deprecations
 
 Symbols deprecated in v0.24.0 are gone. If you built against v0.24.0 with no deprecation

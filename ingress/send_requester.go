@@ -98,7 +98,7 @@ func WorkflowSend[I any](c *Client, serviceName, workflowID, handlerName string,
 type sendRequester[I any] struct {
 	client *Client
 	params ingress.IngressParams
-	codec  encoding.PayloadCodec
+	codec  encoding.Codec
 	scope  string
 }
 

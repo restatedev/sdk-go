@@ -56,8 +56,8 @@ func (c *Client) Request(ctx context.Context, params IngressParams, input, outpu
 		reqOpts.Headers,
 		0,
 		reqOpts.LimitKey,
-		reqOpts.Codec,
-		reqOpts.Codec)
+		reqOpts.InputCodec,
+		reqOpts.OutputCodec)
 }
 
 func (c *Client) Send(ctx context.Context, params IngressParams, input any, sendOpts options.IngressSendOptions) (Invocation, error) {
@@ -85,7 +85,7 @@ func (c *Client) Output(ctx context.Context, params IngressAttachParams, output 
 
 func (c *Client) do(ctx context.Context, httpMethod, path string, requestData any, responseData any, idempotencyKey string, headers map[string]string,
 	delay time.Duration, limitKey string,
-	inputCodec encoding.PayloadCodec, outputCodec encoding.PayloadCodec) error {
+	inputCodec encoding.Codec, outputCodec encoding.Codec) error {
 	// Set input/output codec
 	if inputCodec == nil {
 		inputCodec = c.clientOpts.Codec

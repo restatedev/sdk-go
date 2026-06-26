@@ -98,8 +98,9 @@ type SetOption interface {
 }
 
 type ClientOptions struct {
-	Codec encoding.Codec
-	Scope string
+	InputCodec  encoding.Codec
+	OutputCodec encoding.Codec
+	Scope       string
 }
 
 type ClientOption interface {
@@ -119,7 +120,8 @@ type RequestOption interface {
 
 type IngressRequestOptions struct {
 	RequestOptions
-	Codec encoding.PayloadCodec
+	InputCodec  encoding.Codec
+	OutputCodec encoding.Codec
 }
 
 type IngressRequestOption interface {
@@ -140,7 +142,7 @@ type SendOption interface {
 
 type IngressSendOptions struct {
 	SendOptions
-	Codec encoding.PayloadCodec
+	Codec encoding.Codec
 }
 
 type IngressSendOption interface {
@@ -148,7 +150,7 @@ type IngressSendOption interface {
 }
 
 type IngressInvocationHandleOptions struct {
-	Codec encoding.PayloadCodec
+	Codec encoding.Codec
 }
 
 type IngressInvocationHandleOption interface {
@@ -204,7 +206,8 @@ type AttachOption interface {
 }
 
 type HandlerOptions struct {
-	Codec                 encoding.PayloadCodec
+	InputCodec            encoding.Codec
+	OutputCodec           encoding.Codec
 	Metadata              map[string]string
 	Documentation         string
 	AbortTimeout          *time.Duration
@@ -222,7 +225,7 @@ type HandlerOption interface {
 }
 
 type ServiceDefinitionOptions struct {
-	DefaultCodec          encoding.PayloadCodec
+	DefaultCodec          encoding.Codec
 	Metadata              map[string]string
 	Documentation         string
 	AbortTimeout          *time.Duration
@@ -242,7 +245,7 @@ type ServiceDefinitionOption interface {
 type IngressClientOptions struct {
 	HttpClient *http.Client
 	AuthKey    string
-	Codec      encoding.PayloadCodec
+	Codec      encoding.Codec
 }
 
 type IngressClientOption interface {

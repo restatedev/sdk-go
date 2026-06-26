@@ -110,11 +110,11 @@ func clientScope(opts []options.ClientOption) string {
 type requester[I any, O any] struct {
 	client *Client
 	params ingress.IngressParams
-	codec  encoding.PayloadCodec
+	codec  encoding.Codec
 	scope  string
 }
 
-func NewRequester[I any, O any](c *Client, serviceName, handlerName string, key *string, codec *encoding.PayloadCodec) Requester[I, O] {
+func NewRequester[I any, O any](c *Client, serviceName, handlerName string, key *string, codec *encoding.Codec) Requester[I, O] {
 	req := requester[I, O]{
 		client: c,
 		params: ingress.IngressParams{
@@ -134,7 +134,8 @@ func NewRequester[I any, O any](c *Client, serviceName, handlerName string, key 
 // Request calls the ingress API with the given input and returns the result.
 func (c requester[I, O]) Request(ctx context.Context, input I, opts ...RequestOption) (O, error) {
 	reqOpts := options.IngressRequestOptions{}
-	reqOpts.Codec = c.codec
+	reqOpts.InputCodec = c.codec
+	reqOpts.OutputCodec = c.codec
 	reqOpts.Scope = c.scope
 	for _, opt := range opts {
 		opt.BeforeIngressRequest(&reqOpts)
@@ -177,6 +178,6 @@ func (c requester[I, O]) Send(ctx context.Context, input I, opts ...SendOption) 
 
 	return &sendResponse[O]{
 		invocation:       inv,
-		InvocationHandle: InvocationById[O](c.client, inv.Id, restate.WithPayloadCodec(c.codec)),
+		InvocationHandle: InvocationById[O](c.client, inv.Id, restate.WithCodec(c.codec)),
 	}, nil
 }
