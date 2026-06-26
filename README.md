@@ -77,20 +77,24 @@ use the [ingress SDK](examples/client/main.go).
 
 This library follows [Semantic Versioning](https://semver.org/).
 
-The compatibility with Restate is described in the following table:
+**Upgrading from 0.x?** See the [migration guide](MIGRATION.md).
 
-| Restate Server\sdk-go | < 0.16           | 0.16 - 0.17 | 0.18 - 0.19      | 0.20 - 0.21      |
-|-----------------------|------------------|-------------|------------------|------------------|
-| < 1.3                 | ✅                | ❌           | ❌                | ❌                |
-| 1.3                   | ✅                | ✅           | ✅ <sup>(1)</sup> | ✅ <sup>(2)</sup> |
-| 1.4                   | ✅                | ✅           | ✅                | ✅ <sup>(2)</sup> |
-| 1.5                   | ⚠ <sup>(3)</sup> | ✅           | ✅                | ✅                |
+Compatibility with Restate Server:
 
-<sup>(1)</sup> **Note** `WithAbortTimeout`, `WithEnableLazyState`, `WithIdempotencyRetention`, `WithInactivityTimeout`, `WithIngressPrivate`, `WithJournalRetention` and `WithWorkflowRetention` work only from Restate 1.4 onward. Check the in-code documentation for more details.
+| Restate Server | sdk-go 1.0          |
+|----------------|---------------------|
+| < 1.3          | ❌                   |
+| 1.3            | ✅ <sup>(1)(2)</sup> |
+| 1.4            | ✅ <sup>(2)</sup>    |
+| 1.5            | ✅                   |
+| 1.6            | ✅                   |
+| 1.7            | ✅                   |
 
-<sup>(1)</sup> **Note** `WithInvocationRetryPolicy` works only from Restate 1.5 onward. Check the in-code documentation for more details.
+<sup>(1)</sup> `WithAbortTimeout`, `WithEnableLazyState`, `WithIdempotencyRetention`, `WithInactivityTimeout`, `WithIngressPrivate`, `WithJournalRetention` and `WithWorkflowRetention` require Restate Server >= 1.4. Check the in-code documentation for more details.
 
-<sup>(3)</sup> **Warning** SDK versions < 0.16 are deprecated, and cannot be registered anymore. Check the [Restate 1.5 release notes](https://github.com/restatedev/restate/releases/tag/v1.5.0) for more info.
+<sup>(2)</sup> `WithInvocationRetryPolicy` requires Restate Server >= 1.5. Check the in-code documentation for more details.
+
+Older `0.x` SDK releases are legacy and deprecated; see the [Restate 1.5 release notes](https://github.com/restatedev/restate/releases/tag/v1.5.0) for their compatibility and deprecation details.
 
 ## Contributing
 
