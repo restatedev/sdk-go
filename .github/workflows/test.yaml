@@ -10,20 +10,42 @@ jobs:
     runs-on: warp-ubuntu-latest-x64-4x
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - name: Setup Go
-        uses: actions/setup-go@v4
+        uses: actions/setup-go@v6
         with:
           go-version-file: 'go.mod'
-      - name: Install dependencies
-        run: go get .
-      - name: Vet
-        run: go vet -v ./...
-      - name: Build
-        run: go build -v ./...
-      - name: Test with the Go CLI
-        run: go test -v ./...
+      - name: Vet, build and test every module
+        run: |
+          set -euo pipefail
+          fail=0
+          for mod in $(find . -name go.mod | sort); do
+            dir=$(dirname "$mod")
+            echo "::group::$dir"
+            if ! ( cd "$dir" && go vet ./... && go build -v ./... && go test -short -v ./... ); then
+              echo "::error::module $dir failed"
+              fail=1
+            fi
+            echo "::endgroup::"
+          done
+          exit $fail
+
+  licenses:
+    runs-on: warp-ubuntu-latest-x64-4x
+
+    steps:
+      - uses: actions/checkout@v5
+      - name: Setup Go
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: 'go.mod'
       - name: Check dependency licenses
         run: |
+          set -euo pipefail
           go install github.com/google/go-licenses@v1.6.0
-          go-licenses check ./... --allowed_licenses=Apache-2.0,MIT,BSD-2-Clause,BSD-3-Clause,ISC,0BSD,MPL-2.0
+          for mod in $(find . -name go.mod -not -path './examples/*' -not -path './test-services/*' | sort); do
+            dir=$(dirname "$mod")
+            echo "::group::licenses $dir"
+            ( cd "$dir" && go-licenses check ./... --allowed_licenses=Apache-2.0,MIT,BSD-2-Clause,BSD-3-Clause,ISC,0BSD,MPL-2.0 --ignore github.com/restatedev/sdk-go )
+            echo "::endgroup::"
+          done

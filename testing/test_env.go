@@ -178,17 +178,17 @@ func StartWithOptions(t *testing.T, restateSrv *server.Restate, opts ...TestEnvi
 	require.NoError(t, err)
 
 	t.Log("Executing registration of port", sdkPort)
-	res, err := http.Post(fmt.Sprintf("http://localhost:%d/deployments", adminPort.Int()), "application/json", bytes.NewBufferString(fmt.Sprintf("{\"uri\":\"http://%s:%d\"}", testcontainers.HostInternal, sdkPort)))
+	res, err := http.Post(fmt.Sprintf("http://localhost:%d/deployments", adminPort.Num()), "application/json", bytes.NewBufferString(fmt.Sprintf("{\"uri\":\"http://%s:%d\"}", testcontainers.HostInternal, sdkPort)))
 	require.NoError(t, err)
 	require.Equal(t, http.StatusCreated, res.StatusCode)
 
-	ingressClient := ingress.NewClient(fmt.Sprintf("http://localhost:%d", ingressPort.Int()))
+	ingressClient := ingress.NewClient(fmt.Sprintf("http://localhost:%d", ingressPort.Num()))
 
 	return &TestEnvironment{
 		t:             t,
 		srv:           srv,
-		adminPort:     adminPort.Int(),
-		ingressPort:   ingressPort.Int(),
+		adminPort:     int(adminPort.Num()),
+		ingressPort:   int(ingressPort.Num()),
 		ingressClient: ingressClient,
 	}
 }

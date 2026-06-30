@@ -46,7 +46,7 @@ jobs:
       actions: read
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           repository: restatedev/sdk-go
 
@@ -69,7 +69,7 @@ jobs:
       # We must use download-artifact to get artifacts created during *this* workflow run, ie by workflow call
       - name: Download restate snapshot from in-progress workflow
         if: ${{ inputs.restateCommit != '' && github.event_name != 'workflow_dispatch' }}
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v5
         with:
           name: restate.tar
 
@@ -91,9 +91,9 @@ jobs:
           docker image ls -a
 
       - name: Setup Go
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@v6
         with:
-          go-version: "1.21.x"
+          go-version-file: 'go.mod'
 
       - name: Setup ko
         uses: ko-build/setup-ko@v0.6

@@ -19,14 +19,14 @@ jobs:
     name: "Create test-services Docker Image"
     
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           repository: restatedev/sdk-go
 
       - name: Setup Go
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@v6
         with:
-          go-version: "1.21.x"
+          go-version-file: 'go.mod'
 
       - name: Setup ko
         uses: ko-build/setup-ko@v0.6
@@ -34,7 +34,7 @@ jobs:
           version: v0.16.0
 
       - name: Log into GitHub container registry
-        uses: docker/login-action@v2
+        uses: docker/login-action@v3
         with:
           registry: ${{ env.GHCR_REGISTRY }}
           username: ${{ env.GHCR_REGISTRY_USERNAME }}
