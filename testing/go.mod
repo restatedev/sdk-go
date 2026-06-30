@@ -3,7 +3,7 @@ module github.com/restatedev/sdk-go/testing
 go 1.25.0
 
 require (
-	github.com/restatedev/sdk-go v0.25.1
+	github.com/restatedev/sdk-go v0.25.2
 	github.com/stretchr/testify v1.11.1
 	github.com/testcontainers/testcontainers-go v0.43.0
 )
