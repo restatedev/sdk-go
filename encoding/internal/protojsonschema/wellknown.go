@@ -1,10 +1,25 @@
 package protojsonschema
 
 import (
+	"encoding/json"
+
 	"github.com/invopop/jsonschema"
-	orderedmap "github.com/wk8/go-ordered-map/v2"
 	"google.golang.org/protobuf/reflect/protoreflect"
 )
+
+// mustParseSchema builds a *jsonschema.Schema from a JSON literal, panicking on
+// error. Used for static well-known schemas so we never have to reference the
+// concrete ordered-map type backing jsonschema.Schema.Properties — that type is
+// an implementation detail of invopop/jsonschema and has changed between
+// versions (wk8/go-ordered-map -> pb33f/ordered-map), which would otherwise
+// pin us to a specific fork.
+func mustParseSchema(s string) *jsonschema.Schema {
+	schema := &jsonschema.Schema{}
+	if err := json.Unmarshal([]byte(s), schema); err != nil {
+		panic(err)
+	}
+	return schema
+}
 
 var wellKnownToSchemaFns = map[string]func(protoreflect.Descriptor) *jsonschema.Schema{
 	"google.protobuf.Duration": func(d protoreflect.Descriptor) *jsonschema.Schema {
@@ -27,20 +42,14 @@ var wellKnownToSchemaFns = map[string]func(protoreflect.Descriptor) *jsonschema.
 		}
 	},
 	"google.protobuf.Any": func(d protoreflect.Descriptor) *jsonschema.Schema {
-		return &jsonschema.Schema{
-			Type: "object",
-			Properties: orderedmap.New[string, *jsonschema.Schema](orderedmap.WithInitialData[string, *jsonschema.Schema](
-				orderedmap.Pair[string, *jsonschema.Schema]{
-					Key:   "@type",
-					Value: &jsonschema.Schema{Type: "string"},
-				},
-				orderedmap.Pair[string, *jsonschema.Schema]{
-					Key:   "value",
-					Value: &jsonschema.Schema{Type: "string", Format: "binary"},
-				},
-			)),
-			AdditionalProperties: jsonschema.TrueSchema,
-		}
+		return mustParseSchema(`{
+			"type": "object",
+			"properties": {
+				"@type": {"type": "string"},
+				"value": {"type": "string", "format": "binary"}
+			},
+			"additionalProperties": true
+		}`)
 	},
 	"google.protobuf.FieldMask": func(d protoreflect.Descriptor) *jsonschema.Schema {
 		return &jsonschema.Schema{
