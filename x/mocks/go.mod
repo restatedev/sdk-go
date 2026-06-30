@@ -4,7 +4,7 @@ go 1.25.0
 
 require (
 	github.com/google/uuid v1.6.0
-	github.com/restatedev/sdk-go v0.24.0
+	github.com/restatedev/sdk-go v0.25.0
 	github.com/stretchr/testify v1.11.1
 )
 
