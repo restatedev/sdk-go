@@ -7,8 +7,8 @@ Apply this renames as search-and-replace. The sections below explain the why.
 **Errors**
 - `restate.TerminalError(err)` → `restate.ToTerminalError(err)`
 - `restate.TerminalError(err, code)` → `restate.ToTerminalError(err, restate.WithErrorCode(code))`
-- `restate.WithErrorCode(err, code)` → `restate.ToTerminalError(err, restate.WithErrorCode(code))`
-- `restate.ErrorCode(err)` → `restate.AsTerminalError(err).Code()` (nil-check the result first)
+- `restate.WithErrorCode(err, code)` → `restate.ToTerminalError(err, restate.WithErrorCode(code))` if terminal, otherwise `restate.ToRetryableError(err, restate.WithErrorCode(code))`
+- `restate.ErrorCode(err)` → `restate.AsTerminalError(err).Code()` if terminal, or `restate.AsRetryableError(err).Code()` (nil-check the result first)
 - `Get`/`Keys`/`Sleep`/`Wait`/`WaitFirst` now return `restate.TerminalError` (still an `error`)
 
 **Request headers**
