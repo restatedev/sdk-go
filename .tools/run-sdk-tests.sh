@@ -53,9 +53,12 @@ if [ "$SKIP_BUILD" = false ]; then
   echo "==> Building ${SERVICE_IMAGE} via ko..."
   # ko requires Docker socket; if using podman set DOCKER_HOST to the podman socket:
   #   export DOCKER_HOST=unix:///run/user/$(id -u)/podman/podman.sock
+  # test-services is its own Go module, so ko must run from inside it and build "."
+  # (running from the repo root resolves the import path against the wrong module).
+  pushd "${REPO_ROOT}/test-services" >/dev/null
   KO_DOCKER_REPO="localhost/e2e-go-test-services" \
-    ko build -B -L --tags=local \
-    github.com/restatedev/sdk-go/test-services
+    ko build -B -L --tags=local .
+  popd >/dev/null
 fi
 
 # ---- 2. Download the test suite JAR (cached by version) ----
