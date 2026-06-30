@@ -8,7 +8,7 @@ replace github.com/restatedev/sdk-go/x/mocks => ../../x/mocks
 
 require (
 	github.com/google/uuid v1.6.0
-	github.com/restatedev/sdk-go v0.25.3
+	github.com/restatedev/sdk-go v1.0.0
 	github.com/restatedev/sdk-go/x/mocks v0.0.0-00010101000000-000000000000
 	github.com/stretchr/testify v1.11.1
 )
