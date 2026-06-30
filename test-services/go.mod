@@ -2,7 +2,7 @@ module github.com/restatedev/sdk-go/test-services
 
 go 1.25.0
 
-require github.com/restatedev/sdk-go v0.24.0
+require github.com/restatedev/sdk-go v0.0.0-00010101000000-000000000000
 
 require (
 	github.com/bahlo/generic-list-go v0.2.0 // indirect

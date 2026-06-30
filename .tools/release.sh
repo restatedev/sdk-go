@@ -88,9 +88,28 @@ for m in "${!RELEASE[@]}"; do
 	( cd "$m" && go mod edit -require="github.com/restatedev/sdk-go@$SDK_VERSION" )
 	git diff --quiet -- "$m/go.mod" || { git add "$m/go.mod"; changed=1; }
 done
+
+# Re-tidy the non-published modules - the examples and test-services. They are never
+# tagged and build against the working tree via `replace github.com/restatedev/sdk-go
+# => ../`, so they carry no real SDK version of their own. A floor-free module keeps the
+# zero pseudo-version (v0.0.0-00010101000000-000000000000) and tidy leaves it untouched;
+# one that also pulls in a just-pinned submodule (e.g. ticketreservation depends on
+# x/mocks) inherits that submodule's SDK require as its MVS floor, and tidy raises its
+# require to match. Either way the go.mod stays tidy, so CI's readonly `go build`/`go vet`
+# keep passing - with no version hardcoded here and no churn for the floor-free ones.
+# Runs after the pin loop above so the floor is already in place; the published
+# submodules carry the same replace but are handled there, so skip them here.
+while IFS= read -r gomod; do
+	grep -qE '^replace github\.com/restatedev/sdk-go +=>' "$gomod" || continue
+	d="$(dirname "${gomod#./}")"
+	in_list "$d" "${SUBMODULES[@]}" && continue
+	( cd "$d" && go mod tidy )
+	git diff --quiet -- "$d/go.mod" "$d/go.sum" || { git add "$d/go.mod" "$d/go.sum"; changed=1; }
+done < <(find . -name go.mod)
+
 if [ "$changed" -eq 1 ]; then
 	git commit -m "release $SDK_VERSION" >/dev/null
-	echo "pinned submodules -> sdk-go $SDK_VERSION and committed"
+	echo "pinned submodules and re-tidied examples + test-services for sdk-go $SDK_VERSION, committed"
 fi
 
 for t in "${TAGS[@]}"; do git tag "$t"; echo "tagged $t"; done
