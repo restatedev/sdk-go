@@ -32,6 +32,10 @@ func main() {
 
 	server := server.NewRestate()
 
+	if signingKeys := os.Getenv("E2E_REQUEST_SIGNING"); signingKeys != "" {
+		server = server.WithIdentityV1(strings.Split(signingKeys, ",")...)
+	}
+
 	if services == "*" {
 		REGISTRY.RegisterAll(server)
 	} else {
