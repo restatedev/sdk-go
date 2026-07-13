@@ -8,6 +8,7 @@ Multi-module repo. Each module is published with a Git tag prefixed by its subdi
 | `github.com/restatedev/sdk-go` (main) | `vX.Y.Z` | 1.x |
 | `…/testing` | `testing/vX.Y.Z` | 1.x |
 | `…/x/mocks` | `x/mocks/vX.Y.Z` | 0.x |
+| `…/x/tunnel` | `x/tunnel/vX.Y.Z` | 0.x |
 | `…/x/protoc-gen-go-restate` | `x/protoc-gen-go-restate/vX.Y.Z` | 0.x |
 
 Not published: `examples/*`, `test-services`.
@@ -16,11 +17,12 @@ Not published: `examples/*`, `test-services`.
 
 - The main module is always tagged; **submodules are released only when you pass
   `<submodule>=<version>`** (no lockstep).
-- `testing` and `x/mocks` import the SDK, so their `go.mod` require is pinned to the
-  released SDK version and committed before tagging. `x/protoc-gen-go-restate` has no SDK
-  dep — tag only.
+- `testing`, `x/mocks` and `x/tunnel` import the SDK, so their `go.mod` require is pinned
+  to the released SDK version and committed before tagging. `x/protoc-gen-go-restate` has
+  no SDK dep — tag only.
 - `x/mocks` reaches into `internal/*`: when a release changes those, re-cut `x/mocks`
-  re-pinned to the new SDK.
+  re-pinned to the new SDK. `x/tunnel` depends only on the SDK's public API, so it is not
+  subject to that caveat.
 
 ## Usage
 

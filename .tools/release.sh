@@ -6,6 +6,7 @@
 #   main module    github.com/restatedev/sdk-go                        ->  v1.2.3        (always)
 #   testing        github.com/restatedev/sdk-go/testing                ->  testing/v1.y.z
 #   x/mocks        github.com/restatedev/sdk-go/x/mocks                ->  x/mocks/v0.y.z
+#   x/tunnel       github.com/restatedev/sdk-go/x/tunnel               ->  x/tunnel/v0.y.z
 #   x/protoc...    github.com/restatedev/sdk-go/x/protoc-gen-go-restate -> x/protoc-gen-go-restate/v0.y.z
 #
 # By convention `testing` tracks the stable 1.x line and the experimental `x/*`
@@ -16,21 +17,22 @@
 # A submodule is released only when you pass `<submodule>=<version>`; omit it and
 # it's skipped. So an SDK-only patch is just `release.sh v1.0.1`.
 #
-# Pinning: submodules that import the main module (testing, x/mocks) get their
-# go.mod `require github.com/restatedev/sdk-go` pinned to the released SDK version
-# and committed before tagging (the committed `replace` keeps local dev building
-# against the working tree; consumers ignore it and use the require).
+# Pinning: submodules that import the main module (testing, x/mocks, x/tunnel) get
+# their go.mod `require github.com/restatedev/sdk-go` pinned to the released SDK
+# version and committed before tagging (the committed `replace` keeps local dev
+# building against the working tree; consumers ignore it and use the require).
 # x/protoc-gen-go-restate carries no SDK dependency, so it is only tagged.
 #
 # Heads-up: x/mocks imports the SDK's internal/* packages. When a release changes
 # those internals, cut a fresh x/mocks (bump its 0.x patch) re-pinned to the new
-# SDK, e.g. `release.sh v1.1.0 x/mocks=v0.1.4`.
+# SDK, e.g. `release.sh v1.1.0 x/mocks=v0.1.4`. x/tunnel depends only on the SDK's
+# public API, so it is not subject to that internal-churn caveat.
 #
 # Usage:
 #   .tools/release.sh <sdk-version> [<submodule>=<version> ...] [--push]
 #
 #   .tools/release.sh v1.0.0                                                              # main only
-#   .tools/release.sh v1.0.0 testing=v1.0.0 x/mocks=v0.1.0 x/protoc-gen-go-restate=v0.1.0 # full first release
+#   .tools/release.sh v1.0.0 testing=v1.0.0 x/mocks=v0.1.0 x/tunnel=v0.1.0 x/protoc-gen-go-restate=v0.1.0 # full first release
 #   .tools/release.sh v1.0.1 x/mocks=v0.1.1                                               # SDK patch + re-cut x/mocks (pinned to v1.0.1)
 #   .tools/release.sh v1.0.0 --push                                                       # also push the commit + tags
 #
@@ -44,9 +46,9 @@ cd "$(dirname "$0")/.."
 
 # Submodules, each on its own version line; released only when you pass
 # <submodule>=<version>. The main module is always tagged.
-SUBMODULES=(testing x/mocks x/protoc-gen-go-restate)
+SUBMODULES=(testing x/mocks x/tunnel x/protoc-gen-go-restate)
 # Of those, the ones that import the main module: pin their go.mod require to the SDK version.
-PINNED_SUBMODULES=(testing x/mocks)
+PINNED_SUBMODULES=(testing x/mocks x/tunnel)
 
 die() { echo "error: $*" >&2; exit 1; }
 semver_re='^v[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$'
