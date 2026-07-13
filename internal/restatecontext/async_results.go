@@ -101,6 +101,11 @@ func (restateCtx *ctx) pollProgress(handles []uint32) bool {
 			return false
 		}
 		if _, ok := progressResult.(statemachine.DoProgressWaitingExternalProgress); ok {
+			// Write out awaiting on message
+			if err := takeOutputAndWriteOut(restateCtx, restateCtx.stateMachine, restateCtx.stream); err != nil {
+				panic(err)
+			}
+
 			// Either wait for at least one read or for run proposals
 			select {
 			case readRes, ok := <-restateCtx.readChan:
