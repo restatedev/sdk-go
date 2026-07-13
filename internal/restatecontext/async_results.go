@@ -27,6 +27,7 @@ func errorFromFailure(failure statemachine.ValueFailure) errors.TerminalError {
 
 type Future interface {
 	handle() uint32
+	isResolved() bool
 }
 
 type asyncResult struct {
@@ -45,6 +46,10 @@ func newAsyncResult(ctx *ctx, handle uint32) asyncResult {
 
 func (a *asyncResult) handle() uint32 {
 	return a.coreHandle
+}
+
+func (a *asyncResult) isResolved() bool {
+	return a.result.Load() != nil
 }
 
 func (a *asyncResult) pollProgress() {
