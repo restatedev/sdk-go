@@ -98,6 +98,12 @@ func (c *connection) serveForwarded(w http.ResponseWriter, r *http.Request) {
 		r.URL = u
 	}
 
+	// Restate Cloud cancels the request stream as normal teardown once it has the
+	// full response; translate that CANCEL into EOF so the SDK doesn't log it.
+	if r.Body != nil {
+		r.Body = cancelAsEOFBody{r.Body}
+	}
+
 	c.sdkHandler.ServeHTTP(w, r)
 }
 
