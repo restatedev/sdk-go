@@ -7,7 +7,7 @@ replace github.com/restatedev/sdk-go => ../../
 replace github.com/restatedev/sdk-go/x/tunnel => ../../x/tunnel
 
 require (
-	github.com/restatedev/sdk-go v1.0.1
+	github.com/restatedev/sdk-go v1.0.2
 	github.com/restatedev/sdk-go/x/tunnel v0.0.0-00010101000000-000000000000
 )
 
