@@ -62,8 +62,12 @@ func (c *stream) Read(data []byte) (int, error) {
 func (c *stream) Drain() error {
 	defer c.r.Close()
 
-	ch := make(chan error)
+	// Buffered so the drain goroutine never strands if we return on timeout below.
+	ch := make(chan error, 1)
 	go func(errCh chan<- error) {
+		// Take rLock so draining does not race with an in-flight Read on c.r.
+		c.rLock.Lock()
+		defer c.rLock.Unlock()
 		_, err := io.Copy(io.Discard, c.r)
 		errCh <- err
 	}(ch)
