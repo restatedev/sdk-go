@@ -45,137 +45,101 @@ var (
 	authTokenRe     = regexp.MustCompile(`^[\x21-\x7e]+$`)
 )
 
-// resolvedConfig is the validated, defaults-applied form of Config.
-type resolvedConfig struct {
-	region     string
-	serversSRV string
-	servers    []target
+// resolveConfig applies environment fallback and defaults to the raw option
+// inputs, validates them, and returns the ready-to-use config (with the derived
+// serverTargets / maxConcurrentStreams filled in). It operates on a copy, so the
+// caller's config is left untouched.
+func resolveConfig(c config) (config, error) {
+	// Env fallback for unset options.
+	c.environmentID = orEnv(c.environmentID, envEnvironmentID)
+	c.signingPublicKey = orEnv(c.signingPublicKey, envSigningPublicKey)
+	c.tunnelName = orEnv(c.tunnelName, envTunnelName)
+	c.authToken = strings.TrimSpace(orEnv(c.authToken, envAuthToken))
+	c.authTokenFile = orEnv(c.authTokenFile, envAuthTokenFile)
+	c.workerID = orEnv(c.workerID, envWorkerID)
 
-	environmentID    string
-	authToken        string
-	authTokenFile    string
-	signingPublicKey string
-	tunnelName       string
-	workerID         string
-
-	tlsConfig *tls.Config
-	logger    *slog.Logger
-
-	connectTimeout       time.Duration
-	handshakeTimeout     time.Duration
-	reconnectInitial     time.Duration
-	reconnectMax         time.Duration
-	drainGrace           time.Duration
-	pingInterval         time.Duration
-	pingTimeout          time.Duration
-	resolveInterval      time.Duration
-	maxConcurrentStreams uint32
-}
-
-func resolveConfig(cfg config) (resolvedConfig, error) {
-	// Env fallback for unset options. Discovery (region/serversSRV) falls back to
-	// the env only when no discovery source was set explicitly (see below).
-	region := cfg.region
-	serversSRV := cfg.serversSRV
-	environmentID := orEnv(cfg.environmentID, envEnvironmentID)
-	signingPublicKey := orEnv(cfg.signingPublicKey, envSigningPublicKey)
-	tunnelName := orEnv(cfg.tunnelName, envTunnelName)
-	authToken := strings.TrimSpace(orEnv(cfg.authToken, envAuthToken))
-	authTokenFile := orEnv(cfg.authTokenFile, envAuthTokenFile)
-	workerID := orEnv(cfg.workerID, envWorkerID)
-
-	rc := resolvedConfig{
-		environmentID:        environmentID,
-		authToken:            authToken,
-		authTokenFile:        authTokenFile,
-		signingPublicKey:     signingPublicKey,
-		tunnelName:           tunnelName,
-		workerID:             workerID,
-		tlsConfig:            cfg.tlsConfig,
-		logger:               cfg.logger,
-		connectTimeout:       orDur(cfg.connectTimeout, defaultConnectTimeout),
-		handshakeTimeout:     orDur(cfg.handshakeTimeout, defaultHandshakeTimeout),
-		reconnectInitial:     orDur(cfg.reconnectInitial, defaultReconnectInitial),
-		reconnectMax:         orDur(cfg.reconnectMax, defaultReconnectMax),
-		drainGrace:           orDur(cfg.drainGrace, defaultDrainGrace),
-		pingInterval:         orDur(cfg.pingInterval, defaultPingInterval),
-		pingTimeout:          orDur(cfg.pingTimeout, defaultPingTimeout),
-		resolveInterval:      orDur(cfg.resolveInterval, defaultResolveInterval),
-		maxConcurrentStreams: defaultMaxConcurrentStream,
+	// Defaults.
+	c.connectTimeout = orDur(c.connectTimeout, defaultConnectTimeout)
+	c.handshakeTimeout = orDur(c.handshakeTimeout, defaultHandshakeTimeout)
+	c.reconnectInitial = orDur(c.reconnectInitial, defaultReconnectInitial)
+	c.reconnectMax = orDur(c.reconnectMax, defaultReconnectMax)
+	c.drainGrace = orDur(c.drainGrace, defaultDrainGrace)
+	c.pingInterval = orDur(c.pingInterval, defaultPingInterval)
+	c.pingTimeout = orDur(c.pingTimeout, defaultPingTimeout)
+	c.resolveInterval = orDur(c.resolveInterval, defaultResolveInterval)
+	c.maxConcurrentStreams = defaultMaxConcurrentStream
+	if c.tlsConfig == nil {
+		c.tlsConfig = &tls.Config{}
 	}
-	if rc.tlsConfig == nil {
-		rc.tlsConfig = &tls.Config{}
+	if c.logger == nil {
+		c.logger = slog.Default()
 	}
-	if rc.logger == nil {
-		rc.logger = slog.Default()
-	}
-	if rc.workerID == "" {
-		rc.workerID = defaultWorkerID()
+	if c.workerID == "" {
+		c.workerID = defaultWorkerID()
 	}
 
 	// Discovery: exactly one of servers, serversSRV, or region. When none is set
 	// explicitly, fall back to the environment (SRV first, then region).
 	explicit := 0
-	if len(cfg.servers) > 0 {
+	if len(c.servers) > 0 {
 		explicit++
 	}
-	if serversSRV != "" {
+	if c.serversSRV != "" {
 		explicit++
 	}
-	if region != "" {
+	if c.region != "" {
 		explicit++
 	}
 	if explicit > 1 {
-		return resolvedConfig{}, fmt.Errorf("tunnel: set exactly one discovery source (WithServers, WithServersSRV, or WithRegion)")
+		return config{}, fmt.Errorf("tunnel: set exactly one discovery source (WithServers, WithServersSRV, or WithRegion)")
 	}
 	if explicit == 0 {
-		if serversSRV = strings.TrimSpace(os.Getenv(envServersSRV)); serversSRV == "" {
-			region = strings.TrimSpace(os.Getenv(envCloudRegion))
+		if c.serversSRV = strings.TrimSpace(os.Getenv(envServersSRV)); c.serversSRV == "" {
+			c.region = strings.TrimSpace(os.Getenv(envCloudRegion))
 		}
-		if serversSRV == "" && region == "" {
-			return resolvedConfig{}, fmt.Errorf("tunnel: set a discovery source: WithRegion (or %s), WithServersSRV (or %s), or WithServers", envCloudRegion, envServersSRV)
+		if c.serversSRV == "" && c.region == "" {
+			return config{}, fmt.Errorf("tunnel: set a discovery source: WithRegion (or %s), WithServersSRV (or %s), or WithServers", envCloudRegion, envServersSRV)
 		}
 	}
-	rc.region = region
-	rc.serversSRV = serversSRV
-	if region != "" && !regionRe.MatchString(region) {
-		return resolvedConfig{}, fmt.Errorf("tunnel: invalid region %q", region)
+	if c.region != "" && !regionRe.MatchString(c.region) {
+		return config{}, fmt.Errorf("tunnel: invalid region %q", c.region)
 	}
-	for _, s := range cfg.servers {
+	c.serverTargets = nil
+	for _, s := range c.servers {
 		t, err := parseServer(s)
 		if err != nil {
-			return resolvedConfig{}, err
+			return config{}, err
 		}
-		rc.servers = append(rc.servers, t)
+		c.serverTargets = append(c.serverTargets, t)
 	}
 
 	// Credentials / identity.
-	if environmentID == "" {
-		return resolvedConfig{}, fmt.Errorf("tunnel: environment id is required (WithEnvironment or %s)", envEnvironmentID)
+	if c.environmentID == "" {
+		return config{}, fmt.Errorf("tunnel: environment id is required (WithEnvironment or %s)", envEnvironmentID)
 	}
-	if !environmentIDRe.MatchString(environmentID) {
-		return resolvedConfig{}, fmt.Errorf("tunnel: environment id %q must match ^env_", environmentID)
+	if !environmentIDRe.MatchString(c.environmentID) {
+		return config{}, fmt.Errorf("tunnel: environment id %q must match ^env_", c.environmentID)
 	}
-	if signingPublicKey == "" {
-		return resolvedConfig{}, fmt.Errorf("tunnel: signing public key is required (WithEnvironment or %s)", envSigningPublicKey)
+	if c.signingPublicKey == "" {
+		return config{}, fmt.Errorf("tunnel: signing public key is required (WithEnvironment or %s)", envSigningPublicKey)
 	}
-	if !strings.HasPrefix(signingPublicKey, "publickeyv1_") {
-		return resolvedConfig{}, fmt.Errorf("tunnel: signing public key must start with 'publickeyv1_'")
+	if !strings.HasPrefix(c.signingPublicKey, "publickeyv1_") {
+		return config{}, fmt.Errorf("tunnel: signing public key must start with 'publickeyv1_'")
 	}
-	if tunnelName == "" {
-		return resolvedConfig{}, fmt.Errorf("tunnel: tunnel name is required (WithTunnelName or %s)", envTunnelName)
+	if c.tunnelName == "" {
+		return config{}, fmt.Errorf("tunnel: tunnel name is required (WithTunnelName or %s)", envTunnelName)
 	}
-	if !tunnelNameRe.MatchString(tunnelName) {
-		return resolvedConfig{}, fmt.Errorf("tunnel: invalid tunnel name %q", tunnelName)
+	if !tunnelNameRe.MatchString(c.tunnelName) {
+		return config{}, fmt.Errorf("tunnel: invalid tunnel name %q", c.tunnelName)
 	}
-	if authToken == "" && authTokenFile == "" {
-		return resolvedConfig{}, fmt.Errorf("tunnel: set WithAuthToken (or %s) or WithAuthTokenFile (or %s)", envAuthToken, envAuthTokenFile)
+	if c.authToken == "" && c.authTokenFile == "" {
+		return config{}, fmt.Errorf("tunnel: set WithAuthToken (or %s) or WithAuthTokenFile (or %s)", envAuthToken, envAuthTokenFile)
 	}
-	if authToken != "" && !authTokenRe.MatchString(authToken) {
-		return resolvedConfig{}, fmt.Errorf("tunnel: AuthToken contains characters that aren't valid in an HTTP header")
+	if c.authToken != "" && !authTokenRe.MatchString(c.authToken) {
+		return config{}, fmt.Errorf("tunnel: auth token contains characters that aren't valid in an HTTP header")
 	}
 
-	return rc, nil
+	return c, nil
 }
 
 func orEnv(v, env string) string {

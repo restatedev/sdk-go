@@ -33,7 +33,7 @@ var errClosed = errors.New("tunnel: closed before ready")
 // outcome on ANY slot (bad credentials/name — shared across slots) stops the
 // whole tunnel.
 type manager struct {
-	cfg        resolvedConfig
+	cfg        config
 	sdkHandler http.Handler
 	logger     *slog.Logger
 
@@ -67,7 +67,7 @@ type slot struct {
 	target target
 }
 
-func newManager(ctx context.Context, cfg resolvedConfig, sdkHandler http.Handler) *manager {
+func newManager(ctx context.Context, cfg config, sdkHandler http.Handler) *manager {
 	mctx, cancel := context.WithCancel(ctx)
 	return &manager{
 		cfg:         cfg,
@@ -309,8 +309,8 @@ func (m *manager) removeActive(c *connection) {
 // used verbatim; otherwise the SRV name (given or region-derived) is resolved to
 // one target per resolved IP.
 func (m *manager) resolveTargets() ([]target, error) {
-	if len(m.cfg.servers) > 0 {
-		return m.cfg.servers, nil
+	if len(m.cfg.serverTargets) > 0 {
+		return m.cfg.serverTargets, nil
 	}
 	srvName := m.cfg.serversSRV
 	if srvName == "" {
@@ -324,7 +324,7 @@ func (m *manager) resolveTargets() ([]target, error) {
 // usesSRV reports whether the target set comes from DNS (and must be re-resolved)
 // rather than a fixed, explicit list.
 func (m *manager) usesSRV() bool {
-	return len(m.cfg.servers) == 0
+	return len(m.cfg.serverTargets) == 0
 }
 
 func (m *manager) buildCreds() (handshakeCredentials, error) {

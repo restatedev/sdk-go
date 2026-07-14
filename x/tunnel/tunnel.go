@@ -57,6 +57,10 @@ type config struct {
 	pingInterval     time.Duration
 	pingTimeout      time.Duration
 	resolveInterval  time.Duration
+
+	// Derived by resolveConfig from the raw inputs above.
+	serverTargets        []target
+	maxConcurrentStreams uint32
 }
 
 // Option configures a Tunnel. Pass options to NewTunnel.

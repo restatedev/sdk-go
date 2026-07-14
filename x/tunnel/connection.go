@@ -47,7 +47,7 @@ type connection struct {
 	closeOnce sync.Once
 }
 
-func newConnection(conn net.Conn, creds handshakeCredentials, sdkHandler http.Handler, cfg resolvedConfig) *connection {
+func newConnection(conn net.Conn, creds handshakeCredentials, sdkHandler http.Handler, cfg config) *connection {
 	return &connection{
 		netConn:              conn,
 		creds:                creds,

@@ -343,7 +343,7 @@ func TestResolveConfigTunables(t *testing.T) {
 // TestDrainingRefusesNewStreams checks the connection refuses forwarded streams
 // while draining, with the deselection sentinel.
 func TestDrainingRefusesNewStreams(t *testing.T) {
-	c := newConnection(&memConn{}, handshakeCredentials{}, nil, resolvedConfig{logger: testLogger, drainGrace: time.Second, handshakeTimeout: time.Second})
+	c := newConnection(&memConn{}, handshakeCredentials{}, nil, config{logger: testLogger, drainGrace: time.Second, handshakeTimeout: time.Second})
 	c.mu.Lock()
 	c.draining = true
 	c.mu.Unlock()
