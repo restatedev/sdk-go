@@ -242,10 +242,108 @@ func TestGracefulShutdown(t *testing.T) {
 	require.NoError(t, tun.Shutdown(shutdownCtx))
 }
 
+// TestMultiHoming checks that one connection is opened per resolved server.
+func TestMultiHoming(t *testing.T) {
+	key, err := fakecloud.GenerateIdentityKey()
+	require.NoError(t, err)
+
+	cloud1, err := fakecloud.Start(nil, func(int) map[string]string { return okTrailers("t") })
+	require.NoError(t, err)
+	defer cloud1.Close()
+	cloud2, err := fakecloud.Start(nil, func(int) map[string]string { return okTrailers("t") })
+	require.NoError(t, err)
+	defer cloud2.Close()
+
+	srv := server.NewRestate().Bind(restate.Reflect(Greeter{}))
+	tun, err := NewTunnel(srv,
+		WithServers("http://"+cloud1.Addr, "http://"+cloud2.Addr),
+		WithEnvironment("env_test", key.PublicKey),
+		WithAuthToken("tok"),
+		WithTunnelName("t"),
+		WithLogger(testLogger),
+		WithTimeouts(2*time.Second, 500*time.Millisecond),
+		WithReconnectBackoff(time.Millisecond, 20*time.Millisecond),
+	).Connect(context.Background())
+	require.NoError(t, err)
+	defer tun.Close()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	require.NoError(t, tun.Ready(ctx))
+
+	// One slot per server: both servers get a connection.
+	_, err = cloud1.WaitForConnection(ctx, 0)
+	require.NoError(t, err)
+	_, err = cloud2.WaitForConnection(ctx, 0)
+	require.NoError(t, err)
+}
+
+// TestLivenessPingReconnectsHalfOpen checks the ping watchdog tears down a
+// half-open connection and reconnects.
+func TestLivenessPingReconnectsHalfOpen(t *testing.T) {
+	key, err := fakecloud.GenerateIdentityKey()
+	require.NoError(t, err)
+
+	cloud, err := fakecloud.Start(nil, func(int) map[string]string { return okTrailers("t") })
+	require.NoError(t, err)
+	defer cloud.Close()
+	// The first connection goes silent right after handshaking; its PINGs won't be
+	// acked, so the watchdog must tear it down and reconnect.
+	cloud.SetHalfOpen(func(index int) bool { return index == 0 })
+
+	srv := server.NewRestate().Bind(restate.Reflect(Greeter{}))
+	tun, err := NewTunnel(srv,
+		WithServers("http://"+cloud.Addr),
+		WithEnvironment("env_test", key.PublicKey),
+		WithAuthToken("tok"),
+		WithTunnelName("t"),
+		WithLogger(testLogger),
+		WithTimeouts(2*time.Second, 500*time.Millisecond),
+		WithReconnectBackoff(time.Millisecond, 20*time.Millisecond),
+		WithLivenessPing(100*time.Millisecond, 100*time.Millisecond),
+	).Connect(context.Background())
+	require.NoError(t, err)
+	defer tun.Close()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	require.NoError(t, tun.Ready(ctx))
+
+	// Connection 0 is half-open; the watchdog reconnects to a healthy connection 1.
+	_, err = cloud.WaitForConnection(ctx, 1)
+	require.NoError(t, err)
+}
+
+func TestResolveConfigTunables(t *testing.T) {
+	base := config{
+		region:           "us",
+		environmentID:    "env_x",
+		signingPublicKey: "publickeyv1_x",
+		tunnelName:       "t",
+		authToken:        "tok",
+	}
+
+	rc, err := resolveConfig(base)
+	require.NoError(t, err)
+	require.Equal(t, defaultPingInterval, rc.pingInterval)
+	require.Equal(t, defaultPingTimeout, rc.pingTimeout)
+	require.Equal(t, defaultResolveInterval, rc.resolveInterval)
+
+	over := base
+	over.pingInterval = 5 * time.Second
+	over.pingTimeout = time.Second
+	over.resolveInterval = 10 * time.Second
+	rc, err = resolveConfig(over)
+	require.NoError(t, err)
+	require.Equal(t, 5*time.Second, rc.pingInterval)
+	require.Equal(t, time.Second, rc.pingTimeout)
+	require.Equal(t, 10*time.Second, rc.resolveInterval)
+}
+
 // TestDrainingRefusesNewStreams checks the connection refuses forwarded streams
 // while draining, with the deselection sentinel.
 func TestDrainingRefusesNewStreams(t *testing.T) {
-	c := newConnection(&memConn{}, handshakeCredentials{}, nil, testLogger, time.Second, time.Second)
+	c := newConnection(&memConn{}, handshakeCredentials{}, nil, config{logger: testLogger, drainGrace: time.Second, handshakeTimeout: time.Second})
 	c.mu.Lock()
 	c.draining = true
 	c.mu.Unlock()

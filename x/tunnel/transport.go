@@ -13,21 +13,12 @@ import (
 	"golang.org/x/net/http2"
 )
 
-// target is a resolved tunnel server to dial.
-type target struct {
-	address    string // host:port
-	serverName string // TLS SNI / cert name
-	plaintext  bool   // dial plaintext h2 (dev/self-host); no TLS
-}
-
-func (t target) String() string { return t.address }
-
 // dial opens a connection to the target. For TLS targets it negotiates ALPN h2
 // and requires the server to actually select it — older servers that clear ALPN
 // predate the standard-h2 control traffic and are rejected.
-func dial(d *net.Dialer, t target, tlsConfig *tls.Config, connectTimeout time.Duration) (net.Conn, error) {
+func dial(d *net.Dialer, t target, tlsConfig *tls.Config) (net.Conn, error) {
 	if t.plaintext {
-		conn, err := d.Dial("tcp", t.address)
+		conn, err := d.Dial("tcp", t.key())
 		if err != nil {
 			return nil, err
 		}
@@ -35,11 +26,11 @@ func dial(d *net.Dialer, t target, tlsConfig *tls.Config, connectTimeout time.Du
 	}
 
 	cfg := tlsConfig.Clone()
-	cfg.ServerName = t.serverName
+	cfg.ServerName = t.servername
 	cfg.NextProtos = []string{"h2"}
 
 	td := &tls.Dialer{NetDialer: d, Config: cfg}
-	conn, err := td.Dial("tcp", t.address)
+	conn, err := td.Dial("tcp", t.key())
 	if err != nil {
 		return nil, err
 	}
@@ -54,8 +45,18 @@ func dial(d *net.Dialer, t target, tlsConfig *tls.Config, connectTimeout time.Du
 // serve runs the role-flipped HTTP/2 server over the dialed connection: we dialed
 // out as a client, but Restate Cloud drives the connection as the HTTP/2 client,
 // so we serve. It blocks until the connection is torn down.
-func (c *connection) serve(maxConcurrentStreams uint32) {
-	srv := &http2.Server{MaxConcurrentStreams: maxConcurrentStreams}
+//
+// ReadIdleTimeout + PingTimeout are the server-initiated liveness watchdog: after
+// the connection is read-idle for pingInterval the server sends an HTTP/2 PING,
+// and if it isn't acked within pingTimeout the connection is closed (which makes
+// ServeConn return and the slot reconnect) — the Go-native equivalent of the TS
+// SDK's ping watchdog.
+func (c *connection) serve() {
+	srv := &http2.Server{
+		MaxConcurrentStreams: c.maxConcurrentStreams,
+		ReadIdleTimeout:      c.pingInterval,
+		PingTimeout:          c.pingTimeout,
+	}
 	srv.ServeConn(c.netConn, &http2.ServeConnOpts{Handler: c})
 }
 

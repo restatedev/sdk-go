@@ -30,8 +30,11 @@ type connection struct {
 	sdkHandler http.Handler
 	logger     *slog.Logger
 
-	handshakeTimeout time.Duration
-	drainGrace       time.Duration
+	handshakeTimeout     time.Duration
+	drainGrace           time.Duration
+	pingInterval         time.Duration
+	pingTimeout          time.Duration
+	maxConcurrentStreams uint32
 
 	// outcome is published exactly once, when the handshake resolves.
 	outcomeOnce sync.Once
@@ -44,16 +47,19 @@ type connection struct {
 	closeOnce sync.Once
 }
 
-func newConnection(conn net.Conn, creds handshakeCredentials, sdkHandler http.Handler, logger *slog.Logger, handshakeTimeout, drainGrace time.Duration) *connection {
+func newConnection(conn net.Conn, creds handshakeCredentials, sdkHandler http.Handler, cfg config) *connection {
 	return &connection{
-		netConn:          conn,
-		creds:            creds,
-		sdkHandler:       sdkHandler,
-		logger:           logger,
-		handshakeTimeout: handshakeTimeout,
-		drainGrace:       drainGrace,
-		outcomeCh:        make(chan handshakeOutcome, 1),
-		drainedCh:        make(chan struct{}),
+		netConn:              conn,
+		creds:                creds,
+		sdkHandler:           sdkHandler,
+		logger:               cfg.logger,
+		handshakeTimeout:     cfg.handshakeTimeout,
+		drainGrace:           cfg.drainGrace,
+		pingInterval:         cfg.pingInterval,
+		pingTimeout:          cfg.pingTimeout,
+		maxConcurrentStreams: cfg.maxConcurrentStreams,
+		outcomeCh:            make(chan handshakeOutcome, 1),
+		drainedCh:            make(chan struct{}),
 	}
 }
 

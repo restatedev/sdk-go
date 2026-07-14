@@ -54,6 +54,13 @@ type config struct {
 	reconnectInitial time.Duration
 	reconnectMax     time.Duration
 	drainGrace       time.Duration
+	pingInterval     time.Duration
+	pingTimeout      time.Duration
+	resolveInterval  time.Duration
+
+	// Derived by resolveConfig from the raw inputs above.
+	serverTargets        []target
+	maxConcurrentStreams uint32
 }
 
 // Option configures a Tunnel. Pass options to NewTunnel.
@@ -153,6 +160,24 @@ func WithDrainGrace(d time.Duration) Option {
 	return func(c *config) { c.drainGrace = d }
 }
 
+// WithLivenessPing tunes the server-initiated HTTP/2 keepalive that detects a
+// half-open peer: after the connection has been read-idle for interval the SDK
+// sends a PING, and if it isn't acked within timeout the connection is closed and
+// reconnected. Defaults: 75s interval, 10s timeout. No environment fallback.
+func WithLivenessPing(interval, timeout time.Duration) Option {
+	return func(c *config) {
+		c.pingInterval = interval
+		c.pingTimeout = timeout
+	}
+}
+
+// WithResolveInterval sets how often DNS-SRV discovery re-resolves the tunnel
+// server set to pick up added/removed nodes (one connection is kept per resolved
+// IP). Ignored for explicit servers. Default: 30s. No environment fallback.
+func WithResolveInterval(d time.Duration) Option {
+	return func(c *config) { c.resolveInterval = d }
+}
+
 // Tunnel configures and runs a tunnel for a *server.Restate. Create it with
 // NewTunnel, then call Start (blocking) or Connect (for a handle). Options left
 // unset fall back to the RESTATE_INPROC_* environment variables.
@@ -190,7 +215,7 @@ func (t *Tunnel) Start(ctx context.Context) error {
 		}
 		return err
 	}
-	conn.m.logger.Info("Tunnel connected", "deploymentURL", conn.DeploymentURL())
+	// The deployment URL is logged at INFO by the manager on first connect.
 
 	select {
 	case <-ctx.Done():
