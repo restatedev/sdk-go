@@ -30,9 +30,10 @@ type Cloud struct {
 	tr     *http2.Transport
 	decide DecideFunc
 
-	mu      sync.Mutex
-	conns   []*Conn
-	waiters map[int][]chan *Conn
+	mu       sync.Mutex
+	conns    []*Conn
+	waiters  map[int][]chan *Conn
+	halfOpen func(index int) bool // if set and true, pause the conn after handshake
 }
 
 // Conn is one accepted tunnel connection, exposing the role-flipped h2 client
@@ -41,9 +42,19 @@ type Conn struct {
 	Index int
 	Creds http.Header // the deployment's /_/start-tunnel response headers
 
-	cc  *http2.ClientConn
-	raw net.Conn
-	pw  *io.PipeWriter
+	cc       *http2.ClientConn
+	raw      net.Conn
+	pausable *pausableConn
+	pw       *io.PipeWriter
+}
+
+// SetHalfOpen configures which connections go silent (stop reading, so they never
+// ack the SDK's liveness PINGs) right after a successful handshake — used to test
+// the ping watchdog. Call it before the tunnel connects.
+func (c *Cloud) SetHalfOpen(fn func(index int) bool) {
+	c.mu.Lock()
+	c.halfOpen = fn
+	c.mu.Unlock()
 }
 
 // Start launches a fake cloud on 127.0.0.1. If tlsConf is nil it serves
@@ -80,7 +91,8 @@ func (c *Cloud) acceptLoop() {
 }
 
 func (c *Cloud) handle(raw net.Conn) {
-	cc, err := c.tr.NewClientConn(raw)
+	pc := &pausableConn{Conn: raw}
+	cc, err := c.tr.NewClientConn(pc)
 	if err != nil {
 		_ = raw.Close()
 		return
@@ -88,7 +100,7 @@ func (c *Cloud) handle(raw net.Conn) {
 
 	c.mu.Lock()
 	idx := len(c.conns)
-	conn := &Conn{Index: idx, cc: cc, raw: raw}
+	conn := &Conn{Index: idx, cc: cc, raw: pc, pausable: pc}
 	c.conns = append(c.conns, conn)
 	waiters := c.waiters[idx]
 	delete(c.waiters, idx)
@@ -131,8 +143,19 @@ func (c *Cloud) handshake(conn *Conn) {
 
 	// End the request body, which flushes the trailers, completing the handshake.
 	_ = pw.Close()
+	// Draining the response body waits for the SDK's handshake handler to finish,
+	// i.e. the handshake fully completed and the SDK is now serving.
 	_, _ = io.Copy(io.Discard, resp.Body)
 	_ = resp.Body.Close()
+
+	c.mu.Lock()
+	ho := c.halfOpen
+	c.mu.Unlock()
+	if ho != nil && ho(conn.Index) {
+		// Go silent: stop reading so the SDK's liveness PING is never acked, which
+		// should trip its watchdog and force a reconnect.
+		conn.pausable.pause()
+	}
 }
 
 // Response is a collected response from a forwarded stream.
@@ -226,4 +249,44 @@ func (r *readerNopCloser) Read(p []byte) (int, error) {
 	n := copy(p, r.data[r.off:])
 	r.off += n
 	return n, nil
+}
+
+// pausableConn wraps a net.Conn so its reads can be frozen, simulating a
+// half-open peer: once paused, Read blocks until the connection is closed, so the
+// h2 client never processes (and never acks) inbound frames such as PINGs.
+type pausableConn struct {
+	net.Conn
+	mu     sync.Mutex
+	paused chan struct{}
+}
+
+func (c *pausableConn) pause() {
+	c.mu.Lock()
+	if c.paused == nil {
+		c.paused = make(chan struct{})
+	}
+	c.mu.Unlock()
+}
+
+func (c *pausableConn) Read(p []byte) (int, error) {
+	c.mu.Lock()
+	ch := c.paused
+	c.mu.Unlock()
+	if ch != nil {
+		<-ch // blocked until Close unpauses us
+	}
+	return c.Conn.Read(p)
+}
+
+func (c *pausableConn) Close() error {
+	c.mu.Lock()
+	if c.paused != nil {
+		select {
+		case <-c.paused:
+		default:
+			close(c.paused)
+		}
+	}
+	c.mu.Unlock()
+	return c.Conn.Close()
 }

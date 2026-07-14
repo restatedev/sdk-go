@@ -4,8 +4,6 @@ import (
 	"crypto/tls"
 	"fmt"
 	"log/slog"
-	"net"
-	"net/url"
 	"os"
 	"regexp"
 	"strings"
@@ -28,12 +26,15 @@ const (
 	envHostname         = "HOSTNAME"
 )
 
-// Defaults for the tunable knobs.
+// Defaults for the tunable knobs (mirroring the TS SDK).
 const (
 	defaultConnectTimeout      = 5 * time.Second
 	defaultReconnectInitial    = 10 * time.Millisecond
 	defaultReconnectMax        = 2 * time.Minute
 	defaultDrainGrace          = 2 * time.Minute
+	defaultPingInterval        = 75 * time.Second
+	defaultPingTimeout         = 10 * time.Second
+	defaultResolveInterval     = 30 * time.Second
 	defaultMaxConcurrentStream = 4096
 )
 
@@ -65,6 +66,9 @@ type resolvedConfig struct {
 	reconnectInitial     time.Duration
 	reconnectMax         time.Duration
 	drainGrace           time.Duration
+	pingInterval         time.Duration
+	pingTimeout          time.Duration
+	resolveInterval      time.Duration
 	maxConcurrentStreams uint32
 }
 
@@ -94,6 +98,9 @@ func resolveConfig(cfg config) (resolvedConfig, error) {
 		reconnectInitial:     orDur(cfg.reconnectInitial, defaultReconnectInitial),
 		reconnectMax:         orDur(cfg.reconnectMax, defaultReconnectMax),
 		drainGrace:           orDur(cfg.drainGrace, defaultDrainGrace),
+		pingInterval:         orDur(cfg.pingInterval, defaultPingInterval),
+		pingTimeout:          orDur(cfg.pingTimeout, defaultPingTimeout),
+		resolveInterval:      orDur(cfg.resolveInterval, defaultResolveInterval),
 		maxConcurrentStreams: defaultMaxConcurrentStream,
 	}
 	if rc.tlsConfig == nil {
@@ -169,44 +176,6 @@ func resolveConfig(cfg config) (resolvedConfig, error) {
 	}
 
 	return rc, nil
-}
-
-// parseServer parses an explicit tunnel server address: "host:port" (TLS),
-// "https://host:port" (TLS), or "http://host:port" (plaintext h2, dev/self-host).
-func parseServer(s string) (target, error) {
-	if strings.Contains(s, "://") {
-		u, err := url.Parse(s)
-		if err != nil {
-			return target{}, fmt.Errorf("tunnel: invalid server %q: %w", s, err)
-		}
-		if (u.Path != "" && u.Path != "/") || u.RawQuery != "" {
-			return target{}, fmt.Errorf("tunnel: server %q must not have a path or query", s)
-		}
-		host, port := u.Hostname(), u.Port()
-		if host == "" {
-			return target{}, fmt.Errorf("tunnel: server %q is missing a host", s)
-		}
-		switch u.Scheme {
-		case "http":
-			if port == "" {
-				port = "80"
-			}
-			return target{address: net.JoinHostPort(host, port), serverName: host, plaintext: true}, nil
-		case "https":
-			if port == "" {
-				port = "443"
-			}
-			return target{address: net.JoinHostPort(host, port), serverName: host}, nil
-		default:
-			return target{}, fmt.Errorf("tunnel: server %q has unsupported scheme %q", s, u.Scheme)
-		}
-	}
-
-	host, port, err := net.SplitHostPort(s)
-	if err != nil {
-		return target{}, fmt.Errorf("tunnel: server %q must be host:port: %w", s, err)
-	}
-	return target{address: net.JoinHostPort(host, port), serverName: host}, nil
 }
 
 func orEnv(v, env string) string {

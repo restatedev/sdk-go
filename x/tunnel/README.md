@@ -72,15 +72,23 @@ stream whose `/<scheme>/<host>/<port>` prefix is stripped before the request is
 handed to the reused `server.Restate` handler (which performs discovery, invoke,
 and request-identity verification against `SigningPublicKey`).
 
-## Notes / limitations (this release)
+## Notes
 
+- **Multi-homing.** With `WithRegion`/`WithServersSRV`, the SRV name is resolved
+  to every A/AAAA address and one connection is kept per resolved IP; the set is
+  re-resolved periodically (`WithResolveInterval`, default 30s) and reconciled as
+  DNS changes. Each connection runs its own reconnect loop; a fatal handshake on
+  any of them (shared credentials) stops the whole tunnel.
+- **Liveness.** A server-initiated HTTP/2 PING watchdog detects half-open peers:
+  after a connection is read-idle for the ping interval it sends a PING, and if it
+  isn't acked within the ping timeout the connection is torn down and reconnected
+  (`WithLivenessPing`, defaults 75s/10s).
 - **Trailer handling.** The tunnel server sends the handshake result as
   *unannounced* HTTP/2 request trailers, which Go's `net/http`/`x/net/http2`
   server would otherwise drop. The tunnel transparently injects the required
   `Trailer` announcement into the handshake stream so they are surfaced. See
   `hframe.go`.
-- **Liveness** is currently detected via TCP keep-alive and read errors; there is
-  no SDK-initiated HTTP/2 PING watchdog yet.
-- **Single connection per resolved target** with reconnect + jittered backoff;
-  DNS-SRV multi-homing (one connection per resolved IP) and zero-drop server-drain
-  rollover are not yet implemented.
+- **Not yet implemented:** zero-drop server-drain rollover (on `/_/drain-tunnel`
+  the connection drains in-flight then closes and reconnects, rather than keeping
+  the old connection serving while a replacement is dialed), and granular
+  TLS/mTLS option fields (use `WithTLS(*tls.Config)`).
