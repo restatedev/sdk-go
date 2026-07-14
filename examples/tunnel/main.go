@@ -16,6 +16,7 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
 	restate "github.com/restatedev/sdk-go"
 	"github.com/restatedev/sdk-go/server"
@@ -25,7 +26,25 @@ import (
 type Greeter struct{}
 
 func (Greeter) Greet(ctx restate.Context, name string) (string, error) {
-	return "You said hi to " + name + "!", nil
+	greeting := restate.RunAsync(ctx, func(ctx restate.RunContext) (string, error) {
+		return "You said hi to " + name + "!", nil
+	})
+
+	timeout := restate.After(ctx, 5*time.Second)
+
+	first, err := restate.WaitFirst(ctx, greeting, timeout)
+	if err != nil {
+		return "", err
+	}
+
+	switch first {
+	case greeting:
+		return greeting.Result()
+	case timeout:
+		return "", restate.TerminalErrorf("timed out generating a greeting for %s", name)
+	default:
+		return "", restate.TerminalErrorf("unexpected future")
+	}
 }
 
 func main() {
@@ -38,11 +57,11 @@ func main() {
 	// Any option left unset falls back to the RESTATE_INPROC_* env vars the
 	// operator injects. Start blocks until ctx is cancelled (SIGINT/SIGTERM),
 	// then drains and closes.
-	err := tunnel.NewTunnel(srv).// tunnel.WithRegion("us"),
-	// tunnel.WithEnvironment("env_...", "publickeyv1_..."),
-	// tunnel.WithAuthToken(os.Getenv("RESTATE_AUTH_TOKEN")),
-	// tunnel.WithTunnelName("greeter-v1"),
-	Start(ctx)
+	err := tunnel.NewTunnel(srv). // tunnel.WithRegion("us"),
+		// tunnel.WithEnvironment("env_...", "publickeyv1_..."),
+		// tunnel.WithAuthToken(os.Getenv("RESTATE_AUTH_TOKEN")),
+		// tunnel.WithTunnelName("greeter-v1"),
+		Start(ctx)
 	if err != nil {
 		slog.Error("tunnel exited with error", "err", err.Error())
 		os.Exit(1)
