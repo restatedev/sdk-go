@@ -22,6 +22,12 @@ type mockIngressServer struct {
 	headers map[string]string
 	body    []byte
 	query   map[string]string
+
+	// When errStatus is non-zero the server replies with it (plus errHeaders and errBody)
+	// instead of the default success response, to exercise error handling.
+	errStatus  int
+	errBody    []byte
+	errHeaders map[string]string
 }
 
 func newMockIngressServer() *mockIngressServer {
@@ -44,6 +50,15 @@ func (m *mockIngressServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	m.query = make(map[string]string)
 	for k, v := range r.URL.Query() {
 		m.query[k] = v[0]
+	}
+
+	if m.errStatus != 0 {
+		for k, v := range m.errHeaders {
+			w.Header().Set(k, v)
+		}
+		w.WriteHeader(m.errStatus)
+		w.Write(m.errBody)
+		return
 	}
 
 	if strings.HasSuffix(m.path, "/send") || (strings.HasPrefix(m.path, "/restate/scope/") && strings.Contains(m.path, "/send/")) {

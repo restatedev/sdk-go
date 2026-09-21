@@ -7,16 +7,15 @@ import (
 	"github.com/restatedev/sdk-go/internal/options"
 )
 
-type InvocationNotFoundError = ingress.InvocationNotFoundError
-type InvocationNotReadyError = ingress.InvocationNotReadyError
-
 type InvocationHandle[O any] interface {
-	// Attach calls the attach API and blocks until the output is available. Returns an
-	// InvocationNotFoundError if the invocation does not exist.
+	// Attach calls the attach API and blocks until the output is available. On failure it
+	// returns an [Error]; use errors.As to check for an [InvocationNotFoundError] when the
+	// invocation does not exist.
 	Attach(ctx context.Context) (O, error)
-	// Output calls the attachment API and returns the output if available, otherwise returns an
-	// InvocationNotFoundError if the invocation does not exist or an InvocationNotReadyError if
-	// the invocation is not complete.
+	// Output calls the attachment API and returns the output if available. On failure it
+	// returns an [Error]: use errors.As to check for an [InvocationNotFoundError] when the
+	// invocation does not exist, or an [InvocationNotReadyError] when it has not completed
+	// yet.
 	Output(ctx context.Context) (O, error)
 }
 

@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"time"
@@ -95,7 +96,17 @@ func serviceExample() {
 			restate.WithHeaders(map[string]string{"header-name": "header-value"}))
 
 	if err != nil {
-		fmt.Println("Error:", err)
+		// Inspect the well-defined ingress error.
+		var ingressErr restateingress.Error
+		if errors.As(err, &ingressErr) {
+			fmt.Printf("Ingress error: code=%d message=%q invocation=%t\n",
+				ingressErr.Code(), ingressErr.Message(), ingressErr.IsInvocationError())
+		}
+		// When the handler ran and returned a terminal error, it also satisfies the
+		// SDK terminal-error model, just like inside a handler.
+		if terminalErr := restate.AsTerminalError(err); terminalErr != nil {
+			fmt.Printf("Handler terminally failed with code %d: %s\n", terminalErr.Code(), terminalErr.Message())
+		}
 		return
 	}
 
@@ -256,7 +267,16 @@ func attachInvocationExample() {
 		Output(context.Background())
 
 	if errNonBlocking != nil {
-		fmt.Println("Non-blocking error:", errNonBlocking)
+		var notReady *restateingress.InvocationNotReadyError
+		var notFound *restateingress.InvocationNotFoundError
+		switch {
+		case errors.As(errNonBlocking, &notReady):
+			fmt.Println("Invocation not complete yet, try again later")
+		case errors.As(errNonBlocking, &notFound):
+			fmt.Println("Invocation not found")
+		default:
+			fmt.Println("Non-blocking error:", errNonBlocking)
+		}
 		return
 	}
 

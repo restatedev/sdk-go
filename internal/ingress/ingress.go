@@ -174,15 +174,7 @@ func (c *Client) do(ctx context.Context, httpMethod, path string, requestData an
 				Code:    res.StatusCode,
 			}
 		}
-		switch res.StatusCode {
-		case http.StatusNotFound:
-			return newInvocationNotFoundError(&rerr)
-		case 470:
-			return newInvocationNotReadyError(&rerr)
-		case http.StatusInternalServerError:
-			return newGenericError(&rerr)
-		}
-		return fmt.Errorf("request failed with unexpected status %s: %s", res.Status, bodyStr)
+		return newError(res.StatusCode, res.Header.Get(errorSourceHeader), &rerr)
 	}
 
 	if responseData != nil {
