@@ -34,6 +34,11 @@ var testCases = []testCase{
 		schema: `{"$schema":"https://json-schema.org/draft/2020-12/schema","$id":"https://github.com/restatedev/sdk-go/encoding/internal/protojsonschema/internal/testproto/protojsonschematest.-test","$defs":{"protojsonschematest.StatusResponse":{"properties":{"status":{"type":"string"}},"additionalProperties":false,"type":"object"},"protojsonschematest.Test":{"$ref":"#"}},"properties":{"inner":{"$ref":"#/$defs/protojsonschematest.Test"},"primitive":{"type":"string"},"anotherInner":{"$ref":"#/$defs/protojsonschematest.StatusResponse"}},"additionalProperties":false,"type":"object"}`,
 	},
 	{
+		desc:   "OptionalEnum",
+		msg:    &testproto.OptionalEnum{},
+		schema: `{"$schema":"https://json-schema.org/draft/2020-12/schema","$id":"https://github.com/restatedev/sdk-go/encoding/internal/protojsonschema/internal/testproto/protojsonschematest.-optional-enum","$defs":{"protojsonschematest.OptionalEnum":{"$ref":"#"}},"properties":{"status":{"oneOf":[{"type":"string"},{"type":"integer"}]}},"additionalProperties":false,"type":"object"}`,
+	},
+	{
 		desc:   "google.protobuf.Duration",
 		msg:    &durationpb.Duration{},
 		schema: `{"$schema":"https://json-schema.org/draft/2020-12/schema","$id":"https://google.golang.org/protobuf/types/known/durationpb/google.protobuf.-duration","type":"string","pattern":"^[-\\+]?([0-9]+\\.?[0-9]*|\\.[0-9]+)s$","format":"regex"}`,

@@ -20,3 +20,12 @@ message Test {
   string primitive = 2;
   StatusResponse another_inner = 3;
 }
+
+enum Status {
+  STATUS_UNSPECIFIED = 0;
+  STATUS_ACTIVE = 1;
+}
+
+message OptionalEnum {
+  optional Status status = 1;
+}

@@ -10,10 +10,14 @@ import (
 	"google.golang.org/protobuf/reflect/protoreflect"
 )
 
-var protoMessageType = reflect.TypeOf((*protoreflect.ProtoMessage)(nil)).Elem()
-var protoEnumType = reflect.TypeOf((*protoreflect.Enum)(nil)).Elem()
+var protoMessageType = reflect.TypeFor[protoreflect.ProtoMessage]()
+var protoEnumType = reflect.TypeFor[protoreflect.Enum]()
 
 func descriptor(typ reflect.Type) protoreflect.Descriptor {
+	if typ.Kind() == reflect.Pointer && typ.Elem().Implements(protoEnumType) {
+		typ = typ.Elem()
+	}
+
 	if typ.Implements(protoEnumType) {
 		zero := reflect.Zero(typ).Interface().(protoreflect.Enum)
 		return zero.Descriptor()
