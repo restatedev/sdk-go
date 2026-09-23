@@ -56,7 +56,7 @@ func (c *client) RequestFuture(input any, opts ...options.RequestOption) Respons
 	inputParams.SetHandler(c.method)
 	if o.Headers != nil {
 		var headers []*pbinternal.Header
-		for k, v := range o.Headers {
+		for k, v := range o.Headers.Iter() {
 			h := pbinternal.Header{}
 			h.SetKey(k)
 			h.SetValue(v)
@@ -157,7 +157,7 @@ func (c *client) Send(input any, opts ...options.SendOption) Invocation {
 	inputParams.SetHandler(c.method)
 	if o.Headers != nil {
 		var headers []*pbinternal.Header
-		for k, v := range o.Headers {
+		for k, v := range o.Headers.Iter() {
 			h := pbinternal.Header{}
 			h.SetKey(k)
 			h.SetValue(v)

@@ -6,6 +6,7 @@ import (
 	"github.com/restatedev/sdk-go/internal/genericfutures"
 	"github.com/restatedev/sdk-go/internal/options"
 	"github.com/restatedev/sdk-go/internal/restatecontext"
+	"github.com/restatedev/sdk-go/internal/stringmap"
 )
 
 // ClientOption is an option for a request/send client, applied at construction
@@ -160,7 +161,7 @@ func WithScope(scope string) withScope {
 }
 
 type withHeaders struct {
-	headers map[string]string
+	headers stringmap.Map
 }
 
 var _ options.RequestOption = withHeaders{}
@@ -186,7 +187,7 @@ func (w withHeaders) BeforeIngressSend(opts *options.IngressSendOptions) {
 
 // WithHeaders is an option to specify outgoing headers when making a call
 func WithHeaders(headers map[string]string) withHeaders {
-	return withHeaders{headers}
+	return withHeaders{stringmap.New(headers)}
 }
 
 type withIdempotencyKey struct {

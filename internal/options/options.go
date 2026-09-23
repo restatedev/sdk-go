@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/restatedev/sdk-go/encoding"
+	"github.com/restatedev/sdk-go/internal/stringmap"
 )
 
 // OnMaxAttempts determines behavior when max attempts is reached.
@@ -109,7 +110,7 @@ type ClientOption interface {
 
 type RequestOptions struct {
 	IdempotencyKey string
-	Headers        map[string]string
+	Headers        stringmap.Map
 	Scope          string
 	LimitKey       string
 }
@@ -130,7 +131,7 @@ type IngressRequestOption interface {
 
 type SendOptions struct {
 	IdempotencyKey string
-	Headers        map[string]string
+	Headers        stringmap.Map
 	Delay          time.Duration
 	Scope          string
 	LimitKey       string

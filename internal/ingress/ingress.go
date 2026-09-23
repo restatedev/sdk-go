@@ -14,6 +14,7 @@ import (
 	"github.com/restatedev/sdk-go/encoding"
 
 	"github.com/restatedev/sdk-go/internal/options"
+	"github.com/restatedev/sdk-go/internal/stringmap"
 )
 
 const (
@@ -83,7 +84,7 @@ func (c *Client) Output(ctx context.Context, params IngressAttachParams, output 
 	return c.do(ctx, http.MethodGet, fmt.Sprintf("%s/output", path), restate.Void{}, output, "", nil, 0, "", nil, outputOpts.Codec)
 }
 
-func (c *Client) do(ctx context.Context, httpMethod, path string, requestData any, responseData any, idempotencyKey string, headers map[string]string,
+func (c *Client) do(ctx context.Context, httpMethod, path string, requestData any, responseData any, idempotencyKey string, headers stringmap.Map,
 	delay time.Duration, limitKey string,
 	inputCodec encoding.Codec, outputCodec encoding.Codec) error {
 	// Set input/output codec
@@ -135,7 +136,7 @@ func (c *Client) do(ctx context.Context, httpMethod, path string, requestData an
 		req.Header.Set(limitKeyHeader, limitKey)
 	}
 	if headers != nil {
-		for name, value := range headers {
+		for name, value := range headers.Iter() {
 			req.Header.Set(name, value)
 		}
 	}
