@@ -31,10 +31,9 @@ var modPool sync.Pool
 
 var coreTraceLogging = strings.ToLower(os.Getenv("CORE_TRACE_LOGGING_ENABLED"))
 
-// compileSharedCore builds the wazero runtime and compiles the shared core the first time a core is
-// needed, rather than at package init. Compiling takes hundreds of milliseconds, and every program
-// that links the SDK paid it at start-up, including ones that never run a handler.
-var compileSharedCore = sync.OnceValue(func() error {
+// getSharedCore builds the wazero runtime and compiles the shared core the first time a core is
+// needed, rather than at package init, so programs that never run a handler don't pay for it.
+var getSharedCore = sync.OnceValue(func() error {
 	ctx := context.Background()
 
 	_wazeroRuntime = wazero.NewRuntime(ctx)
@@ -168,7 +167,7 @@ func NewCore(ctx context.Context) (*Core, error) {
 		return pooledInstance.(*Core), nil
 	}
 
-	if err := compileSharedCore(); err != nil {
+	if err := getSharedCore(); err != nil {
 		return nil, err
 	}
 
