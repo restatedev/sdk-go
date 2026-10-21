@@ -31,7 +31,9 @@ var modPool sync.Pool
 
 var coreTraceLogging = strings.ToLower(os.Getenv("CORE_TRACE_LOGGING_ENABLED"))
 
-func init() {
+// getSharedCore builds the wazero runtime and compiles the shared core the first time a core is
+// needed, rather than at package init, so programs that never run a handler don't pay for it.
+var getSharedCore = sync.OnceValue(func() error {
 	ctx := context.Background()
 
 	_wazeroRuntime = wazero.NewRuntime(ctx)
@@ -39,16 +41,15 @@ func init() {
 		NewFunctionBuilder().WithFunc(wasmLogExport).Export("log").
 		Instantiate(ctx)
 	if err != nil {
-		log.Panicln(err)
+		return fmt.Errorf("cannot instantiate the host module: %w", err)
 	}
 
 	_sharedCoreMod, err = _wazeroRuntime.CompileModule(ctx, sharedCore)
 	if err != nil {
-		log.Panicf("Cannot compile shared core WASM module: %s", err)
+		return fmt.Errorf("cannot compile shared core WASM module: %w", err)
 	}
-
-	modPool = sync.Pool{}
-}
+	return nil
+})
 
 // -- Exported logging
 
@@ -164,6 +165,10 @@ func NewCore(ctx context.Context) (*Core, error) {
 	pooledInstance := modPool.Get()
 	if pooledInstance != nil {
 		return pooledInstance.(*Core), nil
+	}
+
+	if err := getSharedCore(); err != nil {
+		return nil, err
 	}
 
 	instance, err := _wazeroRuntime.InstantiateModule(
