@@ -332,6 +332,9 @@ fn vm_do_progress(
                 Ok(AwaitResponse::ExecuteRun(handle)) => {
                     pb::vm_do_progress_return::Result::ExecuteRun(handle.into())
                 }
+                Ok(AwaitResponse::EphemeralNotificationReady(_)) => {
+                    panic!("unexpected ephemeral notification, this is not supported in Python SDK yet.")
+                }
                 Err(e) if e.is_suspended_error() => {
                     pb::vm_do_progress_return::Result::Suspended(Default::default())
                 }
@@ -426,6 +429,7 @@ fn vm_sys_state_get(
     VM::sys_state_get(
         &mut rc_vm.borrow_mut().vm,
         input.key,
+        None,
         payload_options(input.unstable_serialization),
     )
     .into()
@@ -439,7 +443,7 @@ pub unsafe extern "C" fn _sys_vm_state_get_keys(vm_pointer: *const RefCell<WasmV
 }
 
 fn vm_state_get_keys(rc_vm: &Rc<RefCell<WasmVM>>) -> pb::SimpleSysAsyncResultReturn {
-    VM::sys_state_get_keys(&mut rc_vm.borrow_mut().vm).into()
+    VM::sys_state_get_keys(&mut rc_vm.borrow_mut().vm, None).into()
 }
 
 #[export_name = "vm_sys_state_set"]
@@ -462,6 +466,7 @@ fn vm_sys_state_set(
         &mut rc_vm.borrow_mut().vm,
         input.key,
         input.value,
+        None,
         payload_options(input.unstable_serialization),
     )
     .into()
@@ -483,7 +488,7 @@ fn vm_sys_state_clear(
     rc_vm: &Rc<RefCell<WasmVM>>,
     input: pb::VmSysStateClearParameters,
 ) -> pb::GenericEmptyReturn {
-    VM::sys_state_clear(&mut rc_vm.borrow_mut().vm, input.key).into()
+    VM::sys_state_clear(&mut rc_vm.borrow_mut().vm, input.key, None).into()
 }
 
 #[export_name = "vm_sys_state_clear_all"]
@@ -494,7 +499,7 @@ pub unsafe extern "C" fn _vm_sys_state_clear_all(vm_pointer: *const RefCell<Wasm
 }
 
 fn vm_sys_state_clear_all(rc_vm: &Rc<RefCell<WasmVM>>) -> pb::GenericEmptyReturn {
-    VM::sys_state_clear_all(&mut rc_vm.borrow_mut().vm).into()
+    VM::sys_state_clear_all(&mut rc_vm.borrow_mut().vm, None).into()
 }
 
 #[export_name = "vm_sys_sleep"]
