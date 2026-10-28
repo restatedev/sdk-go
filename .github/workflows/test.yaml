@@ -10,9 +10,9 @@ jobs:
     runs-on: warp-ubuntu-latest-x64-4x
 
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v5.1.0
       - name: Setup Go
-        uses: actions/setup-go@v6
+        uses: actions/setup-go@v6.5.0
         with:
           go-version-file: 'go.mod'
       - name: Vet, build and test every module
@@ -34,9 +34,9 @@ jobs:
     runs-on: warp-ubuntu-latest-x64-4x
 
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v5.1.0
       - name: Setup Go
-        uses: actions/setup-go@v6
+        uses: actions/setup-go@v6.5.0
         with:
           go-version-file: 'go.mod'
       - name: Check dependency licenses
