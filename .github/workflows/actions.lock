@@ -17,6 +17,10 @@ workflows:
         - 'docker/setup-docker-action@v4.7.0'
         - 'ko-build/setup-ko@v0.6'
         - 'restatedev/e2e@v2.3'
+    '.github/workflows/pullfrog.yml':
+        - 'actions/checkout@v6.1.0'
+        - 'actions/setup-go@v6.5.0'
+        - 'pullfrog/pullfrog@v0.1.110'
     '.github/workflows/test.yaml':
         - 'actions/checkout@v5.1.0'
         - 'actions/setup-go@v6.5.0'
@@ -26,6 +30,11 @@ dependencies:
     'actions/checkout@v5.1.0':
         ref: 'v5.1.0'
         commit: 'sha1-fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09'
+        owner_id: 44036562
+        repo_id: 197814629
+    'actions/checkout@v6.1.0':
+        ref: 'v6.1.0'
+        commit: 'sha1-d23441a48e516b6c34aea4fa41551a30e30af803'
         owner_id: 44036562
         repo_id: 197814629
     'actions/checkout@v7.0.1':
@@ -78,6 +87,11 @@ dependencies:
         commit: 'sha1-ace48d793556083a76f1e3e6068850c1f4a369aa'
         owner_id: 111438175
         repo_id: 362126375
+    'pullfrog/pullfrog@v0.1.110':
+        ref: 'v0.1.110'
+        commit: 'sha1-895164fc90f5c493e72693c919c6cf269af158eb'
+        owner_id: 223181266
+        repo_id: 1032749534
     'restatedev/e2e@v2.3':
         ref: 'v2.3'
         commit: 'sha1-167318ba8820f18ee74c9358d2d3f0640dbb5149'

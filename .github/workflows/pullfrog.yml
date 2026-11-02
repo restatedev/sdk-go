@@ -1,0 +1,44 @@
+# PULLFROG ACTION — DO NOT EDIT EXCEPT WHERE INDICATED
+name: Pullfrog
+run-name: ${{ inputs.name || github.workflow }}
+on:
+  workflow_dispatch:
+    inputs:
+      prompt:
+        type: string
+        description: Agent prompt
+      name:
+        type: string
+        description: Run name
+
+permissions:
+  contents: read
+
+jobs:
+  pullfrog:
+    runs-on: warp-ubuntu-latest-x64-4x
+    permissions:
+      id-token: write
+      contents: read
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6.1.0
+        with:
+          fetch-depth: 1
+          persist-credentials: false
+
+      # Restate: give the agent a build environment matching CI
+      - name: Setup Go
+        uses: actions/setup-go@v6.5.0
+        with:
+          go-version-file: 'go.mod'
+      - name: Download dependencies
+        run: go mod download
+
+      - name: Run agent
+        uses: pullfrog/pullfrog@v0.1.110
+        with:
+          prompt: ${{ inputs.prompt }}
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
