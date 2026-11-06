@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/url"
 	"sync"
+	"sync/atomic"
 	"time"
 )
 
@@ -39,6 +40,10 @@ type connection struct {
 	// outcome is published exactly once, when the handshake resolves.
 	outcomeOnce sync.Once
 	outcomeCh   chan handshakeOutcome
+	// helloStarted is set once the /_/start-tunnel handler runs: from then on an
+	// outcome is guaranteed (performHandshake is bounded), even if the connection
+	// ends first.
+	helloStarted atomic.Bool
 
 	mu        sync.Mutex
 	draining  bool
@@ -66,6 +71,7 @@ func newConnection(conn net.Conn, creds handshakeCredentials, sdkHandler http.Ha
 func (c *connection) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	switch r.URL.Path {
 	case startTunnelPath:
+		c.helloStarted.Store(true)
 		out := performHandshake(w, r, c.creds, c.handshakeTimeout)
 		c.publishOutcome(out)
 		return

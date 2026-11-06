@@ -4,7 +4,9 @@ import (
 	"context"
 	"io"
 	"log/slog"
+	"net"
 	"net/http"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -319,4 +321,43 @@ func TestLivenessPingReconnectsHalfOpen(t *testing.T) {
 	// Connection 0 is half-open; the watchdog reconnects to a healthy connection 1.
 	_, err = cloud.WaitForConnection(ctx, 1)
 	require.NoError(t, err)
+}
+
+// A tunnel server that closes the connection before sending the HTTP/2 preface
+// (e.g. a full or draining server) fails that attempt and is retried; it must
+// not crash the process.
+func TestServerClosesBeforePreface(t *testing.T) {
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	require.NoError(t, err)
+	defer ln.Close()
+	var accepted atomic.Int32
+	go func() {
+		for {
+			c, err := ln.Accept()
+			if err != nil {
+				return
+			}
+			accepted.Add(1)
+			_ = c.Close()
+		}
+	}()
+
+	key, err := fakecloud.GenerateIdentityKey()
+	require.NoError(t, err)
+	srv := server.NewRestate().Bind(restate.Reflect(Greeter{}))
+	tun, err := tunnel.NewTunnel(handlerOf(srv),
+		tunnel.WithServers("http://"+ln.Addr().String()),
+		tunnel.WithEnvironment("env_test", key.PublicKey),
+		tunnel.WithAuthToken("tok"),
+		tunnel.WithTunnelName("greeter-v1"),
+		tunnel.WithLogger(testLogger),
+		tunnel.WithTimeouts(time.Second, 500*time.Millisecond),
+		tunnel.WithReconnectBackoff(time.Millisecond, 10*time.Millisecond),
+	).Connect(context.Background())
+	require.NoError(t, err)
+	defer tun.Close()
+
+	require.Eventually(t, func() bool { return accepted.Load() >= 3 }, 5*time.Second, 5*time.Millisecond)
+	require.Equal(t, 0, tun.ConnectionCount())
+	require.NoError(t, tun.Err())
 }
