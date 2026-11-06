@@ -300,17 +300,13 @@ func (m *manager) onHandshakeOK(c *connection, t target, info handshakeInfo) {
 	shuttingDown := m.shuttingDown
 	m.mu.Unlock()
 
-	// The first time the tunnel comes up, tell how to register the deployment
-	// (same lines as the TS SDK); later per-slot connections are just DEBUG churn.
-	// Logged before Ready unblocks, so the lines come before anything the caller logs.
-	if !m.markReady(func() {
-		name := m.cfg.tunnelName
-		m.logger.Debug("Deployment URL: " + depURL)
-		m.logger.Info(fmt.Sprintf("Connected as %q", name))
-		m.logger.Info("Register it once:")
-		m.logger.Info("  restate deployments register " + registrationIdentifier(name))
-		m.logger.Info("  or open " + registrationDeepLink(name))
-	}) {
+	// Surface the deployment URL at INFO the first time the tunnel comes up (the
+	// thing you register); later per-slot connections are just DEBUG churn.
+	if m.markReady() {
+		m.logger.Info("Tunnel connected",
+			"tunnelName", info.tunnelName,
+			"deploymentURL", depURL)
+	} else {
 		m.logger.Debug("Tunnel connection established",
 			"target", t.key(),
 			"tunnelName", info.tunnelName,
@@ -394,13 +390,12 @@ func (m *manager) sleep(d time.Duration) bool {
 	}
 }
 
-// markReady closes the ready channel on the first successful handshake, running
-// onFirst just before, and reports whether this call was that first one.
-func (m *manager) markReady(onFirst func()) bool {
+// markReady closes the ready channel on the first successful handshake and
+// reports whether this call was that first one.
+func (m *manager) markReady() bool {
 	first := false
 	m.readyOnce.Do(func() {
 		first = true
-		onFirst()
 		close(m.readyCh)
 	})
 	return first

@@ -4,12 +4,7 @@ go 1.25.0
 
 replace github.com/restatedev/sdk-go => ../../
 
-replace github.com/restatedev/sdk-go/x/tunnel => ../../x/tunnel
-
-require (
-	github.com/restatedev/sdk-go v1.2.0
-	github.com/restatedev/sdk-go/x/tunnel v0.0.0-00010101000000-000000000000
-)
+require github.com/restatedev/sdk-go v1.0.2
 
 require (
 	github.com/bahlo/generic-list-go v0.2.0 // indirect

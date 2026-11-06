@@ -1,34 +1,30 @@
 // Package tunnel serves a Restate SDK deployment over an outbound connection to
-// Restate Cloud, so a deployment in a private network needs no inbound HTTP
-// listener and no public ingress.
+// Restate Cloud's tunnel servers, so a deployment in a private network needs no
+// inbound HTTP listener and no public ingress. It is the Go equivalent of the
+// TypeScript @restatedev/restate-sdk-tunnel package and interoperates with the
+// restate-operator's in-process tunnel mode.
 //
-// # Usage
-//
-// Copy a connect key from the Restate Cloud UI (Development → Configure SDK) into
-// the environment:
-//
-//	export RESTATE_CONNECT_KEY=rstcloudv1_...
-//
-// Then, instead of [server.Restate.Start], wrap your services with [NewTunnel]
-// and call [Tunnel.Start]. It blocks until ctx is cancelled, draining in-flight
-// invocations before it returns:
+// Instead of server.Restate.Start (which listens for inbound connections), build
+// a *server.Restate with your services, wrap it with NewTunnel, and call Start:
 //
 //	srv := server.NewRestate().Bind(restate.Reflect(Greeter{}))
-//	err := tunnel.NewTunnel(srv, tunnel.WithTunnelName("greeter-v1")).Start(ctx)
+//	err := tunnel.NewTunnel(srv,
+//		tunnel.WithRegion("us"),
+//		tunnel.WithEnvironment("env_...", "publickeyv1_..."),
+//		tunnel.WithAuthToken(token),
+//		tunnel.WithTunnelName("greeter-v1"),
+//	).Start(ctx)
 //
-// Once connected, it logs how to register the deployment, once:
-//
-//	Connecting to Restate Cloud environment env_201k… (eu.restate.cloud)
-//	Connected as "greeter-v1"
-//	Register it once:
-//	  restate deployments register connect://greeter-v1
-//	  or open https://cloud.restate.dev/to/overview?register-deployment=connect://greeter-v1
-//
-// If you need the deployment URL programmatically (or want to manage the
-// lifecycle yourself), use [Tunnel.Connect] instead for a non-blocking
-// [Connection] handle.
+// Any option left unset falls back to the RESTATE_INPROC_* environment variables
+// the restate-operator injects, so under the operator NewTunnel(srv).Start(ctx)
+// (plus a mounted token file) is a complete configuration.
 //
 // This is an experimental (x/) module; its API may change between minor versions.
+//
+// Deprecated: use [server.Restate.Connect] instead, configured with a connect key
+// from the Restate Cloud UI:
+//
+//	err := server.NewRestate().Bind(restate.Reflect(Greeter{})).Connect(ctx, "greeter")
 package tunnel
 
 import (
@@ -207,8 +203,8 @@ func NewTunnel(srv *server.Restate, opts ...Option) *Tunnel {
 }
 
 // Start connects the tunnel and blocks until ctx is cancelled or a fatal error
-// stops the tunnel, then drains in-flight invocations and closes. Once
-// connected, it logs how to register the deployment (connect://<tunnel name>). It returns nil on a clean, ctx-driven shutdown,
+// stops the tunnel, then drains in-flight invocations and closes. It logs the
+// deployment URL once connected. It returns nil on a clean, ctx-driven shutdown,
 // or the fatal error otherwise. This is the tunnel equivalent of
 // server.Restate.Start.
 func (t *Tunnel) Start(ctx context.Context) error {
@@ -224,7 +220,7 @@ func (t *Tunnel) Start(ctx context.Context) error {
 		}
 		return err
 	}
-	// How to register the deployment is logged at INFO by the manager on first connect.
+	// The deployment URL is logged at INFO by the manager on first connect.
 
 	select {
 	case <-ctx.Done():
@@ -262,7 +258,6 @@ func (t *Tunnel) Connect(ctx context.Context) (*Connection, error) {
 	}
 
 	m := newManager(ctx, rc, handler)
-	rc.logger.Info(fmt.Sprintf("Connecting to Restate Cloud environment %s (%s)", rc.environmentID, regionLabel(rc)))
 	go m.run()
 
 	return &Connection{m: m}, nil

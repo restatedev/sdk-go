@@ -1,7 +1,6 @@
 package tunnel
 
 import (
-	"context"
 	"crypto/tls"
 	"fmt"
 	"log/slog"
@@ -9,13 +8,9 @@ import (
 	"regexp"
 	"strings"
 	"time"
-
-	"github.com/restatedev/sdk-go/internal/statemachine"
 )
 
-// Environment variables that fill unset options. RESTATE_CONNECT_KEY (a connect
-// key from the Restate Cloud UI) provides the environment id, signing key, API
-// token and region, and takes precedence over the variables below. The RESTATE_INPROC_* names are
+// Environment variables that fill unset options. The RESTATE_INPROC_* names are
 // the ones the restate-operator injects in in-process mode; RESTATE_AUTH_TOKEN
 // and RESTATE_TUNNEL_SERVERS_SRV match the standalone restate-cloud-tunnel-client.
 // Explicitly-set options always take precedence over the environment.
@@ -55,31 +50,6 @@ var (
 // serverTargets / maxConcurrentStreams filled in). It operates on a copy, so the
 // caller's config is left untouched.
 func resolveConfig(c config) (config, error) {
-	// A connect key (RESTATE_CONNECT_KEY, from the Restate Cloud UI) fills the
-	// environment coordinates the options left unset. It takes precedence over
-	// the other environment variables.
-	connectKey, err := statemachine.ConnectKeyFromEnv(context.Background())
-	if err != nil {
-		return config{}, fmt.Errorf("tunnel: %w", err)
-	}
-	var connectKeySRV, shadowedEnvironmentID string
-	if connectKey != nil {
-		if injected := strings.TrimSpace(os.Getenv(envEnvironmentID)); injected != "" && c.environmentID == "" && injected != connectKey.GetEnvironmentId() {
-			shadowedEnvironmentID = injected
-		}
-		if c.environmentID == "" {
-			c.environmentID = connectKey.GetEnvironmentId()
-		}
-		if c.signingPublicKey == "" {
-			c.signingPublicKey = connectKey.GetSigningPublicKey()
-		}
-		if c.authToken == "" && c.authTokenFile == "" && connectKey.HasApiKey() {
-			c.authToken = connectKey.GetApiKey()
-		}
-		// The key's region is a domain (e.g. eu.restate.cloud).
-		connectKeySRV = "tunnel." + connectKey.GetRegion()
-	}
-
 	// Env fallback for unset options.
 	c.environmentID = orEnv(c.environmentID, envEnvironmentID)
 	c.signingPublicKey = orEnv(c.signingPublicKey, envSigningPublicKey)
@@ -104,11 +74,6 @@ func resolveConfig(c config) (config, error) {
 	if c.logger == nil {
 		c.logger = slog.Default()
 	}
-	if shadowedEnvironmentID != "" {
-		// A key for one environment next to an operator's variables for another is almost certainly a stray developer key.
-		c.logger.Warn("The connect key is for a different environment than "+envEnvironmentID+"; the key wins",
-			"key_environment_id", connectKey.GetEnvironmentId(), envEnvironmentID, shadowedEnvironmentID)
-	}
 	if c.workerID == "" {
 		c.workerID = defaultWorkerID()
 	}
@@ -128,9 +93,7 @@ func resolveConfig(c config) (config, error) {
 	if explicit > 1 {
 		return config{}, fmt.Errorf("tunnel: set exactly one discovery source (WithServers, WithServersSRV, or WithRegion)")
 	}
-	if explicit == 0 && connectKeySRV != "" {
-		c.serversSRV = connectKeySRV
-	} else if explicit == 0 {
+	if explicit == 0 {
 		if c.serversSRV = strings.TrimSpace(os.Getenv(envServersSRV)); c.serversSRV == "" {
 			c.region = strings.TrimSpace(os.Getenv(envCloudRegion))
 		}
@@ -191,31 +154,4 @@ func orDur(v, def time.Duration) time.Duration {
 		return v
 	}
 	return def
-}
-
-// cloudUIURL is the Restate Cloud UI, linked in the registration hint.
-const cloudUIURL = "https://cloud.restate.dev"
-
-// registrationIdentifier is the deployment identifier the CLI and the Cloud UI accept.
-func registrationIdentifier(name string) string {
-	return "connect://" + name
-}
-
-// registrationDeepLink is the Cloud UI link that opens the register dialog pre-filled.
-func registrationDeepLink(name string) string {
-	return cloudUIURL + "/to/overview?register-deployment=" + registrationIdentifier(name)
-}
-
-// regionLabel is the human-readable discovery target logged when connecting:
-// the region domain (eu.restate.cloud), else the SRV name without its tunnel.
-// prefix, else the explicit servers.
-func regionLabel(c config) string {
-	switch {
-	case c.region != "":
-		return c.region + ".restate.cloud"
-	case c.serversSRV != "":
-		return strings.TrimPrefix(c.serversSRV, "tunnel.")
-	default:
-		return strings.Join(c.servers, ",")
-	}
 }
