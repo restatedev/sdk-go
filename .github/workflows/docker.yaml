@@ -17,6 +17,10 @@ jobs:
     if: github.repository_owner == 'restatedev'
     runs-on: warp-ubuntu-latest-x64-4x
     name: "Create test-services Docker Image"
+    # the org default GITHUB_TOKEN is read-only, so grant the package write needed to push to ghcr.io
+    permissions:
+      contents: read
+      packages: write
     
     steps:
       - uses: actions/checkout@v5.1.0
@@ -48,7 +52,7 @@ jobs:
         working-directory: test-services
         run: KO_DOCKER_REPO=restatedev ko build --platform=linux/amd64,linux/arm64 -B -L .
 
-      - name: Push restatedev/test-services-java:main image
+      - name: Push restatedev/test-services-go:main image
         run: |
           docker tag restatedev/test-services ghcr.io/restatedev/test-services-go:main
           docker push ghcr.io/restatedev/test-services-go:main
