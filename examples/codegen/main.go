@@ -139,7 +139,7 @@ func main() {
 		slog.Info("client attached response", "out.value", wfOut.Status)
 	}()
 
-	if err := server.Start(context.Background(), ":9080"); err != nil {
+	if err := server.Serve(context.Background(), ":9080"); err != nil {
 		slog.Error("application exited unexpectedly", "err", err.Error())
 		os.Exit(1)
 	}

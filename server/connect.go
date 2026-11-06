@@ -28,7 +28,7 @@ import (
 //	restate deployments register connect://greeter
 //
 // Connect returns nil after a ctx-driven shutdown, or the error that stopped it.
-// Do not also call [Restate.Start] on the same Restate.
+// Do not also call [Restate.Serve] on the same Restate.
 func (r *Restate) Connect(ctx context.Context, name string) error {
 	return tunnel.NewTunnel(
 		func(signingPublicKey string) (http.Handler, error) {
