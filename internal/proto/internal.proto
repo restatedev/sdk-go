@@ -316,3 +316,39 @@ message GenericEmptyReturn {
     RetryableFailure failure = 2;
   }
 }
+
+// --- Restate Cloud keys
+
+message CloudKeyParameters {
+  string key = 1;
+}
+
+message ConnectKey {
+  string environment_id = 1;
+  optional string api_key = 2;
+  // Region domain, e.g. eu.restate.cloud
+  string region = 3;
+  string signing_public_key = 4;
+}
+
+message ParseConnectKeyReturn {
+  oneof result {
+    ConnectKey ok = 1;
+    string failure = 2;
+  }
+}
+
+message IngressKey {
+  string environment_id = 1;
+  string api_key = 2;
+  // Region domain, e.g. eu.restate.cloud
+  string region = 3;
+  string ingress_url = 4;
+}
+
+message ParseIngressKeyReturn {
+  oneof result {
+    IngressKey ok = 1;
+    string failure = 2;
+  }
+}

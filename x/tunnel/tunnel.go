@@ -20,6 +20,11 @@
 // (plus a mounted token file) is a complete configuration.
 //
 // This is an experimental (x/) module; its API may change between minor versions.
+//
+// Deprecated: use [server.Restate.Connect] instead, configured with a connect key
+// from the Restate Cloud UI:
+//
+//	err := server.NewRestate().Bind(restate.Reflect(Greeter{})).Connect(ctx, "greeter")
 package tunnel
 
 import (

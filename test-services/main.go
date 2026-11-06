@@ -52,7 +52,7 @@ func main() {
 		port = "9080"
 	}
 
-	if err := server.Start(context.Background(), ":"+port); err != nil {
+	if err := server.Serve(context.Background(), ":"+port); err != nil {
 		slog.Error("application exited unexpectedly", "err", err)
 		os.Exit(1)
 	}

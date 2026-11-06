@@ -16,6 +16,34 @@
 ## Prerequisites
 - Go: >= 1.24.0
 
+## Serving your services
+
+Bind your services to a `server.Restate`, then serve them in one of two ways.
+
+**Serve** listens for HTTP/2 connections on an address. Register it with Restate
+(`restate deployments register http://localhost:9080`):
+
+```go
+err := server.NewRestate().
+	Bind(restate.Reflect(Greeter{})).
+	Serve(ctx, ":9080")
+```
+
+**Connect** opens an outbound connection to Restate Cloud instead, so the deployment
+needs no inbound listener and no public ingress. Copy a connect key from the Restate
+Cloud UI (Development → Configure SDK) into `RESTATE_CONNECT_KEY`, then:
+
+```go
+err := server.NewRestate().
+	Bind(restate.Reflect(Greeter{})).
+	Connect(ctx, "greeter")
+```
+
+Once connected, it logs how to register the deployment (`restate deployments register connect://greeter`).
+
+Both block until `ctx` is cancelled. To plug the services into your own HTTP server, use
+`Handler()`; for AWS Lambda, use `LambdaHandler()`.
+
 ## Examples
 
 This repo contains an [example](examples) based on the [Ticket Reservation Service](https://github.com/restatedev/examples/tree/main/tutorials/tour-of-restate-go).
@@ -72,6 +100,9 @@ curl localhost:8080/UserSession/azmy/Checkout
 
 When you need to call restate handlers or attach to invocations from outside the restate context,
 use the [ingress SDK](examples/client/main.go).
+
+For a Restate Cloud environment, copy an ingress key from the Cloud UI (Development → Configure Client)
+into `RESTATE_INGRESS_KEY` and create the client with `ingress.NewCloudClient()`.
 
 ## Versions
 
