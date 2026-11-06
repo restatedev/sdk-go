@@ -164,9 +164,11 @@ func performHandshake(w http.ResponseWriter, r *http.Request, creds handshakeCre
 
 	// The read is still pending. Close the body to unblock it (net/http requires
 	// Close to unblock a waiting Read), and wait for it: the handler must not
-	// return while it is still reading the body.
+	// return while it is still reading the body. If it completed with what the
+	// server said (ok or a fatal rejection), that still decides; otherwise report
+	// why we gave up.
 	_ = r.Body.Close()
-	if out := <-done; out.kind == handshakeOK {
+	if out := <-done; out.kind != handshakeRetryable {
 		return out
 	}
 	return fallback
