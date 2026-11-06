@@ -2,11 +2,15 @@ package tunnel
 
 import (
 	"bytes"
+	"context"
 	"net"
 	"net/http"
 	"testing"
 	"time"
 
+	restate "github.com/restatedev/sdk-go"
+	"github.com/restatedev/sdk-go/server"
+	"github.com/restatedev/sdk-go/x/tunnel/internal/fakecloud"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/net/http2"
 	"golang.org/x/net/http2/hpack"
@@ -47,12 +51,21 @@ func startRawHello(t *testing.T, handshakeTimeout time.Duration) *rawHello {
 	c := newConnection(sdk, creds, http.NotFoundHandler(), config{logger: testLogger, handshakeTimeout: handshakeTimeout})
 	go c.serve()
 
-	h := &rawHello{cloud: cloud, conn: c}
+	h := openHello(t, cloud)
+	h.conn = c
+	return h
+}
+
+// openHello drives the tunnel server's end of an h2 connection: it opens
+// GET /_/start-tunnel and returns once the SDK has answered it.
+func openHello(t *testing.T, cloud net.Conn) *rawHello {
+	t.Helper()
+	h := &rawHello{cloud: cloud}
 	h.enc = hpack.NewEncoder(&h.hbuf)
 
 	fr := http2.NewFramer(cloud, cloud)
 	fr.ReadMetaHeaders = hpack.NewDecoder(4096, nil)
-	_, err = cloud.Write([]byte(http2.ClientPreface))
+	_, err := cloud.Write([]byte(http2.ClientPreface))
 	require.NoError(t, err)
 	require.NoError(t, fr.WriteSettings())
 	require.NoError(t, fr.WriteHeaders(http2.HeadersFrameParam{
@@ -204,4 +217,50 @@ func TestHandshakeTrailersTimeout(t *testing.T) {
 	require.Equal(t, handshakeRetryable, out.kind, out.reason)
 	require.Contains(t, out.reason, "not received within")
 	require.GreaterOrEqual(t, time.Since(start), timeout)
+}
+
+// A rejection followed by a reset and a closed connection (what the tunnel
+// server does) stops the tunnel on that attempt: the closed connection must not
+// win over the outcome and trigger another dial against the server.
+func TestRejectionThenCloseStopsWithoutRedial(t *testing.T) {
+	key, err := fakecloud.GenerateIdentityKey()
+	require.NoError(t, err)
+	srv := server.NewRestate().Bind(restate.Reflect(Greeter{}))
+
+	for i := 0; i < 20; i++ {
+		ln, err := net.Listen("tcp", "127.0.0.1:0")
+		require.NoError(t, err)
+		tun, err := NewTunnel(srv,
+			WithServers("http://"+ln.Addr().String()),
+			WithEnvironment("env_test", key.PublicKey),
+			WithAuthToken("tok"),
+			WithTunnelName(rawHelloTunnelName),
+			WithLogger(testLogger),
+			WithTimeouts(time.Second, time.Second),
+			WithReconnectBackoff(time.Millisecond, time.Millisecond),
+		).Connect(context.Background())
+		require.NoError(t, err)
+
+		cloud, err := ln.Accept()
+		require.NoError(t, err)
+		h := openHello(t, cloud)
+		h.sendInOneWrite(t, func(fr *http2.Framer) {
+			h.trailers(t, fr, "tunnel-status", "unauthorized")
+			require.NoError(t, fr.WriteRSTStream(1, http2.ErrCodeCancel))
+		})
+		require.NoError(t, cloud.Close())
+
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		err = tun.Ready(ctx)
+		cancel()
+		require.ErrorContains(t, err, "unauthorized", "attempt %d", i)
+
+		require.NoError(t, ln.(*net.TCPListener).SetDeadline(time.Now().Add(200*time.Millisecond)))
+		if c, err := ln.Accept(); err == nil {
+			_ = c.Close()
+			t.Fatalf("attempt %d: redialed after a fatal rejection", i)
+		}
+		_ = tun.Close()
+		_ = ln.Close()
+	}
 }
