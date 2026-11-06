@@ -211,11 +211,13 @@ func (m *manager) attempt(ctx context.Context, t target) (handshakeOutcome, bool
 
 	// Restate Cloud sends the handshake trailers unannounced; the SDK's HTTP/2
 	// server would drop them, so inject the "Trailer" announcement before serving.
-	conn, err = injectTrailerAnnouncement(conn, m.cfg.connectTimeout+m.cfg.handshakeTimeout)
+	wrapped, err := injectTrailerAnnouncement(conn, m.cfg.connectTimeout+m.cfg.handshakeTimeout)
 	if err != nil {
+		// wrapped is nil on error: close the dialed connection, not the wrapper.
 		_ = conn.Close()
 		return retryableOutcome("prepare connection to %s: %v", t, err), false
 	}
+	conn = wrapped
 
 	creds, err := m.buildCreds()
 	if err != nil {

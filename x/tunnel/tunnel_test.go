@@ -4,8 +4,10 @@ import (
 	"context"
 	"io"
 	"log/slog"
+	"net"
 	"net/http"
 	"net/http/httptest"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -355,4 +357,43 @@ func TestDrainingRefusesNewStreams(t *testing.T) {
 
 	require.Equal(t, http.StatusServiceUnavailable, rec.Code)
 	require.Equal(t, "true", rec.Header().Get(drainingHeader))
+}
+
+// A tunnel server that closes the connection before sending the HTTP/2 preface
+// (e.g. a full or draining server) fails that attempt and is retried; it must
+// not crash the process.
+func TestServerClosesBeforePreface(t *testing.T) {
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	require.NoError(t, err)
+	defer ln.Close()
+	var accepted atomic.Int32
+	go func() {
+		for {
+			c, err := ln.Accept()
+			if err != nil {
+				return
+			}
+			accepted.Add(1)
+			_ = c.Close()
+		}
+	}()
+
+	key, err := fakecloud.GenerateIdentityKey()
+	require.NoError(t, err)
+	srv := server.NewRestate().Bind(restate.Reflect(Greeter{}))
+	tun, err := NewTunnel(srv,
+		WithServers("http://"+ln.Addr().String()),
+		WithEnvironment("env_test", key.PublicKey),
+		WithAuthToken("tok"),
+		WithTunnelName("greeter-v1"),
+		WithLogger(testLogger),
+		WithTimeouts(time.Second, 500*time.Millisecond),
+		WithReconnectBackoff(time.Millisecond, 10*time.Millisecond),
+	).Connect(context.Background())
+	require.NoError(t, err)
+	defer tun.Close()
+
+	require.Eventually(t, func() bool { return accepted.Load() >= 3 }, 5*time.Second, 5*time.Millisecond)
+	require.Equal(t, 0, tun.ConnectionCount())
+	require.NoError(t, tun.Err())
 }
