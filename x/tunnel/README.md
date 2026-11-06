@@ -11,29 +11,33 @@ in-process tunnel mode.
 
 ## Usage
 
-Instead of `server.Restate.Start` (which listens for inbound connections), build a
-`*server.Restate` with your services, wrap it with `tunnel.NewTunnel`, and call
-`Start`. `Start` blocks until `ctx` is cancelled (or a fatal error stops the
-tunnel), draining in-flight invocations before it returns — the tunnel equivalent
-of `server.Restate.Start`:
+Copy a connect key from the Restate Cloud UI (Development → Configure SDK) and
+set it in the environment:
+
+```sh
+export RESTATE_CONNECT_KEY=rstcloudv1_...
+```
+
+Then, instead of `server.Restate.Start`, wrap your `*server.Restate` with
+`tunnel.NewTunnel` and call `Start`. It blocks until `ctx` is cancelled, draining
+in-flight invocations before it returns:
 
 ```go
 srv := server.NewRestate().
 	Bind(restate.Reflect(Greeter{}))
 
-err := tunnel.NewTunnel(srv,
-	tunnel.WithRegion("us"),
-	tunnel.WithEnvironment("env_...", "publickeyv1_..."),
-	tunnel.WithAuthToken(os.Getenv("RESTATE_AUTH_TOKEN")),
-	tunnel.WithTunnelName("greeter-v1"),
-).Start(ctx)
+err := tunnel.NewTunnel(srv, tunnel.WithTunnelName("greeter-v1")).Start(ctx)
 ```
 
-`Start` logs the deployment URL once connected; register it (the operator does
-this for you on Kubernetes):
+Once connected, `Start` logs how to register the deployment, once (the operator
+does this for you on Kubernetes):
 
-```sh
-restate deployments register <deployment-url>
+```
+Connecting to Restate Cloud environment env_201k… (eu.restate.cloud)
+Connected as "greeter-v1"
+Register it once:
+  restate deployments register connect://greeter-v1
+  or open https://cloud.restate.dev/to/overview?register-deployment=connect://greeter-v1
 ```
 
 If you need the URL programmatically (or want to manage the lifecycle yourself),
@@ -61,6 +65,10 @@ configuration:
 `WithServers`, `WithTLS`, `WithLogger`, and the tuning options have no environment
 fallback. Discovery (`WithRegion`/`WithServersSRV`/`WithServers`) env vars only
 apply when no discovery source is set explicitly.
+
+`RESTATE_CONNECT_KEY` provides the environment id, signing public key, API token
+and region, and takes precedence over the env vars above; explicit options
+(`WithRegion`, `WithEnvironment`, `WithAuthToken`, …) still win.
 
 ## How it works
 

@@ -5,9 +5,9 @@
 // injects the RESTATE_INPROC_* environment variables, so NewTunnel(srv).Start(ctx)
 // with a mounted auth-token file is all you need. Locally, set the fields
 // explicitly with the With* methods (or the same env vars) and register the
-// deployment URL that Start logs on connect:
+// deployment once, as Start logs on connect:
 //
-//	restate deployments register <deployment-url>
+//	restate deployments register connect://<tunnel-name>
 package main
 
 import (
