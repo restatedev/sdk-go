@@ -97,8 +97,10 @@ func performHandshake(w http.ResponseWriter, r *http.Request, creds handshakeCre
 	}
 
 	// Drain the (empty) request body so the trailers frame is delivered, then read
-	// the trailers. We run it in a goroutine and race a timer + the request context
-	// so a stalled server can't block us forever; on timeout/cancel the caller
+	// the trailers. The body read is the source of truth: trailers that arrived
+	// before a stream reset are still surfaced (frames are processed in order), and
+	// a reset or closed connection without them fails the read. We race only a
+	// timer so a stalled server can't block us forever; on timeout the caller
 	// closes the connection, which unblocks the read.
 	done := make(chan handshakeOutcome, 1)
 	go func() {
@@ -117,8 +119,6 @@ func performHandshake(w http.ResponseWriter, r *http.Request, creds handshakeCre
 		return out
 	case <-timer.C:
 		return retryableOutcome("handshake trailers not received within %s", timeout)
-	case <-r.Context().Done():
-		return retryableOutcome("handshake stream closed before trailers")
 	}
 }
 
