@@ -14,6 +14,32 @@ const startTunnelPath = "/_/start-tunnel"
 // defaultHandshakeTimeout mirrors the tunnel server's own handshake deadline.
 const defaultHandshakeTimeout = 5 * time.Second
 
+// streamEndGrace bounds how long, once the hello request is canceled, we keep
+// waiting for the body read to report the trailers that arrived before the end.
+//
+//	tunnel server (h2 client)                 SDK (h2 server)
+//	HEADERS GET /_/start-tunnel ──────────▶
+//	                               ◀────────── HEADERS 200 + credentials
+//	HEADERS trailers + END_STREAM ────────▶    tunnel-status: ok | unauthorized | …
+//	RST_STREAM CANCEL ────────────────────▶    (1) since restate-cloud#2195, if our
+//	                                               half of the stream is still open
+//
+// TS and the Rust core (Python SDK) send END_STREAM with their 200, so the stream
+// is closed once the trailers land: (1) never happens, and they read frames in
+// order anyway.
+//
+// In Go the response ends only when the handler returns, and the handler is still
+// waiting for the trailers, so (1) happens. net/http then cancels r.Context(), and
+// the body read returns EOF with r.Trailer set. Godoc doesn't say which comes first:
+//
+//	r.Context().Done() ──┐
+//	                     ├── race: deciding on the context alone drops a completed
+//	Body read EOF ───────┘   handshake (0/100 against restate-cloud#2195)
+//
+// So a canceled context only means "the stream ended": wait up to streamEndGrace
+// for the body read to say how.
+const streamEndGrace = time.Second
+
 // handshakeInfo is what the tunnel server tells us about the established tunnel.
 type handshakeInfo struct {
 	tunnelName string
@@ -75,9 +101,12 @@ type handshakeCredentials struct {
 //     tunnel-status: ok | unauthorized | bad-tunnel-name | too-many-tunnels
 //     plus, on ok: proxy-url, tunnel-url, tunnel-name.
 //
-// It never returns until the outcome is known, the timeout elapses, or the stream
-// closes. It does not itself tear down the connection; the caller acts on the
-// outcome.
+// The server may reset the stream right after the trailers (valid HTTP/2), so a
+// closed stream alone is not a failure: the trailers decide whenever they arrived.
+//
+// It returns once the outcome is known, the timeout elapses, or the stream has
+// ended without trailers (after a short grace). It does not itself tear down the
+// connection; the caller acts on the outcome.
 func performHandshake(w http.ResponseWriter, r *http.Request, creds handshakeCredentials, timeout time.Duration) handshakeOutcome {
 	h := w.Header()
 	h.Set("authorization", "Bearer "+creds.authToken)
@@ -96,10 +125,9 @@ func performHandshake(w http.ResponseWriter, r *http.Request, creds handshakeCre
 		f.Flush()
 	}
 
-	// Drain the (empty) request body so the trailers frame is delivered, then read
-	// the trailers. We run it in a goroutine and race a timer + the request context
-	// so a stalled server can't block us forever; on timeout/cancel the caller
-	// closes the connection, which unblocks the read.
+	// Read the (empty) request body to EOF: per net/http, only then does r.Trailer
+	// hold the trailers the server sent. The read runs in a goroutine so a timer
+	// can bound it.
 	done := make(chan handshakeOutcome, 1)
 	go func() {
 		if _, err := io.Copy(io.Discard, r.Body); err != nil {
@@ -112,14 +140,38 @@ func performHandshake(w http.ResponseWriter, r *http.Request, creds handshakeCre
 	timer := time.NewTimer(timeout)
 	defer timer.Stop()
 
+	var fallback handshakeOutcome
 	select {
 	case out := <-done:
 		return out
 	case <-timer.C:
-		return retryableOutcome("handshake trailers not received within %s", timeout)
+		fallback = retryableOutcome("handshake trailers not received within %s", timeout)
 	case <-r.Context().Done():
-		return retryableOutcome("handshake stream closed before trailers")
+		// The request was canceled (stream reset or connection closed). That says
+		// the stream ended, not how: the server may have sent the trailers right
+		// before resetting it, which is valid HTTP/2 and what the tunnel server
+		// does. Let the body read report what arrived, within a bounded grace.
+		grace := time.NewTimer(streamEndGrace)
+		defer grace.Stop()
+		select {
+		case out := <-done:
+			return out
+		case <-grace.C:
+		case <-timer.C:
+		}
+		fallback = retryableOutcome("handshake stream closed before trailers")
 	}
+
+	// The read is still pending. Close the body to unblock it (net/http requires
+	// Close to unblock a waiting Read), and wait for it: the handler must not
+	// return while it is still reading the body. If it completed with what the
+	// server said (ok or a fatal rejection), that still decides; otherwise report
+	// why we gave up.
+	_ = r.Body.Close()
+	if out := <-done; out.kind != handshakeRetryable {
+		return out
+	}
+	return fallback
 }
 
 func classifyTrailers(trailer http.Header, requestedName string) handshakeOutcome {

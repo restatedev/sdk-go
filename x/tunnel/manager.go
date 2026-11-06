@@ -211,11 +211,13 @@ func (m *manager) attempt(ctx context.Context, t target) (handshakeOutcome, bool
 
 	// Restate Cloud sends the handshake trailers unannounced; the SDK's HTTP/2
 	// server would drop them, so inject the "Trailer" announcement before serving.
-	conn, err = injectTrailerAnnouncement(conn, m.cfg.connectTimeout+m.cfg.handshakeTimeout)
+	wrapped, err := injectTrailerAnnouncement(conn, m.cfg.connectTimeout+m.cfg.handshakeTimeout)
 	if err != nil {
+		// wrapped is nil on error: close the dialed connection, not the wrapper.
 		_ = conn.Close()
 		return retryableOutcome("prepare connection to %s: %v", t, err), false
 	}
+	conn = wrapped
 
 	creds, err := m.buildCreds()
 	if err != nil {
@@ -257,6 +259,24 @@ func (m *manager) attempt(ctx context.Context, t target) (handshakeOutcome, bool
 		return out, true
 
 	case <-serveDone:
+		// The connection ended before we saw an outcome. If the hello handler is
+		// running, the server may have sent the result and then closed the
+		// connection (it does so after a rejection), and serveDone can be picked
+		// before outcomeCh. Wait for that outcome rather than redialing blindly: a
+		// fatal rejection must stop us, not trigger another attempt.
+		if c.helloStarted.Load() {
+			wait := time.NewTimer(m.cfg.handshakeTimeout + streamEndGrace)
+			defer wait.Stop()
+			select {
+			case out := <-c.outcomeCh:
+				if out.kind != handshakeOK {
+					return out, false
+				}
+				// Accepted, but the connection is already gone.
+				return retryableOutcome("connection to %s closed right after handshake", t), false
+			case <-wait.C:
+			}
+		}
 		return retryableOutcome("connection to %s closed before handshake", t), false
 	case <-deadline.C:
 		c.close()
