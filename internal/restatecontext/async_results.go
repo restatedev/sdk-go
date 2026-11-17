@@ -86,6 +86,48 @@ func (a *asyncResult) pollProgressAndLoadValue() statemachine.Value {
 	return a.mustLoadValue()
 }
 
+// maxDrainedInputChunks bounds how many chunks drainAvailableInput feeds to the core in one go, so
+// that input arriving back to back cannot hold off DoProgress (and the handler) indefinitely.
+const maxDrainedInputChunks = 32
+
+// handleInput feeds one receive from readChan to the core. ok is false when readChan was closed.
+func (restateCtx *ctx) handleInput(readRes readResult, ok bool) {
+	if !ok {
+		// readInputLoop is the only sender on readChan and closes it when the input stream hits
+		// EOF, so input is closed for the rest of the invocation. Notify the core, then set
+		// readChan to nil to disable the receive in pollProgress: a closed channel is permanently
+		// ready to receive, so leaving it armed makes that select spin the enclosing loop instead
+		// of waiting. Receiving from a nil channel blocks forever, which leaves a run completion
+		// and context cancellation as the only wakeups. Those suffice because the core reports
+		// DoProgressWaitingExternalProgress only while something external is still pending; with
+		// input closed and nothing pending it suspends.
+		if err := restateCtx.stateMachine.NotifyInputClosed(restateCtx); err != nil {
+			panic(err)
+		}
+		restateCtx.readChan = nil
+		return
+	}
+	// NotifyInput copies the bytes into the core, so the buffer can be reused right away.
+	err := restateCtx.stateMachine.NotifyInput(restateCtx, readRes.buf[0:readRes.nRead])
+	BufPool.Put(readRes.buf)
+	if err != nil {
+		panic(err)
+	}
+}
+
+// drainAvailableInput feeds the core the input readInputLoop has already read, without waiting for
+// more. It stops when no chunk is ready, after the channel close, or after maxDrainedInputChunks.
+func (restateCtx *ctx) drainAvailableInput() {
+	for i := 0; i < maxDrainedInputChunks && restateCtx.readChan != nil; i++ {
+		select {
+		case readRes, ok := <-restateCtx.readChan:
+			restateCtx.handleInput(readRes, ok)
+		default:
+			return
+		}
+	}
+}
+
 func (restateCtx *ctx) pollProgress(handles []uint32) bool {
 	// Pump output once
 	if err := takeOutputAndWriteOut(restateCtx, restateCtx.stateMachine, restateCtx.stream); err != nil {
@@ -93,6 +135,13 @@ func (restateCtx *ctx) pollProgress(handles []uint32) bool {
 	}
 
 	for {
+		// Hand the core all input that has already arrived before asking it for progress. Every
+		// DoProgress that ends up waiting re-sends AwaitingOnMessage, so doing this once per batch of
+		// input rather than once per chunk avoids redundant ones when a message spans several reads.
+		// DoProgress must still follow every batch: we can't tell whether a batch completed a
+		// message, and Restate relies on a fresh AwaitingOnMessage after e.g. a run proposal ack.
+		restateCtx.drainAvailableInput()
+
 		progressResult, err := restateCtx.stateMachine.DoProgress(restateCtx, handles)
 		if err != nil {
 			panic(err)
@@ -109,27 +158,9 @@ func (restateCtx *ctx) pollProgress(handles []uint32) bool {
 			// Either wait for at least one read or for run proposals
 			select {
 			case readRes, ok := <-restateCtx.readChan:
-				if !ok {
-					// readInputLoop is the only sender on readChan and closes it when the
-					// input stream hits EOF, so input is closed for the rest of the
-					// invocation. Notify the core, then set readChan to nil to disable this
-					// case arm: a closed channel is permanently ready to receive, so leaving
-					// it armed makes this select spin the enclosing loop instead of waiting.
-					// Receiving from a nil channel blocks forever, which leaves a run
-					// completion and context cancellation as the only wakeups. Those suffice
-					// because the core reports DoProgressWaitingExternalProgress only while
-					// something external is still pending; with input closed and nothing
-					// pending it suspends.
-					if err = restateCtx.stateMachine.NotifyInputClosed(restateCtx); err != nil {
-						panic(err)
-					}
-					restateCtx.readChan = nil
-					break
-				}
-				if err = restateCtx.stateMachine.NotifyInput(restateCtx, readRes.buf[0:readRes.nRead]); err != nil {
-					panic(err)
-				}
-				BufPool.Put(readRes.buf)
+				// Whatever else is already waiting on readChan is fed to the core by
+				// drainAvailableInput at the top of the loop, before the next DoProgress.
+				restateCtx.handleInput(readRes, ok)
 				break
 			case proposal := <-restateCtx.runClosureCompletions:
 				// Propose completion
