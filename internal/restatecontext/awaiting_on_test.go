@@ -69,6 +69,40 @@ func TestAwaitingOnOncePerInputBatch(t *testing.T) {
 	requireSuspendedCleanly(t, frames)
 }
 
+func TestAwaitingOnOncePerDrainedInputBatch(t *testing.T) {
+	startAwaiting := make(chan struct{})
+	inv := startInvocation(t, func(ctx Context) {
+		// The call's result notification (completion id 2) is the unrelated input sent below.
+		_ = ctx.Service("Svc", "method").RequestFuture(nil)
+		<-startAwaiting
+		var out string
+		_ = ctx.Awakeable().Result(&out)
+	})
+	startHandler := sync.OnceFunc(func() { close(startAwaiting) })
+	t.Cleanup(startHandler) // so that a failing test still lets the handler end
+
+	// While the handler doesn't await anything yet, the SDK reads ahead: a notification of
+	// inputReadAhead full chunks (plus its header, read separately) is read in full, whatever
+	// is not buffered in readChan being held by the input reader.
+	sent := make(chan struct{})
+	go func() {
+		defer close(sent)
+		inv.send(callCompletion(2, bytes.Repeat([]byte("a"), inputReadAhead*inputBufferSize)))
+	}()
+	waitClosed(t, sent, "the SDK to read ahead the whole notification")
+	require.Zero(t, countOfType(inv.output.frames(), msgAwaitingOn))
+
+	// Once the handler awaits, everything already read must be handed to the core before asking it
+	// for progress: one AwaitingOn for the batch, possibly one more for the chunk the reader held,
+	// rather than one per chunk.
+	startHandler()
+	inv.waitForCount(msgAwaitingOn, 1)
+	inv.closeInput()
+	frames := inv.waitDone()
+	require.LessOrEqual(t, countOfType(frames, msgAwaitingOn), 2, "messages written: %v", frameTypes(frames))
+	requireSuspendedCleanly(t, frames)
+}
+
 func TestAwaitingOnNotSentWhileRunExecutes(t *testing.T) {
 	runStarted := make(chan struct{})
 	releaseRun := make(chan struct{})

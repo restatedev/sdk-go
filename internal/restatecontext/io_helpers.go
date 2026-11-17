@@ -22,6 +22,16 @@ import (
 // BufPool once their bytes have been copied into the state machine.
 const inputBufferSize = 32 * 1024
 
+// inputReadAhead is how many chunks readInputLoop may read ahead of pollProgress, as the buffer of
+// readChan.
+//
+// While pollProgress feeds a chunk to the state machine, readInputLoop keeps reading, so that the
+// next pollProgress iteration can drain several chunks at once (see drainAvailableInput) and send
+// one AwaitingOnMessage for all of them, rather than one every other chunk as with an unbuffered
+// channel. Read ahead chunks only exist while input arrives faster than it's processed: each slot
+// can then hold one more inputBufferSize buffer for the invocation.
+const inputReadAhead = 4
+
 var BufPool sync.Pool
 
 func init() {

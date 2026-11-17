@@ -88,6 +88,9 @@ func (a *asyncResult) pollProgressAndLoadValue() statemachine.Value {
 
 // maxDrainedInputChunks bounds how many chunks drainAvailableInput feeds to the core in one go, so
 // that input arriving back to back cannot hold off DoProgress (and the handler) indefinitely.
+//
+// A drain finds at most what readInputLoop has read ahead: the inputReadAhead chunks buffered in
+// readChan, plus one it may be blocked sending. This bound only matters if that grows.
 const maxDrainedInputChunks = 32
 
 // handleInput feeds one receive from readChan to the core. ok is false when readChan was closed.

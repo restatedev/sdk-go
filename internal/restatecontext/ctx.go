@@ -92,7 +92,8 @@ type ctx struct {
 
 	// readChan carries input read by readInputLoop, which is its only sender and
 	// closes it on EOF. pollProgress then sets it to nil, so a nil readChan means
-	// input is closed and no further input can arrive.
+	// input is closed and no further input can arrive. It is buffered with
+	// inputReadAhead slots, see there.
 	readChan chan readResult
 
 	stateMachine *statemachine.StateMachine
@@ -150,7 +151,7 @@ func newContext(inner context.Context, machine *statemachine.StateMachine, invoc
 	ctx := &ctx{
 		Context:               inner,
 		stream:                stream,
-		readChan:              make(chan readResult),
+		readChan:              make(chan readResult, inputReadAhead),
 		stateMachine:          machine,
 		key:                   invocationInput.GetKey(),
 		request:               request,
