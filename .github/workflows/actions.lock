@@ -17,6 +17,7 @@ workflows:
         - 'docker/setup-docker-action@v4.7.0'
         - 'ko-build/setup-ko@v0.6'
         - 'restatedev/e2e@v2.3'
+        - 'warpbuilds/cache@v1.4.13'
     '.github/workflows/pullfrog.yml':
         - 'actions/checkout@v6.1.0'
         - 'actions/setup-go@v6.5.0'
@@ -95,3 +96,8 @@ dependencies:
             - 'actions/setup-java@v4'
             - 'actions/upload-artifact@v4'
             - 'enricomi/publish-unit-test-result-action@v2'
+    'warpbuilds/cache@v1.4.13':
+        ref: 'v1.4.13'
+        commit: 'sha1-40f3443ae7b70e568d6e2070ea897f3df94d7553'
+        owner_id: 142974432
+        repo_id: 721583430
