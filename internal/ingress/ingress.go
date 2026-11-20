@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"time"
 
 	restate "github.com/restatedev/sdk-go"
@@ -188,6 +189,9 @@ func (c *Client) do(ctx context.Context, httpMethod, path string, requestData an
 }
 
 func makeIngressUrl(params IngressParams, scope string, send bool) string {
+	// Escape object/workflow keys as individual segments so they cannot become path,
+	// query or fragment delimiters. A literal percent escape is part of the key.
+	params.Key = url.PathEscape(params.Key)
 	if scope != "" {
 		verb := "call"
 		if send {
@@ -216,6 +220,8 @@ func makeIngressUrl(params IngressParams, scope string, send bool) string {
 }
 
 func makeAttachUrl(params IngressAttachParams) (string, error) {
+	params.ObjectKey = url.PathEscape(params.ObjectKey)
+	params.WorkflowID = url.PathEscape(params.WorkflowID)
 	switch {
 	case params.InvocationID != "":
 		return fmt.Sprintf("/restate/invocation/%s", params.InvocationID), nil
