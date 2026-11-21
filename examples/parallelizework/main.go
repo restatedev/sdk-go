@@ -58,7 +58,7 @@ func main() {
 	slog.SetLogLoggerLevel(slog.LevelDebug)
 	server := server.NewRestate().Bind(restate.Reflect(&fanOutWorker{}))
 
-	if err := server.Start(context.Background(), ":9080"); err != nil {
+	if err := server.Serve(context.Background(), ":9080"); err != nil {
 		slog.Error("application exited unexpectedly", "err", err.Error())
 		os.Exit(1)
 	}

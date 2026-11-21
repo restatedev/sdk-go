@@ -947,6 +947,62 @@ pub unsafe extern "C" fn _vm_free(vm: *const RefCell<WasmVM>) {
     };
 }
 
+// --------- Restate Cloud keys
+
+const CONNECT_KEY_ENV: &str = "RESTATE_CONNECT_KEY";
+const INGRESS_KEY_ENV: &str = "RESTATE_INGRESS_KEY";
+
+#[export_name = "parse_connect_key"]
+pub unsafe extern "C" fn _parse_connect_key(ptr: *mut u8, len: usize) -> u64 {
+    let input = ptr_to_input(ptr, len);
+    let response = parse_connect_key(input);
+    output_to_ptr(response)
+}
+
+fn parse_connect_key(input: pb::CloudKeyParameters) -> pb::ParseConnectKeyReturn {
+    use restate_sdk_shared_core::cloud_keys::{ConnectKey, CONNECT_KEY_URL};
+    pb::ParseConnectKeyReturn {
+        result: Some(match ConnectKey::parse(&input.key) {
+            Ok(key) => pb::parse_connect_key_return::Result::Ok(pb::ConnectKey {
+                environment_id: key.environment_id,
+                api_key: key.api_key,
+                region: key.region,
+                signing_public_key: key.signing_public_key,
+            }),
+            Err(e) => pb::parse_connect_key_return::Result::Failure(format!(
+                "{CONNECT_KEY_ENV} {e}, create a new one at {CONNECT_KEY_URL}"
+            )),
+        }),
+    }
+}
+
+#[export_name = "parse_ingress_key"]
+pub unsafe extern "C" fn _parse_ingress_key(ptr: *mut u8, len: usize) -> u64 {
+    let input = ptr_to_input(ptr, len);
+    let response = parse_ingress_key(input);
+    output_to_ptr(response)
+}
+
+fn parse_ingress_key(input: pb::CloudKeyParameters) -> pb::ParseIngressKeyReturn {
+    use restate_sdk_shared_core::cloud_keys::{IngressKey, INGRESS_KEY_URL};
+    pb::ParseIngressKeyReturn {
+        result: Some(match IngressKey::parse(&input.key) {
+            Ok(key) => {
+                let ingress_url = key.ingress_url();
+                pb::parse_ingress_key_return::Result::Ok(pb::IngressKey {
+                    environment_id: key.environment_id,
+                    api_key: key.api_key,
+                    region: key.region,
+                    ingress_url,
+                })
+            }
+            Err(e) => pb::parse_ingress_key_return::Result::Failure(format!(
+                "{INGRESS_KEY_ENV} {e}, create a new one at {INGRESS_KEY_URL}"
+            )),
+        }),
+    }
+}
+
 // --------- Logging infra
 
 /// Logs a message to the console using [`_log`].

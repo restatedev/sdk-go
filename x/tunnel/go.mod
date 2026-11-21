@@ -1,3 +1,4 @@
+// Deprecated: use (*server.Restate).Connect from github.com/restatedev/sdk-go/server instead.
 module github.com/restatedev/sdk-go/x/tunnel
 
 go 1.25.0

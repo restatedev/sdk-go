@@ -16,7 +16,7 @@ func main() {
 		Bind(restate.Reflect(&ticketService{})).
 		Bind(restate.Reflect(&checkout{}))
 
-	if err := server.Start(context.Background(), ":9080"); err != nil {
+	if err := server.Serve(context.Background(), ":9080"); err != nil {
 		slog.Error("application exited unexpectedly", "err", err.Error())
 		os.Exit(1)
 	}

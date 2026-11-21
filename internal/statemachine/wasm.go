@@ -158,6 +158,8 @@ type Core struct {
 	vmSysWriteOutput       api.Function
 	vmSysEnd               api.Function
 	vmFree                 api.Function
+	parseConnectKey        api.Function
+	parseIngressKey        api.Function
 }
 
 func NewCore(ctx context.Context) (*Core, error) {
@@ -230,6 +232,8 @@ func NewCore(ctx context.Context) (*Core, error) {
 		vmSysWriteOutput:       instance.ExportedFunction("vm_sys_write_output"),
 		vmSysEnd:               instance.ExportedFunction("vm_sys_end"),
 		vmFree:                 instance.ExportedFunction("vm_free"),
+		parseConnectKey:        instance.ExportedFunction("parse_connect_key"),
+		parseIngressKey:        instance.ExportedFunction("parse_ingress_key"),
 	}
 
 	// Adds a finalizer to `core` to correctly close the WASM module, deallocating its memory.

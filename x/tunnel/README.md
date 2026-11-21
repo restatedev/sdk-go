@@ -6,6 +6,17 @@ equivalent of the TypeScript [`@restatedev/restate-sdk-tunnel`](https://github.c
 package, and it interoperates with the [restate-operator](https://github.com/restatedev/restate-operator)'s
 in-process tunnel mode.
 
+> [!WARNING]
+> **Deprecated.** Use `Restate.Connect` from `github.com/restatedev/sdk-go/server`
+> instead. Copy a connect key from the Restate Cloud UI (Development → Configure SDK)
+> into `RESTATE_CONNECT_KEY`, then:
+>
+> ```go
+> err := server.NewRestate().
+> 	Bind(restate.Reflect(Greeter{})).
+> 	Connect(ctx, "greeter")
+> ```
+
 > **Experimental.** This is an `x/` module on a `0.x` line; its API may change
 > between minor versions.
 

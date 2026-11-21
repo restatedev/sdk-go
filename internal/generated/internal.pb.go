@@ -5144,6 +5144,618 @@ func (*genericEmptyReturn_Ok) isGenericEmptyReturn_Result() {}
 
 func (*genericEmptyReturn_Failure) isGenericEmptyReturn_Result() {}
 
+type CloudKeyParameters struct {
+	state          protoimpl.MessageState `protogen:"opaque.v1"`
+	xxx_hidden_Key string                 `protobuf:"bytes,1,opt,name=key,proto3"`
+	unknownFields  protoimpl.UnknownFields
+	sizeCache      protoimpl.SizeCache
+}
+
+func (x *CloudKeyParameters) Reset() {
+	*x = CloudKeyParameters{}
+	mi := &file_internal_proto_msgTypes[37]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *CloudKeyParameters) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*CloudKeyParameters) ProtoMessage() {}
+
+func (x *CloudKeyParameters) ProtoReflect() protoreflect.Message {
+	mi := &file_internal_proto_msgTypes[37]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+func (x *CloudKeyParameters) GetKey() string {
+	if x != nil {
+		return x.xxx_hidden_Key
+	}
+	return ""
+}
+
+func (x *CloudKeyParameters) SetKey(v string) {
+	x.xxx_hidden_Key = v
+}
+
+type CloudKeyParameters_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	Key string
+}
+
+func (b0 CloudKeyParameters_builder) Build() *CloudKeyParameters {
+	m0 := &CloudKeyParameters{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.xxx_hidden_Key = b.Key
+	return m0
+}
+
+type ConnectKey struct {
+	state                       protoimpl.MessageState `protogen:"opaque.v1"`
+	xxx_hidden_EnvironmentId    string                 `protobuf:"bytes,1,opt,name=environment_id,json=environmentId,proto3"`
+	xxx_hidden_ApiKey           *string                `protobuf:"bytes,2,opt,name=api_key,json=apiKey,proto3,oneof"`
+	xxx_hidden_Region           string                 `protobuf:"bytes,3,opt,name=region,proto3"`
+	xxx_hidden_SigningPublicKey string                 `protobuf:"bytes,4,opt,name=signing_public_key,json=signingPublicKey,proto3"`
+	XXX_raceDetectHookData      protoimpl.RaceDetectHookData
+	XXX_presence                [1]uint32
+	unknownFields               protoimpl.UnknownFields
+	sizeCache                   protoimpl.SizeCache
+}
+
+func (x *ConnectKey) Reset() {
+	*x = ConnectKey{}
+	mi := &file_internal_proto_msgTypes[38]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ConnectKey) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ConnectKey) ProtoMessage() {}
+
+func (x *ConnectKey) ProtoReflect() protoreflect.Message {
+	mi := &file_internal_proto_msgTypes[38]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+func (x *ConnectKey) GetEnvironmentId() string {
+	if x != nil {
+		return x.xxx_hidden_EnvironmentId
+	}
+	return ""
+}
+
+func (x *ConnectKey) GetApiKey() string {
+	if x != nil {
+		if x.xxx_hidden_ApiKey != nil {
+			return *x.xxx_hidden_ApiKey
+		}
+		return ""
+	}
+	return ""
+}
+
+func (x *ConnectKey) GetRegion() string {
+	if x != nil {
+		return x.xxx_hidden_Region
+	}
+	return ""
+}
+
+func (x *ConnectKey) GetSigningPublicKey() string {
+	if x != nil {
+		return x.xxx_hidden_SigningPublicKey
+	}
+	return ""
+}
+
+func (x *ConnectKey) SetEnvironmentId(v string) {
+	x.xxx_hidden_EnvironmentId = v
+}
+
+func (x *ConnectKey) SetApiKey(v string) {
+	x.xxx_hidden_ApiKey = &v
+	protoimpl.X.SetPresent(&(x.XXX_presence[0]), 1, 4)
+}
+
+func (x *ConnectKey) SetRegion(v string) {
+	x.xxx_hidden_Region = v
+}
+
+func (x *ConnectKey) SetSigningPublicKey(v string) {
+	x.xxx_hidden_SigningPublicKey = v
+}
+
+func (x *ConnectKey) HasApiKey() bool {
+	if x == nil {
+		return false
+	}
+	return protoimpl.X.Present(&(x.XXX_presence[0]), 1)
+}
+
+func (x *ConnectKey) ClearApiKey() {
+	protoimpl.X.ClearPresent(&(x.XXX_presence[0]), 1)
+	x.xxx_hidden_ApiKey = nil
+}
+
+type ConnectKey_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	EnvironmentId string
+	ApiKey        *string
+	// Region domain, e.g. eu.restate.cloud
+	Region           string
+	SigningPublicKey string
+}
+
+func (b0 ConnectKey_builder) Build() *ConnectKey {
+	m0 := &ConnectKey{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.xxx_hidden_EnvironmentId = b.EnvironmentId
+	if b.ApiKey != nil {
+		protoimpl.X.SetPresentNonAtomic(&(x.XXX_presence[0]), 1, 4)
+		x.xxx_hidden_ApiKey = b.ApiKey
+	}
+	x.xxx_hidden_Region = b.Region
+	x.xxx_hidden_SigningPublicKey = b.SigningPublicKey
+	return m0
+}
+
+type ParseConnectKeyReturn struct {
+	state             protoimpl.MessageState         `protogen:"opaque.v1"`
+	xxx_hidden_Result isParseConnectKeyReturn_Result `protobuf_oneof:"result"`
+	unknownFields     protoimpl.UnknownFields
+	sizeCache         protoimpl.SizeCache
+}
+
+func (x *ParseConnectKeyReturn) Reset() {
+	*x = ParseConnectKeyReturn{}
+	mi := &file_internal_proto_msgTypes[39]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ParseConnectKeyReturn) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ParseConnectKeyReturn) ProtoMessage() {}
+
+func (x *ParseConnectKeyReturn) ProtoReflect() protoreflect.Message {
+	mi := &file_internal_proto_msgTypes[39]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+func (x *ParseConnectKeyReturn) GetOk() *ConnectKey {
+	if x != nil {
+		if x, ok := x.xxx_hidden_Result.(*parseConnectKeyReturn_Ok); ok {
+			return x.Ok
+		}
+	}
+	return nil
+}
+
+func (x *ParseConnectKeyReturn) GetFailure() string {
+	if x != nil {
+		if x, ok := x.xxx_hidden_Result.(*parseConnectKeyReturn_Failure); ok {
+			return x.Failure
+		}
+	}
+	return ""
+}
+
+func (x *ParseConnectKeyReturn) SetOk(v *ConnectKey) {
+	if v == nil {
+		x.xxx_hidden_Result = nil
+		return
+	}
+	x.xxx_hidden_Result = &parseConnectKeyReturn_Ok{v}
+}
+
+func (x *ParseConnectKeyReturn) SetFailure(v string) {
+	x.xxx_hidden_Result = &parseConnectKeyReturn_Failure{v}
+}
+
+func (x *ParseConnectKeyReturn) HasResult() bool {
+	if x == nil {
+		return false
+	}
+	return x.xxx_hidden_Result != nil
+}
+
+func (x *ParseConnectKeyReturn) HasOk() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.xxx_hidden_Result.(*parseConnectKeyReturn_Ok)
+	return ok
+}
+
+func (x *ParseConnectKeyReturn) HasFailure() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.xxx_hidden_Result.(*parseConnectKeyReturn_Failure)
+	return ok
+}
+
+func (x *ParseConnectKeyReturn) ClearResult() {
+	x.xxx_hidden_Result = nil
+}
+
+func (x *ParseConnectKeyReturn) ClearOk() {
+	if _, ok := x.xxx_hidden_Result.(*parseConnectKeyReturn_Ok); ok {
+		x.xxx_hidden_Result = nil
+	}
+}
+
+func (x *ParseConnectKeyReturn) ClearFailure() {
+	if _, ok := x.xxx_hidden_Result.(*parseConnectKeyReturn_Failure); ok {
+		x.xxx_hidden_Result = nil
+	}
+}
+
+const ParseConnectKeyReturn_Result_not_set_case case_ParseConnectKeyReturn_Result = 0
+const ParseConnectKeyReturn_Ok_case case_ParseConnectKeyReturn_Result = 1
+const ParseConnectKeyReturn_Failure_case case_ParseConnectKeyReturn_Result = 2
+
+func (x *ParseConnectKeyReturn) WhichResult() case_ParseConnectKeyReturn_Result {
+	if x == nil {
+		return ParseConnectKeyReturn_Result_not_set_case
+	}
+	switch x.xxx_hidden_Result.(type) {
+	case *parseConnectKeyReturn_Ok:
+		return ParseConnectKeyReturn_Ok_case
+	case *parseConnectKeyReturn_Failure:
+		return ParseConnectKeyReturn_Failure_case
+	default:
+		return ParseConnectKeyReturn_Result_not_set_case
+	}
+}
+
+type ParseConnectKeyReturn_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Fields of oneof xxx_hidden_Result:
+	Ok      *ConnectKey
+	Failure *string
+	// -- end of xxx_hidden_Result
+}
+
+func (b0 ParseConnectKeyReturn_builder) Build() *ParseConnectKeyReturn {
+	m0 := &ParseConnectKeyReturn{}
+	b, x := &b0, m0
+	_, _ = b, x
+	if b.Ok != nil {
+		x.xxx_hidden_Result = &parseConnectKeyReturn_Ok{b.Ok}
+	}
+	if b.Failure != nil {
+		x.xxx_hidden_Result = &parseConnectKeyReturn_Failure{*b.Failure}
+	}
+	return m0
+}
+
+type case_ParseConnectKeyReturn_Result protoreflect.FieldNumber
+
+func (x case_ParseConnectKeyReturn_Result) String() string {
+	md := file_internal_proto_msgTypes[39].Descriptor()
+	if x == 0 {
+		return "not set"
+	}
+	return protoimpl.X.MessageFieldStringOf(md, protoreflect.FieldNumber(x))
+}
+
+type isParseConnectKeyReturn_Result interface {
+	isParseConnectKeyReturn_Result()
+}
+
+type parseConnectKeyReturn_Ok struct {
+	Ok *ConnectKey `protobuf:"bytes,1,opt,name=ok,proto3,oneof"`
+}
+
+type parseConnectKeyReturn_Failure struct {
+	Failure string `protobuf:"bytes,2,opt,name=failure,proto3,oneof"`
+}
+
+func (*parseConnectKeyReturn_Ok) isParseConnectKeyReturn_Result() {}
+
+func (*parseConnectKeyReturn_Failure) isParseConnectKeyReturn_Result() {}
+
+type IngressKey struct {
+	state                    protoimpl.MessageState `protogen:"opaque.v1"`
+	xxx_hidden_EnvironmentId string                 `protobuf:"bytes,1,opt,name=environment_id,json=environmentId,proto3"`
+	xxx_hidden_ApiKey        string                 `protobuf:"bytes,2,opt,name=api_key,json=apiKey,proto3"`
+	xxx_hidden_Region        string                 `protobuf:"bytes,3,opt,name=region,proto3"`
+	xxx_hidden_IngressUrl    string                 `protobuf:"bytes,4,opt,name=ingress_url,json=ingressUrl,proto3"`
+	unknownFields            protoimpl.UnknownFields
+	sizeCache                protoimpl.SizeCache
+}
+
+func (x *IngressKey) Reset() {
+	*x = IngressKey{}
+	mi := &file_internal_proto_msgTypes[40]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *IngressKey) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*IngressKey) ProtoMessage() {}
+
+func (x *IngressKey) ProtoReflect() protoreflect.Message {
+	mi := &file_internal_proto_msgTypes[40]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+func (x *IngressKey) GetEnvironmentId() string {
+	if x != nil {
+		return x.xxx_hidden_EnvironmentId
+	}
+	return ""
+}
+
+func (x *IngressKey) GetApiKey() string {
+	if x != nil {
+		return x.xxx_hidden_ApiKey
+	}
+	return ""
+}
+
+func (x *IngressKey) GetRegion() string {
+	if x != nil {
+		return x.xxx_hidden_Region
+	}
+	return ""
+}
+
+func (x *IngressKey) GetIngressUrl() string {
+	if x != nil {
+		return x.xxx_hidden_IngressUrl
+	}
+	return ""
+}
+
+func (x *IngressKey) SetEnvironmentId(v string) {
+	x.xxx_hidden_EnvironmentId = v
+}
+
+func (x *IngressKey) SetApiKey(v string) {
+	x.xxx_hidden_ApiKey = v
+}
+
+func (x *IngressKey) SetRegion(v string) {
+	x.xxx_hidden_Region = v
+}
+
+func (x *IngressKey) SetIngressUrl(v string) {
+	x.xxx_hidden_IngressUrl = v
+}
+
+type IngressKey_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	EnvironmentId string
+	ApiKey        string
+	// Region domain, e.g. eu.restate.cloud
+	Region     string
+	IngressUrl string
+}
+
+func (b0 IngressKey_builder) Build() *IngressKey {
+	m0 := &IngressKey{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.xxx_hidden_EnvironmentId = b.EnvironmentId
+	x.xxx_hidden_ApiKey = b.ApiKey
+	x.xxx_hidden_Region = b.Region
+	x.xxx_hidden_IngressUrl = b.IngressUrl
+	return m0
+}
+
+type ParseIngressKeyReturn struct {
+	state             protoimpl.MessageState         `protogen:"opaque.v1"`
+	xxx_hidden_Result isParseIngressKeyReturn_Result `protobuf_oneof:"result"`
+	unknownFields     protoimpl.UnknownFields
+	sizeCache         protoimpl.SizeCache
+}
+
+func (x *ParseIngressKeyReturn) Reset() {
+	*x = ParseIngressKeyReturn{}
+	mi := &file_internal_proto_msgTypes[41]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ParseIngressKeyReturn) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ParseIngressKeyReturn) ProtoMessage() {}
+
+func (x *ParseIngressKeyReturn) ProtoReflect() protoreflect.Message {
+	mi := &file_internal_proto_msgTypes[41]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+func (x *ParseIngressKeyReturn) GetOk() *IngressKey {
+	if x != nil {
+		if x, ok := x.xxx_hidden_Result.(*parseIngressKeyReturn_Ok); ok {
+			return x.Ok
+		}
+	}
+	return nil
+}
+
+func (x *ParseIngressKeyReturn) GetFailure() string {
+	if x != nil {
+		if x, ok := x.xxx_hidden_Result.(*parseIngressKeyReturn_Failure); ok {
+			return x.Failure
+		}
+	}
+	return ""
+}
+
+func (x *ParseIngressKeyReturn) SetOk(v *IngressKey) {
+	if v == nil {
+		x.xxx_hidden_Result = nil
+		return
+	}
+	x.xxx_hidden_Result = &parseIngressKeyReturn_Ok{v}
+}
+
+func (x *ParseIngressKeyReturn) SetFailure(v string) {
+	x.xxx_hidden_Result = &parseIngressKeyReturn_Failure{v}
+}
+
+func (x *ParseIngressKeyReturn) HasResult() bool {
+	if x == nil {
+		return false
+	}
+	return x.xxx_hidden_Result != nil
+}
+
+func (x *ParseIngressKeyReturn) HasOk() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.xxx_hidden_Result.(*parseIngressKeyReturn_Ok)
+	return ok
+}
+
+func (x *ParseIngressKeyReturn) HasFailure() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.xxx_hidden_Result.(*parseIngressKeyReturn_Failure)
+	return ok
+}
+
+func (x *ParseIngressKeyReturn) ClearResult() {
+	x.xxx_hidden_Result = nil
+}
+
+func (x *ParseIngressKeyReturn) ClearOk() {
+	if _, ok := x.xxx_hidden_Result.(*parseIngressKeyReturn_Ok); ok {
+		x.xxx_hidden_Result = nil
+	}
+}
+
+func (x *ParseIngressKeyReturn) ClearFailure() {
+	if _, ok := x.xxx_hidden_Result.(*parseIngressKeyReturn_Failure); ok {
+		x.xxx_hidden_Result = nil
+	}
+}
+
+const ParseIngressKeyReturn_Result_not_set_case case_ParseIngressKeyReturn_Result = 0
+const ParseIngressKeyReturn_Ok_case case_ParseIngressKeyReturn_Result = 1
+const ParseIngressKeyReturn_Failure_case case_ParseIngressKeyReturn_Result = 2
+
+func (x *ParseIngressKeyReturn) WhichResult() case_ParseIngressKeyReturn_Result {
+	if x == nil {
+		return ParseIngressKeyReturn_Result_not_set_case
+	}
+	switch x.xxx_hidden_Result.(type) {
+	case *parseIngressKeyReturn_Ok:
+		return ParseIngressKeyReturn_Ok_case
+	case *parseIngressKeyReturn_Failure:
+		return ParseIngressKeyReturn_Failure_case
+	default:
+		return ParseIngressKeyReturn_Result_not_set_case
+	}
+}
+
+type ParseIngressKeyReturn_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Fields of oneof xxx_hidden_Result:
+	Ok      *IngressKey
+	Failure *string
+	// -- end of xxx_hidden_Result
+}
+
+func (b0 ParseIngressKeyReturn_builder) Build() *ParseIngressKeyReturn {
+	m0 := &ParseIngressKeyReturn{}
+	b, x := &b0, m0
+	_, _ = b, x
+	if b.Ok != nil {
+		x.xxx_hidden_Result = &parseIngressKeyReturn_Ok{b.Ok}
+	}
+	if b.Failure != nil {
+		x.xxx_hidden_Result = &parseIngressKeyReturn_Failure{*b.Failure}
+	}
+	return m0
+}
+
+type case_ParseIngressKeyReturn_Result protoreflect.FieldNumber
+
+func (x case_ParseIngressKeyReturn_Result) String() string {
+	md := file_internal_proto_msgTypes[41].Descriptor()
+	if x == 0 {
+		return "not set"
+	}
+	return protoimpl.X.MessageFieldStringOf(md, protoreflect.FieldNumber(x))
+}
+
+type isParseIngressKeyReturn_Result interface {
+	isParseIngressKeyReturn_Result()
+}
+
+type parseIngressKeyReturn_Ok struct {
+	Ok *IngressKey `protobuf:"bytes,1,opt,name=ok,proto3,oneof"`
+}
+
+type parseIngressKeyReturn_Failure struct {
+	Failure string `protobuf:"bytes,2,opt,name=failure,proto3,oneof"`
+}
+
+func (*parseIngressKeyReturn_Ok) isParseIngressKeyReturn_Result() {}
+
+func (*parseIngressKeyReturn_Failure) isParseIngressKeyReturn_Result() {}
+
 type Value_StateKeys struct {
 	state           protoimpl.MessageState `protogen:"opaque.v1"`
 	xxx_hidden_Keys []string               `protobuf:"bytes,1,rep,name=keys,proto3"`
@@ -5153,7 +5765,7 @@ type Value_StateKeys struct {
 
 func (x *Value_StateKeys) Reset() {
 	*x = Value_StateKeys{}
-	mi := &file_internal_proto_msgTypes[37]
+	mi := &file_internal_proto_msgTypes[42]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5165,7 +5777,7 @@ func (x *Value_StateKeys) String() string {
 func (*Value_StateKeys) ProtoMessage() {}
 
 func (x *Value_StateKeys) ProtoReflect() protoreflect.Message {
-	mi := &file_internal_proto_msgTypes[37]
+	mi := &file_internal_proto_msgTypes[42]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5220,7 +5832,7 @@ type VmSysInputReturn_Input struct {
 
 func (x *VmSysInputReturn_Input) Reset() {
 	*x = VmSysInputReturn_Input{}
-	mi := &file_internal_proto_msgTypes[38]
+	mi := &file_internal_proto_msgTypes[43]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5232,7 +5844,7 @@ func (x *VmSysInputReturn_Input) String() string {
 func (*VmSysInputReturn_Input) ProtoMessage() {}
 
 func (x *VmSysInputReturn_Input) ProtoReflect() protoreflect.Message {
-	mi := &file_internal_proto_msgTypes[38]
+	mi := &file_internal_proto_msgTypes[43]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5444,7 +6056,7 @@ type VmSysAwakeableReturn_Awakeable struct {
 
 func (x *VmSysAwakeableReturn_Awakeable) Reset() {
 	*x = VmSysAwakeableReturn_Awakeable{}
-	mi := &file_internal_proto_msgTypes[39]
+	mi := &file_internal_proto_msgTypes[44]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5456,7 +6068,7 @@ func (x *VmSysAwakeableReturn_Awakeable) String() string {
 func (*VmSysAwakeableReturn_Awakeable) ProtoMessage() {}
 
 func (x *VmSysAwakeableReturn_Awakeable) ProtoReflect() protoreflect.Message {
-	mi := &file_internal_proto_msgTypes[39]
+	mi := &file_internal_proto_msgTypes[44]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5515,7 +6127,7 @@ type VmSysCallReturn_CallHandles struct {
 
 func (x *VmSysCallReturn_CallHandles) Reset() {
 	*x = VmSysCallReturn_CallHandles{}
-	mi := &file_internal_proto_msgTypes[40]
+	mi := &file_internal_proto_msgTypes[45]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5527,7 +6139,7 @@ func (x *VmSysCallReturn_CallHandles) String() string {
 func (*VmSysCallReturn_CallHandles) ProtoMessage() {}
 
 func (x *VmSysCallReturn_CallHandles) ProtoReflect() protoreflect.Message {
-	mi := &file_internal_proto_msgTypes[40]
+	mi := &file_internal_proto_msgTypes[45]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5586,7 +6198,7 @@ type VmSysRunReturn_Run struct {
 
 func (x *VmSysRunReturn_Run) Reset() {
 	*x = VmSysRunReturn_Run{}
-	mi := &file_internal_proto_msgTypes[41]
+	mi := &file_internal_proto_msgTypes[46]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5598,7 +6210,7 @@ func (x *VmSysRunReturn_Run) String() string {
 func (*VmSysRunReturn_Run) ProtoMessage() {}
 
 func (x *VmSysRunReturn_Run) ProtoReflect() protoreflect.Message {
-	mi := &file_internal_proto_msgTypes[41]
+	mi := &file_internal_proto_msgTypes[46]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5662,7 +6274,7 @@ type VmProposeRunCompletionParameters_RetryPolicy struct {
 
 func (x *VmProposeRunCompletionParameters_RetryPolicy) Reset() {
 	*x = VmProposeRunCompletionParameters_RetryPolicy{}
-	mi := &file_internal_proto_msgTypes[42]
+	mi := &file_internal_proto_msgTypes[47]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5674,7 +6286,7 @@ func (x *VmProposeRunCompletionParameters_RetryPolicy) String() string {
 func (*VmProposeRunCompletionParameters_RetryPolicy) ProtoMessage() {}
 
 func (x *VmProposeRunCompletionParameters_RetryPolicy) ProtoReflect() protoreflect.Message {
-	mi := &file_internal_proto_msgTypes[42]
+	mi := &file_internal_proto_msgTypes[47]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6187,15 +6799,48 @@ var file_internal_proto_rawDesc = string([]byte{
 	0x2d, 0x0a, 0x07, 0x66, 0x61, 0x69, 0x6c, 0x75, 0x72, 0x65, 0x18, 0x02, 0x20, 0x01, 0x28, 0x0b,
 	0x32, 0x11, 0x2e, 0x52, 0x65, 0x74, 0x72, 0x79, 0x61, 0x62, 0x6c, 0x65, 0x46, 0x61, 0x69, 0x6c,
 	0x75, 0x72, 0x65, 0x48, 0x00, 0x52, 0x07, 0x66, 0x61, 0x69, 0x6c, 0x75, 0x72, 0x65, 0x42, 0x08,
-	0x0a, 0x06, 0x72, 0x65, 0x73, 0x75, 0x6c, 0x74, 0x42, 0x42, 0x42, 0x0d, 0x49, 0x6e, 0x74, 0x65,
-	0x72, 0x6e, 0x61, 0x6c, 0x50, 0x72, 0x6f, 0x74, 0x6f, 0x50, 0x01, 0x5a, 0x2f, 0x67, 0x69, 0x74,
-	0x68, 0x75, 0x62, 0x2e, 0x63, 0x6f, 0x6d, 0x2f, 0x72, 0x65, 0x73, 0x74, 0x61, 0x74, 0x65, 0x64,
-	0x65, 0x76, 0x2f, 0x73, 0x64, 0x6b, 0x2d, 0x67, 0x6f, 0x2f, 0x69, 0x6e, 0x74, 0x65, 0x72, 0x6e,
-	0x61, 0x6c, 0x2f, 0x67, 0x65, 0x6e, 0x65, 0x72, 0x61, 0x74, 0x65, 0x64, 0x62, 0x06, 0x70, 0x72,
-	0x6f, 0x74, 0x6f, 0x33,
+	0x0a, 0x06, 0x72, 0x65, 0x73, 0x75, 0x6c, 0x74, 0x22, 0x26, 0x0a, 0x12, 0x43, 0x6c, 0x6f, 0x75,
+	0x64, 0x4b, 0x65, 0x79, 0x50, 0x61, 0x72, 0x61, 0x6d, 0x65, 0x74, 0x65, 0x72, 0x73, 0x12, 0x10,
+	0x0a, 0x03, 0x6b, 0x65, 0x79, 0x18, 0x01, 0x20, 0x01, 0x28, 0x09, 0x52, 0x03, 0x6b, 0x65, 0x79,
+	0x22, 0xa3, 0x01, 0x0a, 0x0a, 0x43, 0x6f, 0x6e, 0x6e, 0x65, 0x63, 0x74, 0x4b, 0x65, 0x79, 0x12,
+	0x25, 0x0a, 0x0e, 0x65, 0x6e, 0x76, 0x69, 0x72, 0x6f, 0x6e, 0x6d, 0x65, 0x6e, 0x74, 0x5f, 0x69,
+	0x64, 0x18, 0x01, 0x20, 0x01, 0x28, 0x09, 0x52, 0x0d, 0x65, 0x6e, 0x76, 0x69, 0x72, 0x6f, 0x6e,
+	0x6d, 0x65, 0x6e, 0x74, 0x49, 0x64, 0x12, 0x1c, 0x0a, 0x07, 0x61, 0x70, 0x69, 0x5f, 0x6b, 0x65,
+	0x79, 0x18, 0x02, 0x20, 0x01, 0x28, 0x09, 0x48, 0x00, 0x52, 0x06, 0x61, 0x70, 0x69, 0x4b, 0x65,
+	0x79, 0x88, 0x01, 0x01, 0x12, 0x16, 0x0a, 0x06, 0x72, 0x65, 0x67, 0x69, 0x6f, 0x6e, 0x18, 0x03,
+	0x20, 0x01, 0x28, 0x09, 0x52, 0x06, 0x72, 0x65, 0x67, 0x69, 0x6f, 0x6e, 0x12, 0x2c, 0x0a, 0x12,
+	0x73, 0x69, 0x67, 0x6e, 0x69, 0x6e, 0x67, 0x5f, 0x70, 0x75, 0x62, 0x6c, 0x69, 0x63, 0x5f, 0x6b,
+	0x65, 0x79, 0x18, 0x04, 0x20, 0x01, 0x28, 0x09, 0x52, 0x10, 0x73, 0x69, 0x67, 0x6e, 0x69, 0x6e,
+	0x67, 0x50, 0x75, 0x62, 0x6c, 0x69, 0x63, 0x4b, 0x65, 0x79, 0x42, 0x0a, 0x0a, 0x08, 0x5f, 0x61,
+	0x70, 0x69, 0x5f, 0x6b, 0x65, 0x79, 0x22, 0x5c, 0x0a, 0x15, 0x50, 0x61, 0x72, 0x73, 0x65, 0x43,
+	0x6f, 0x6e, 0x6e, 0x65, 0x63, 0x74, 0x4b, 0x65, 0x79, 0x52, 0x65, 0x74, 0x75, 0x72, 0x6e, 0x12,
+	0x1d, 0x0a, 0x02, 0x6f, 0x6b, 0x18, 0x01, 0x20, 0x01, 0x28, 0x0b, 0x32, 0x0b, 0x2e, 0x43, 0x6f,
+	0x6e, 0x6e, 0x65, 0x63, 0x74, 0x4b, 0x65, 0x79, 0x48, 0x00, 0x52, 0x02, 0x6f, 0x6b, 0x12, 0x1a,
+	0x0a, 0x07, 0x66, 0x61, 0x69, 0x6c, 0x75, 0x72, 0x65, 0x18, 0x02, 0x20, 0x01, 0x28, 0x09, 0x48,
+	0x00, 0x52, 0x07, 0x66, 0x61, 0x69, 0x6c, 0x75, 0x72, 0x65, 0x42, 0x08, 0x0a, 0x06, 0x72, 0x65,
+	0x73, 0x75, 0x6c, 0x74, 0x22, 0x85, 0x01, 0x0a, 0x0a, 0x49, 0x6e, 0x67, 0x72, 0x65, 0x73, 0x73,
+	0x4b, 0x65, 0x79, 0x12, 0x25, 0x0a, 0x0e, 0x65, 0x6e, 0x76, 0x69, 0x72, 0x6f, 0x6e, 0x6d, 0x65,
+	0x6e, 0x74, 0x5f, 0x69, 0x64, 0x18, 0x01, 0x20, 0x01, 0x28, 0x09, 0x52, 0x0d, 0x65, 0x6e, 0x76,
+	0x69, 0x72, 0x6f, 0x6e, 0x6d, 0x65, 0x6e, 0x74, 0x49, 0x64, 0x12, 0x17, 0x0a, 0x07, 0x61, 0x70,
+	0x69, 0x5f, 0x6b, 0x65, 0x79, 0x18, 0x02, 0x20, 0x01, 0x28, 0x09, 0x52, 0x06, 0x61, 0x70, 0x69,
+	0x4b, 0x65, 0x79, 0x12, 0x16, 0x0a, 0x06, 0x72, 0x65, 0x67, 0x69, 0x6f, 0x6e, 0x18, 0x03, 0x20,
+	0x01, 0x28, 0x09, 0x52, 0x06, 0x72, 0x65, 0x67, 0x69, 0x6f, 0x6e, 0x12, 0x1f, 0x0a, 0x0b, 0x69,
+	0x6e, 0x67, 0x72, 0x65, 0x73, 0x73, 0x5f, 0x75, 0x72, 0x6c, 0x18, 0x04, 0x20, 0x01, 0x28, 0x09,
+	0x52, 0x0a, 0x69, 0x6e, 0x67, 0x72, 0x65, 0x73, 0x73, 0x55, 0x72, 0x6c, 0x22, 0x5c, 0x0a, 0x15,
+	0x50, 0x61, 0x72, 0x73, 0x65, 0x49, 0x6e, 0x67, 0x72, 0x65, 0x73, 0x73, 0x4b, 0x65, 0x79, 0x52,
+	0x65, 0x74, 0x75, 0x72, 0x6e, 0x12, 0x1d, 0x0a, 0x02, 0x6f, 0x6b, 0x18, 0x01, 0x20, 0x01, 0x28,
+	0x0b, 0x32, 0x0b, 0x2e, 0x49, 0x6e, 0x67, 0x72, 0x65, 0x73, 0x73, 0x4b, 0x65, 0x79, 0x48, 0x00,
+	0x52, 0x02, 0x6f, 0x6b, 0x12, 0x1a, 0x0a, 0x07, 0x66, 0x61, 0x69, 0x6c, 0x75, 0x72, 0x65, 0x18,
+	0x02, 0x20, 0x01, 0x28, 0x09, 0x48, 0x00, 0x52, 0x07, 0x66, 0x61, 0x69, 0x6c, 0x75, 0x72, 0x65,
+	0x42, 0x08, 0x0a, 0x06, 0x72, 0x65, 0x73, 0x75, 0x6c, 0x74, 0x42, 0x42, 0x42, 0x0d, 0x49, 0x6e,
+	0x74, 0x65, 0x72, 0x6e, 0x61, 0x6c, 0x50, 0x72, 0x6f, 0x74, 0x6f, 0x50, 0x01, 0x5a, 0x2f, 0x67,
+	0x69, 0x74, 0x68, 0x75, 0x62, 0x2e, 0x63, 0x6f, 0x6d, 0x2f, 0x72, 0x65, 0x73, 0x74, 0x61, 0x74,
+	0x65, 0x64, 0x65, 0x76, 0x2f, 0x73, 0x64, 0x6b, 0x2d, 0x67, 0x6f, 0x2f, 0x69, 0x6e, 0x74, 0x65,
+	0x72, 0x6e, 0x61, 0x6c, 0x2f, 0x67, 0x65, 0x6e, 0x65, 0x72, 0x61, 0x74, 0x65, 0x64, 0x62, 0x06,
+	0x70, 0x72, 0x6f, 0x74, 0x6f, 0x33,
 })
 
-var file_internal_proto_msgTypes = make([]protoimpl.MessageInfo, 43)
+var file_internal_proto_msgTypes = make([]protoimpl.MessageInfo, 48)
 var file_internal_proto_goTypes = []any{
 	(*Empty)(nil),                                        // 0: Empty
 	(*Header)(nil),                                       // 1: Header
@@ -6234,12 +6879,17 @@ var file_internal_proto_goTypes = []any{
 	(*VmSysWriteOutputParameters)(nil),                   // 34: VmSysWriteOutputParameters
 	(*SimpleSysAsyncResultReturn)(nil),                   // 35: SimpleSysAsyncResultReturn
 	(*GenericEmptyReturn)(nil),                           // 36: GenericEmptyReturn
-	(*Value_StateKeys)(nil),                              // 37: Value.StateKeys
-	(*VmSysInputReturn_Input)(nil),                       // 38: VmSysInputReturn.Input
-	(*VmSysAwakeableReturn_Awakeable)(nil),               // 39: VmSysAwakeableReturn.Awakeable
-	(*VmSysCallReturn_CallHandles)(nil),                  // 40: VmSysCallReturn.CallHandles
-	(*VmSysRunReturn_Run)(nil),                           // 41: VmSysRunReturn.Run
-	(*VmProposeRunCompletionParameters_RetryPolicy)(nil), // 42: VmProposeRunCompletionParameters.RetryPolicy
+	(*CloudKeyParameters)(nil),                           // 37: CloudKeyParameters
+	(*ConnectKey)(nil),                                   // 38: ConnectKey
+	(*ParseConnectKeyReturn)(nil),                        // 39: ParseConnectKeyReturn
+	(*IngressKey)(nil),                                   // 40: IngressKey
+	(*ParseIngressKeyReturn)(nil),                        // 41: ParseIngressKeyReturn
+	(*Value_StateKeys)(nil),                              // 42: Value.StateKeys
+	(*VmSysInputReturn_Input)(nil),                       // 43: VmSysInputReturn.Input
+	(*VmSysAwakeableReturn_Awakeable)(nil),               // 44: VmSysAwakeableReturn.Awakeable
+	(*VmSysCallReturn_CallHandles)(nil),                  // 45: VmSysCallReturn.CallHandles
+	(*VmSysRunReturn_Run)(nil),                           // 46: VmSysRunReturn.Run
+	(*VmProposeRunCompletionParameters_RetryPolicy)(nil), // 47: VmProposeRunCompletionParameters.RetryPolicy
 }
 var file_internal_proto_depIdxs = []int32{
 	1,  // 0: TerminalFailure.metadata:type_name -> Header
@@ -6254,37 +6904,39 @@ var file_internal_proto_depIdxs = []int32{
 	3,  // 9: VmDoProgressReturn.failure:type_name -> RetryableFailure
 	0,  // 10: Value.void:type_name -> Empty
 	2,  // 11: Value.failure:type_name -> TerminalFailure
-	37, // 12: Value.state_keys:type_name -> Value.StateKeys
+	42, // 12: Value.state_keys:type_name -> Value.StateKeys
 	0,  // 13: VmTakeNotificationReturn.not_ready:type_name -> Empty
 	12, // 14: VmTakeNotificationReturn.value:type_name -> Value
 	0,  // 15: VmTakeNotificationReturn.suspended:type_name -> Empty
 	3,  // 16: VmTakeNotificationReturn.failure:type_name -> RetryableFailure
-	38, // 17: VmSysInputReturn.ok:type_name -> VmSysInputReturn.Input
+	43, // 17: VmSysInputReturn.ok:type_name -> VmSysInputReturn.Input
 	3,  // 18: VmSysInputReturn.failure:type_name -> RetryableFailure
-	39, // 19: VmSysAwakeableReturn.ok:type_name -> VmSysAwakeableReturn.Awakeable
+	44, // 19: VmSysAwakeableReturn.ok:type_name -> VmSysAwakeableReturn.Awakeable
 	3,  // 20: VmSysAwakeableReturn.failure:type_name -> RetryableFailure
 	2,  // 21: VmSysCompleteAwakeableParameters.failure:type_name -> TerminalFailure
 	2,  // 22: VmSysCompleteSignalParameters.failure:type_name -> TerminalFailure
 	1,  // 23: VmSysCallParameters.headers:type_name -> Header
-	40, // 24: VmSysCallReturn.ok:type_name -> VmSysCallReturn.CallHandles
+	45, // 24: VmSysCallReturn.ok:type_name -> VmSysCallReturn.CallHandles
 	3,  // 25: VmSysCallReturn.failure:type_name -> RetryableFailure
 	1,  // 26: VmSysSendParameters.headers:type_name -> Header
 	2,  // 27: VmSysPromiseCompleteParameters.failure:type_name -> TerminalFailure
-	41, // 28: VmSysRunReturn.ok:type_name -> VmSysRunReturn.Run
+	46, // 28: VmSysRunReturn.ok:type_name -> VmSysRunReturn.Run
 	3,  // 29: VmSysRunReturn.failure:type_name -> RetryableFailure
 	2,  // 30: VmProposeRunCompletionParameters.terminal_failure:type_name -> TerminalFailure
 	4,  // 31: VmProposeRunCompletionParameters.retryable_failure:type_name -> FailureWithStacktrace
-	42, // 32: VmProposeRunCompletionParameters.retry_policy:type_name -> VmProposeRunCompletionParameters.RetryPolicy
+	47, // 32: VmProposeRunCompletionParameters.retry_policy:type_name -> VmProposeRunCompletionParameters.RetryPolicy
 	2,  // 33: VmSysWriteOutputParameters.failure:type_name -> TerminalFailure
 	3,  // 34: SimpleSysAsyncResultReturn.failure:type_name -> RetryableFailure
 	0,  // 35: GenericEmptyReturn.ok:type_name -> Empty
 	3,  // 36: GenericEmptyReturn.failure:type_name -> RetryableFailure
-	1,  // 37: VmSysInputReturn.Input.headers:type_name -> Header
-	38, // [38:38] is the sub-list for method output_type
-	38, // [38:38] is the sub-list for method input_type
-	38, // [38:38] is the sub-list for extension type_name
-	38, // [38:38] is the sub-list for extension extendee
-	0,  // [0:38] is the sub-list for field type_name
+	38, // 37: ParseConnectKeyReturn.ok:type_name -> ConnectKey
+	40, // 38: ParseIngressKeyReturn.ok:type_name -> IngressKey
+	1,  // 39: VmSysInputReturn.Input.headers:type_name -> Header
+	40, // [40:40] is the sub-list for method output_type
+	40, // [40:40] is the sub-list for method input_type
+	40, // [40:40] is the sub-list for extension type_name
+	40, // [40:40] is the sub-list for extension extendee
+	0,  // [0:40] is the sub-list for field type_name
 }
 
 func init() { file_internal_proto_init() }
@@ -6369,14 +7021,23 @@ func file_internal_proto_init() {
 		(*genericEmptyReturn_Failure)(nil),
 	}
 	file_internal_proto_msgTypes[38].OneofWrappers = []any{}
-	file_internal_proto_msgTypes[42].OneofWrappers = []any{}
+	file_internal_proto_msgTypes[39].OneofWrappers = []any{
+		(*parseConnectKeyReturn_Ok)(nil),
+		(*parseConnectKeyReturn_Failure)(nil),
+	}
+	file_internal_proto_msgTypes[41].OneofWrappers = []any{
+		(*parseIngressKeyReturn_Ok)(nil),
+		(*parseIngressKeyReturn_Failure)(nil),
+	}
+	file_internal_proto_msgTypes[43].OneofWrappers = []any{}
+	file_internal_proto_msgTypes[47].OneofWrappers = []any{}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_internal_proto_rawDesc), len(file_internal_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   43,
+			NumMessages:   48,
 			NumExtensions: 0,
 			NumServices:   0,
 		},

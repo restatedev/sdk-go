@@ -6,7 +6,7 @@ import (
 	"github.com/restatedev/sdk-go/internal/options"
 )
 
-// ClientOption configures an ingress [Client]; pass it to [NewClient].
+// ClientOption configures an ingress [Client]; pass it to [NewClient] or [NewCloudClient].
 type ClientOption = options.IngressClientOption
 
 // RequestOption is an option for a request made through the ingress.
