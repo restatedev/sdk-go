@@ -216,6 +216,7 @@ type HandlerOptions struct {
 	IdempotencyRetention  *time.Duration
 	InactivityTimeout     *time.Duration
 	IngressPrivate        *bool
+	Preemptable           *bool
 	JournalRetention      *time.Duration
 	WorkflowRetention     *time.Duration
 	InvocationRetryPolicy *InvocationRetryPolicy
@@ -235,6 +236,7 @@ type ServiceDefinitionOptions struct {
 	WorkflowRetention     *time.Duration
 	InactivityTimeout     *time.Duration
 	IngressPrivate        *bool
+	Preemptable           *bool
 	JournalRetention      *time.Duration
 	InvocationRetryPolicy *InvocationRetryPolicy
 }

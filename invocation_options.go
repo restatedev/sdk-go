@@ -180,6 +180,38 @@ func WithIngressPrivate(ingressPrivate bool) withIngressPrivate {
 	return withIngressPrivate{ingressPrivate}
 }
 
+type withPreemptable struct {
+	preemptable bool
+}
+
+var _ options.ServiceDefinitionOption = withPreemptable{}
+var _ options.HandlerOption = withPreemptable{}
+
+func (w withPreemptable) BeforeServiceDefinition(opts *options.ServiceDefinitionOptions) {
+	opts.Preemptable = &w.preemptable
+}
+
+func (w withPreemptable) BeforeHandler(opts *options.HandlerOptions) {
+	opts.Preemptable = &w.preemptable
+}
+
+// WithPreemptable sets whether Restate may preempt invocations of the service/handler.
+//
+// When the restate-server runs out of concurrency capacity, it can eagerly suspend an
+// invocation that is blocked on an await point (for example waiting on a call, a timer or an
+// awakeable) to free up its slot for other invocations, instead of waiting for the inactivity
+// timeout to expire. Set this to false to opt out of eager suspension: invocations of this
+// service/handler then only suspend when the inactivity timeout fires, as before.
+//
+// Defaults to true. A value set on a handler overrides the value set on its service.
+//
+// NOTE: This option requires a restate-server supporting service discovery protocol V6.
+// When registering against an older restate-server, the option is not sent and discovery
+// still succeeds; older servers never eagerly suspend invocations.
+func WithPreemptable(preemptable bool) withPreemptable {
+	return withPreemptable{preemptable}
+}
+
 type withJournalRetention struct {
 	journalRetention time.Duration
 }

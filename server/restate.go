@@ -44,8 +44,9 @@ const (
 	ServiceDiscoveryProtocolVersion_V2      ServiceDiscoveryProtocolVersion = 2
 	ServiceDiscoveryProtocolVersion_V3      ServiceDiscoveryProtocolVersion = 3
 	ServiceDiscoveryProtocolVersion_V4      ServiceDiscoveryProtocolVersion = 4
+	ServiceDiscoveryProtocolVersion_V6      ServiceDiscoveryProtocolVersion = 6
 	minServiceDiscoveryProtocolVersion                                      = ServiceDiscoveryProtocolVersion_V2
-	maxServiceDiscoveryProtocolVersion                                      = ServiceDiscoveryProtocolVersion_V4
+	maxServiceDiscoveryProtocolVersion                                      = ServiceDiscoveryProtocolVersion_V6
 	minServiceProtocolVersion                                               = 5
 	maxServiceProtocolVersion                                               = 7
 )
@@ -151,6 +152,7 @@ func (r *Restate) discover(protocolVersion ServiceDiscoveryProtocolVersion) (res
 		var idempotencyRetention *int
 		var inactivityTimeout *int
 		var ingressPrivate *bool
+		var preemptable *bool
 		var journalRetention *int
 		var retryPolicyInitialInterval, retryPolicyMaxInterval, retryPolicyMaxAttempts *int
 		var retryPolicyFactor *float64
@@ -201,6 +203,11 @@ func (r *Restate) discover(protocolVersion ServiceDiscoveryProtocolVersion) (res
 				inactivityTimeout = &inactivityTimeoutMs
 			}
 			ingressPrivate = definition.GetOptions().IngressPrivate
+			// Preemptable requires discovery protocol V6. Older runtimes never preempt invocations,
+			// so dropping the option is safe and discovery must not fail.
+			if protocolVersion >= ServiceDiscoveryProtocolVersion_V6 {
+				preemptable = definition.GetOptions().Preemptable
+			}
 			if definition.GetOptions().JournalRetention != nil {
 				journalRetentionMs := int(definition.GetOptions().JournalRetention.Milliseconds())
 				journalRetention = &journalRetentionMs
@@ -240,6 +247,7 @@ func (r *Restate) discover(protocolVersion ServiceDiscoveryProtocolVersion) (res
 			IdempotencyRetention:            idempotencyRetention,
 			InactivityTimeout:               inactivityTimeout,
 			IngressPrivate:                  ingressPrivate,
+			Preemptable:                     preemptable,
 			RetryPolicyInitialInterval:      retryPolicyInitialInterval,
 			RetryPolicyMaxInterval:          retryPolicyMaxInterval,
 			RetryPolicyMaxAttempts:          retryPolicyMaxAttempts,
@@ -256,6 +264,7 @@ func (r *Restate) discover(protocolVersion ServiceDiscoveryProtocolVersion) (res
 			var idempotencyRetention *int
 			var inactivityTimeout *int
 			var ingressPrivate *bool
+			var preemptable *bool
 			var journalRetention *int
 			var workflowCompletionRetention *int
 			var handlerRetryPolicyInitialInterval, handlerRetryPolicyMaxInterval, handlerRetryPolicyMaxAttempts *int
@@ -310,6 +319,11 @@ func (r *Restate) discover(protocolVersion ServiceDiscoveryProtocolVersion) (res
 					inactivityTimeout = &inactivityTimeoutMs
 				}
 				ingressPrivate = handler.GetOptions().IngressPrivate
+				// Preemptable requires discovery protocol V6. Older runtimes never preempt invocations,
+				// so dropping the option is safe and discovery must not fail.
+				if protocolVersion >= ServiceDiscoveryProtocolVersion_V6 {
+					preemptable = handler.GetOptions().Preemptable
+				}
 				if handler.GetOptions().JournalRetention != nil {
 					journalRetentionMs := int(handler.GetOptions().JournalRetention.Milliseconds())
 					journalRetention = &journalRetentionMs
@@ -359,6 +373,7 @@ func (r *Restate) discover(protocolVersion ServiceDiscoveryProtocolVersion) (res
 				IdempotencyRetention:            idempotencyRetention,
 				InactivityTimeout:               inactivityTimeout,
 				IngressPrivate:                  ingressPrivate,
+				Preemptable:                     preemptable,
 				RetryPolicyInitialInterval:      handlerRetryPolicyInitialInterval,
 				RetryPolicyMaxInterval:          handlerRetryPolicyMaxInterval,
 				RetryPolicyMaxAttempts:          handlerRetryPolicyMaxAttempts,
@@ -453,6 +468,10 @@ func parseServiceDiscoveryProtocolVersion(versionString string) ServiceDiscovery
 	if strings.TrimSpace(versionString) == "application/vnd.restate.endpointmanifest.v4+json" {
 		return ServiceDiscoveryProtocolVersion_V4
 	}
+	// V5 is intentionally not negotiated: V6 is a superset of it.
+	if strings.TrimSpace(versionString) == "application/vnd.restate.endpointmanifest.v6+json" {
+		return ServiceDiscoveryProtocolVersion_V6
+	}
 
 	return ServiceDiscoveryProtocolVersion_UNKNOWN
 }
@@ -471,6 +490,8 @@ func serviceDiscoveryProtocolVersionToHeaderValue(serviceDiscoveryProtocolVersio
 		return "application/vnd.restate.endpointmanifest.v3+json"
 	case ServiceDiscoveryProtocolVersion_V4:
 		return "application/vnd.restate.endpointmanifest.v4+json"
+	case ServiceDiscoveryProtocolVersion_V6:
+		return "application/vnd.restate.endpointmanifest.v6+json"
 	}
 	panic(fmt.Sprintf("unexpected service discovery protocol version %d", serviceDiscoveryProtocolVersion))
 }
