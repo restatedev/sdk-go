@@ -94,6 +94,8 @@ Compatibility with Restate Server:
 
 <sup>(2)</sup> `WithInvocationRetryPolicy` requires Restate Server >= 1.5. Check the in-code documentation for more details.
 
+`WithPreemptable` requires a Restate Server supporting service discovery protocol V6. Older servers never eagerly suspend invocations, so on those the option is not sent and has no effect. Check the in-code documentation for more details.
+
 Older `0.x` SDK releases are legacy and deprecated; see the [Restate 1.5 release notes](https://github.com/restatedev/restate/releases/tag/v1.5.0) for their compatibility and deprecation details.
 
 ## Contributing

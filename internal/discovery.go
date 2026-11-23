@@ -46,6 +46,13 @@ type Handler struct {
 	// If true, the service cannot be invoked from the HTTP nor Kafka ingress.
 	IngressPrivate *bool `json:"ingressPrivate,omitempty" yaml:"ingressPrivate,omitempty" mapstructure:"ingressPrivate,omitempty"`
 
+	// If false, the runtime never preempts invocations of this handler, i.e. it doesn't
+	// eagerly suspend them while they are waiting on an await point to free up
+	// concurrency capacity for other invocations. Invocations still suspend when the
+	// inactivity timeout fires. If unset, the service-level setting applies. Available
+	// since discovery protocol V6.
+	Preemptable *bool `json:"preemptable,omitempty" yaml:"preemptable,omitempty" mapstructure:"preemptable,omitempty"`
+
 	// Retry policy fields (protocol v4+)
 	RetryPolicyInitialInterval      *int     `json:"retryPolicyInitialInterval,omitempty" yaml:"retryPolicyInitialInterval,omitempty" mapstructure:"retryPolicyInitialInterval,omitempty"`
 	RetryPolicyMaxInterval          *int     `json:"retryPolicyMaxInterval,omitempty" yaml:"retryPolicyMaxInterval,omitempty" mapstructure:"retryPolicyMaxInterval,omitempty"`
@@ -103,6 +110,12 @@ type Service struct {
 
 	// If true, the service cannot be invoked from the HTTP nor Kafka ingress.
 	IngressPrivate *bool `json:"ingressPrivate,omitempty" yaml:"ingressPrivate,omitempty" mapstructure:"ingressPrivate,omitempty"`
+
+	// If false, the runtime never preempts invocations of this service, i.e. it doesn't
+	// eagerly suspend them while they are waiting on an await point to free up
+	// concurrency capacity for other invocations. Invocations still suspend when the
+	// inactivity timeout fires. Defaults to true. Available since discovery protocol V6.
+	Preemptable *bool `json:"preemptable,omitempty" yaml:"preemptable,omitempty" mapstructure:"preemptable,omitempty"`
 
 	// Retry policy fields (protocol v4+)
 	RetryPolicyInitialInterval      *int     `json:"retryPolicyInitialInterval,omitempty" yaml:"retryPolicyInitialInterval,omitempty" mapstructure:"retryPolicyInitialInterval,omitempty"`
